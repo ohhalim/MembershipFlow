@@ -47,3 +47,4 @@
 - `02-PRD.md` — 제품 요구사항 (MVP 범위)
 - `03-ARCHITECTURE.md` — 기술 스택, CoinFlow 재사용 맵, ERD
 - `04-ROADMAP.md` — 로드맵 + 다음 액션 + 수집 소스 후보
+- `05-DOMAIN-AND-BIZMODEL.md` — 도메인 심화(거래방식·빈도), 경쟁력, 비즈니스 모델, 냉정한 평가, 크롤링 입장
