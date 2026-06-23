@@ -30,8 +30,8 @@
 | 사용자 식별 | JWT access token에서 현재 memberId 추출 |
 | 관심 종목 | watchlist 테이블, 회원별 찜 + 목표가 설정 |
 | 실시간 알림 | WebSocket(STOMP), 수집 완료 후 목표가 트리거 체크 |
-| 구독 결제 | 토스페이먼츠 빌링 API, 빌링 키 발급 + 자동 갱신 |
-| 기능 게이팅 | 비구독/구독 기능 분리 (차트 기간, 알림, 찜 개수) |
+| 구독 결제 | 토스페이먼츠 빌링 API — **Phase 5** (MVP 제외) |
+| 기능 게이팅 | 구독 등급별 분리 — **Phase 5** (MVP 제외) |
 
 ---
 
@@ -50,21 +50,17 @@
 - 동부회원권 Jsoup 크롤러 (수집 소스 1개 MVP)
 - 시세 자동 수집 배치 (@Scheduled 매시)
 - 알림 발송 이력 기록 (중복 발송 방지)
-- 토스페이먼츠 빌링 키 발급 + 구독 시작/취소
-- 구독 자동 갱신 (@Scheduled 매일 자정)
-- 결제 이력 저장
-- 구독 등급별 기능 게이팅 (비구독 / 구독)
-
-### 제외
+### 제외 (PRD 기준)
 
 - 비밀번호 로그인 / 회원가입 폼
 - Refresh token / HttpOnly 쿠키
-- Playwright 동적 크롤러 (Phase 2, 현재 수집 대상 사이트는 모두 Jsoup으로 처리 가능)
-- 수집 소스 10개+ (설계는 N개 가능, 구현은 1개)
-- 종목 이름 정규화·중복 제거 (Phase 2)
+- Playwright 동적 크롤러 (현재 수집 대상 사이트는 모두 Jsoup으로 처리 가능)
+- 수집 소스 10개+ (설계는 N개 가능, 구현은 2개)
+- 종목 이름 정규화·중복 제거
 - 거래소 아웃링크 수수료
 - 관리자 페이지
 - Spring Batch (현재 @Scheduled, 추후 전환)
+- **토스페이먼츠 빌링 / 구독 / 기능 게이팅 → Phase 5로 분리**
 - Kafka / Redis / 서버 분리
 - 구독 환불 (취소 시 잔여 기간 사용 허용, 환불 없음)
 
@@ -525,9 +521,9 @@ CANCELLED 회원이 재구독하면 INSERT 시 unique 충돌 → MVP에서는 **
 - Flyway V3 (membership_type, crawl_type 컬럼 추가)
 - `CrawlSource` 엔티티 + Repository
 - `CollectRun` 엔티티 + Repository
-- `PriceCollector` 인터페이스 + `CollectedPrice` record (price, bidPrice 포함)
+- `PriceCollector` 인터페이스 + `CollectedPrice` record (price, holes 포함 — bid_price 없음)
 - `CollectorRegistry` (Spring DI List 주입)
-- `DongbuCollector` (HttpClient AJAX POST → JSON 파싱, ASK+BID, 만원×10000)
+- `DongbuCollector` (Jsoup 정적 HTML 파싱, 금주시세·홀수, 만원×10000)
 - `DongaCollector` (Jsoup 정적 HTML 파싱, 단일 시세, 만원×10000, 이력 백필 포함)
 - `MembershipCourse` 엔티티 + Repository
 - `PriceHistory` 엔티티 + Repository
@@ -537,8 +533,8 @@ CANCELLED 회원이 재구독하면 INSERT 시 unique 충돌 → MVP에서는 **
 
 완료 기준:
 - 로컬 bootRun 후 수동 트리거로 수집 동작 확인
-- price_history에 동부(bidPrice 있음) + 동아(bidPrice=null) 데이터 적재
-- membership_course 자동 등록
+- price_history에 동부 + 동아 데이터 적재 (단일 price 컬럼)
+- membership_course 자동 등록 (holes 포함)
 - 가격 단위 검증: DB 값이 ×10,000 변환됐는지 확인 (예: 43800만원 → 438000000원)
 
 ---

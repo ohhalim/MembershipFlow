@@ -160,7 +160,8 @@ alert_yn = true
 AND target_price IS NOT NULL
 AND (비교 대상 가격) <= target_price          ← 하락 방향만 (구매 타이밍 알림, 상승 알림은 미지원)
 AND (최근 24시간 내 같은 watchlist_id로 발송 이력 없음)
-AND member.subscription.status = 'ACTIVE'   ← 비구독자는 알림 미발송
+-- 구독 조건 없음: Phase 1~4 MVP에서는 인증된 회원 전원 알림 발송
+-- Phase 5(구독/게이팅)에서 subscription.status = 'ACTIVE' 조건 추가 예정
 ```
 
 **비교 대상 가격 기준**: 소스가 여럿일 때 `MAX(collected_at)` 단순 조회는 어느 소스인지 비결정적이다 (§2.1 참조).  

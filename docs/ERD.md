@@ -63,15 +63,7 @@ ALTER TABLE membership_course
     -- (name, membership_type)만으로는 동일 이름 GOLF/CONDO 또는 지역 다른 동명 종목이 충돌 가능
     -- course_type 포함으로 최소 안전 보장; region까지 포함할지는 실제 수집 결과 보고 결정
 
--- ③ price_history: source_id NULL → NOT NULL, collect_run_id 추가, 인덱스
-ALTER TABLE price_history
-    MODIFY COLUMN source_id BIGINT NOT NULL,
-    ADD COLUMN collect_run_id BIGINT NULL AFTER price,  -- 어느 수집 실행에서 만들어졌는지
-    ADD INDEX idx_price_history_source_time (source_id, collected_at),
-    ADD CONSTRAINT fk_price_collect_run FOREIGN KEY (collect_run_id) REFERENCES collect_run (id);
-
--- ③-a collect_run: 수집 실행 이력 (price_history.collect_run_id 참조원)
--- ③보다 먼저 생성해야 FK가 성립한다.
+-- ③-a collect_run: 수집 실행 이력 — price_history FK 참조원이므로 반드시 먼저 생성
 CREATE TABLE collect_run (
     id             BIGINT        NOT NULL AUTO_INCREMENT,
     source_id      BIGINT        NOT NULL,
@@ -89,6 +81,14 @@ CREATE TABLE collect_run (
     CONSTRAINT fk_collect_run_source FOREIGN KEY (source_id) REFERENCES crawl_source (id),
     CONSTRAINT chk_collect_run_status CHECK (status IN ('RUNNING','SUCCESS','PARTIAL','FAIL'))
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- ③ price_history: source_id NULL → NOT NULL, collect_run_id 추가, 인덱스
+ALTER TABLE price_history
+    MODIFY COLUMN source_id BIGINT NOT NULL,
+    ADD COLUMN collect_run_id BIGINT NULL AFTER price,
+    ADD INDEX idx_price_history_source_time (source_id, collected_at),
+    ADD CONSTRAINT fk_price_collect_run FOREIGN KEY (collect_run_id) REFERENCES collect_run (id);
+
 -- ③-b course_source_mapping: 소스별 종목 고유 키 저장 (이력 API 호출 등에 활용)
 CREATE TABLE course_source_mapping (
     id         BIGINT       NOT NULL AUTO_INCREMENT,
@@ -103,7 +103,7 @@ CREATE TABLE course_source_mapping (
     CONSTRAINT fk_csm_source FOREIGN KEY (source_id) REFERENCES crawl_source (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
--- ⚠️ V3 스크립트 내 실행 순서: ③-a CREATE collect_run → ③ ALTER price_history → ③-b CREATE course_source_mapping
+-- ⚠️ V3 실행 순서 (FK 의존 순서): ③-a collect_run → ③ price_history ALTER → ③-b course_source_mapping
 
 -- ④ member: provider/provider_id NOT NULL + DEFAULT, updated_at NOT NULL
 ALTER TABLE member
