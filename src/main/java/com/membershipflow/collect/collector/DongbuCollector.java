@@ -38,13 +38,16 @@ public class DongbuCollector implements PriceCollector {
         } catch (IOException e) {
             throw new CollectException(SOURCE_NAME + " HTML 요청 실패", e);
         }
+        return parse(doc);
+    }
 
+    // 헤더: [골프장][구분][홀수][전주시세][금주시세][등락]
+    List<CollectedPrice> parse(Document doc) {
         Elements rows = doc.select(ROW_SELECTOR);
         if (rows.isEmpty()) {
             throw new CollectException(SOURCE_NAME + " 파싱 실패: 행 없음 (selector=" + ROW_SELECTOR + ")");
         }
 
-        // 헤더: [골프장][구분][홀수][전주시세][금주시세][등락]
         List<CollectedPrice> result = new ArrayList<>();
         for (Element row : rows) {
             Elements tds = row.select("td");
@@ -66,7 +69,7 @@ public class DongbuCollector implements PriceCollector {
                     membershipType, holes, price, SOURCE_NAME));
         }
 
-        log.info("[{}] 수집 완료: {}건", SOURCE_NAME, result.size());
+        log.info("[{}] 파싱 완료: {}건", SOURCE_NAME, result.size());
         return result;
     }
 
