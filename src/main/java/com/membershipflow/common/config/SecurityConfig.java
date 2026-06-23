@@ -54,8 +54,19 @@ public class SecurityConfig {
                                 "/error",
                                 "/favicon.ico",
                                 "/oauth2/authorization/**",
-                                "/login/oauth2/code/**")
+                                "/login/oauth2/code/**",
+                                // 공개 API — JWT 없어도 접근 가능 (optional principal)
+                                // 유효하지 않은 토큰은 JwtAuthenticationFilter에서 401 반환
+                                "/api/v1/courses/**",
+                                "/api/v1/subscriptions/plans",
+                                "/internal/**")
                         .permitAll()
+                        .requestMatchers(
+                                "/api/v1/watchlist/**",
+                                "/api/v1/alerts/**",
+                                "/api/v1/subscriptions/**",
+                                "/api/v1/auth/**")
+                        .authenticated()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
