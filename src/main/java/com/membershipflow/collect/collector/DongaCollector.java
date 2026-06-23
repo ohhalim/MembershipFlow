@@ -39,7 +39,11 @@ public class DongaCollector implements PriceCollector {
         } catch (IOException e) {
             throw new CollectException(SOURCE_NAME + " HTML 요청 실패", e);
         }
+        return parse(doc);
+    }
 
+    // 헤더: [회원권명][금일시세][전일시세][등락][시세추이][상담]
+    List<CollectedPrice> parse(Document doc) {
         Elements rows = doc.select(ROW_SELECTOR);
         if (rows.isEmpty()) {
             throw new CollectException(SOURCE_NAME + " 파싱 실패: 행 없음 (selector=" + ROW_SELECTOR + ")");
@@ -50,12 +54,9 @@ public class DongaCollector implements PriceCollector {
             Elements tds = row.select("td");
             if (tds.size() < 2) continue;
 
-            // 첫 번째 셀: 골프장명 (링크 텍스트)
-            Element nameCell = tds.get(0);
-            String courseName = nameCell.text().trim();
+            String courseName = tds.get(0).text().trim();
             if (courseName.isBlank()) continue;
 
-            // 두 번째 셀: 금일시세 (만원 단위)
             String priceText = tds.get(1).text().trim();
             if (priceText.isBlank() || priceText.equals("-")) continue;
 
@@ -67,7 +68,6 @@ public class DongaCollector implements PriceCollector {
                 continue;
             }
 
-            // 동아는 코스명에 회원 종류가 내포됨 (예: "가야-주중", "가야 우대")
             MembershipType membershipType = extractMembershipType(courseName);
 
             result.add(new CollectedPrice(
@@ -75,7 +75,7 @@ public class DongaCollector implements PriceCollector {
                     membershipType, null, price, SOURCE_NAME));
         }
 
-        log.info("[{}] 수집 완료: {}건", SOURCE_NAME, result.size());
+        log.info("[{}] 파싱 완료: {}건", SOURCE_NAME, result.size());
         return result;
     }
 
