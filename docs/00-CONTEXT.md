@@ -38,13 +38,33 @@
 ## 현재 상태
 
 - 레포: https://github.com/ohhalim/MembershipFlow (별도 레포, 포크 아님)
-- 첫 커밋 `cf081bc`: 스캐폴딩 + 코어 스키마(Flyway V1) 완료, main 브랜치 push됨.
-- 다음 할 일은 `04-ROADMAP.md` 참조 (수집 소스 1개 골라서 Jsoup 크롤러 작성).
+- **Phase 1 완료**: Google OAuth2 + JWT 인증, Flyway V1/V2 스키마, feat/1/google-oauth → develop PR 열림(#2).
+- 브랜치 전략: `main`(프로덕션) / `develop`(기본) / `feat/N/keyword` (기능 브랜치).
+- 다음 Phase: 수집 파이프라인 (동부회원권 정적 HTML + 동아회원권 정적 HTML, 모두 Jsoup/HttpClient, Playwright 불필요).
+- **Figma 와이어프레임**: https://www.figma.com/design/bw6AzpE8WTAFVVq60u3zKa — 6개 화면 기본 구조 완성. 아래 미완 항목 있음.
+
+## ⏳ Figma 미완 항목 (Starter 월 6회 한도 소진 — 다음달 리셋 후 작업)
+
+### 기존 화면 빈 영역 채우기
+- **1. 로그인** (`2:5`, `2:10`): 서비스 포인트 3개 (시세 차트 / 목표가 알림 / 실시간 랭킹) — ⚠️ 현재 깨진 상태(벨 이모지만 남음), 복구 후 재작업 필요
+- **3. 종목 상세** (`5:42`, 335×121): 52주 최고/최저 바 + 골프장 기본정보 (홀수·개장일)
+- **4. 랭킹** (`7:65`, 335×253): 하락률 탭 리스트 (상승률과 대칭)
+- **5. 관심 종목** (`9:48`, 335×112): "관심 종목 추가" CTA 버튼
+
+### 추가해야 할 새 화면
+- **7. MY 탭**: 구독 상태 / 알림 발송 이력 / 로그아웃
+- **8. 목표가 설정 모달**: 관심 추가 버튼 → 목표가 입력 → 저장 플로우
 
 ## 문서 목차
 
-- `01-MARKET-RESEARCH.md` — 시장조사 전체 (경쟁자, 부자 소비 동선 분석)
+### 설계 문서 (CoinFlow 수준, 구현 기준)
+- `Plan.md` — MVP 구현 계획 (한 줄 정의, 범위, 설계 원칙, 처리 흐름, 구현 단계)
+- `ERD.md` — MySQL DDL 전체 (Flyway 버전별 스키마, 인덱스, 제약조건)
+- `API.md` — REST API 명세 (엔드포인트, 에러 코드, 요청/응답 예시, WebSocket)
+
+### 컨텍스트 문서
+- `01-MARKET-RESEARCH.md` — 시장조사 (경쟁자, 부자 소비 동선 분석)
 - `02-PRD.md` — 제품 요구사항 (MVP 범위)
-- `03-ARCHITECTURE.md` — 기술 스택, CoinFlow 재사용 맵, ERD
+- `03-ARCHITECTURE.md` — 시스템 개요, 패키지 구조, 데이터 흐름
 - `04-ROADMAP.md` — 로드맵 + 다음 액션 + 수집 소스 후보
-- `05-DOMAIN-AND-BIZMODEL.md` — 도메인 심화(거래방식·빈도), 경쟁력, 비즈니스 모델, 냉정한 평가, 크롤링 입장
+- `05-DOMAIN-AND-BIZMODEL.md` — 도메인 심화(거래방식·빈도), 경쟁력, 비즈니스 모델, 크롤링 입장
