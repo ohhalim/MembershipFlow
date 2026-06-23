@@ -48,7 +48,7 @@
 - 관심 종목 찜 + 목표가 설정
 - 목표가 도달 시 WebSocket 알림
 - 동부회원권 Jsoup 크롤러 (수집 소스 1개 MVP)
-- 시세 자동 수집 배치 (@Scheduled 매시)
+- 시세 자동 수집 배치 (@Scheduled 매일 오전 7시)
 - 알림 발송 이력 기록 (중복 발송 방지)
 ### 제외 (PRD 기준)
 
@@ -304,7 +304,7 @@ status = FAIL    → fail_reason IS NOT NULL
 ### 7.1 수집 처리 (CollectorScheduler → CollectService)
 
 ```text
-1. @Scheduled(cron = "0 0 * * * *") 매시 0분 실행
+1. @Scheduled(cron = "0 0 7 * * *") 매일 오전 7시 실행 (동부·동아 모두 주간 시세)
    ⚠️ Scheduler 단일 인스턴스 전제: 서버 2대 이상이면 동시 수집 발생. 다중 인스턴스 배포 시 ShedLock 필요 (MVP 이후).
 
 2. CrawlSourceRepository에서 active=true 소스 목록 조회
