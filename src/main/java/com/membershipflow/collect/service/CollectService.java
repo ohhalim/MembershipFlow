@@ -12,10 +12,13 @@ import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.price.entity.PriceHistory;
 import com.membershipflow.price.repository.PriceHistoryRepository;
+import com.membershipflow.watchlist.service.AlertService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +35,7 @@ public class CollectService {
     private final MembershipCourseRepository  membershipCourseRepository;
     private final PriceHistoryRepository      priceHistoryRepository;
     private final CollectorRegistry           collectorRegistry;
+    private final AlertService                alertService;
 
     public void collectAll() {
         List<CrawlSource> sources = crawlSourceRepository.findAllByActiveTrue();
@@ -86,6 +90,15 @@ public class CollectService {
         collectRunRepository.save(run);
 
         log.info("[{}] 저장 완료: 성공={}, 실패={}", source.getName(), successCount, failCount);
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    alertService.checkAndNotify();
+                }
+            });
+        }
     }
 
     // 이름+courseType+membershipType 으로 종목 조회, 없으면 자동 등록

@@ -59,7 +59,8 @@ public class SecurityConfig {
                                 // 유효하지 않은 토큰은 JwtAuthenticationFilter에서 401 반환
                                 "/api/v1/courses/**",
                                 "/api/v1/subscriptions/plans",
-                                "/internal/**")
+                                "/internal/**",
+                                "/ws/**")
                         .permitAll()
                         .requestMatchers(
                                 "/api/v1/watchlist/**",
