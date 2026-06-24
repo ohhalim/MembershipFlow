@@ -17,7 +17,6 @@ ALTER TABLE membership_course
     DROP INDEX idx_membership_course_type,
     ADD INDEX  idx_membership_course_type   (course_type),
     ADD INDEX  idx_membership_course_region (region),
-    ADD INDEX  idx_membership_course_name   (name),
     ADD UNIQUE KEY uk_course_name_type_membership (name, course_type, membership_type);
 
 -- ③-a collect_run: price_history FK 참조원 — 반드시 price_history ALTER 전에 생성
@@ -41,11 +40,15 @@ CREATE TABLE collect_run
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
 
--- ③ price_history: source_id NOT NULL 강화, collect_run_id FK 추가
+-- ③ price_history: FK 잠시 해제 후 source_id NOT NULL 강화, collect_run_id FK 추가
+ALTER TABLE price_history
+    DROP FOREIGN KEY fk_price_source;
+
 ALTER TABLE price_history
     MODIFY COLUMN source_id BIGINT NOT NULL,
     ADD COLUMN collect_run_id BIGINT NULL AFTER price,
     ADD INDEX idx_price_history_source_time (source_id, collected_at),
+    ADD CONSTRAINT fk_price_source FOREIGN KEY (source_id) REFERENCES crawl_source (id),
     ADD CONSTRAINT fk_price_collect_run FOREIGN KEY (collect_run_id) REFERENCES collect_run (id);
 
 -- ③-b course_source_mapping: 소스별 종목 고유 키 (동부 sidx, 동아 custid:code)
