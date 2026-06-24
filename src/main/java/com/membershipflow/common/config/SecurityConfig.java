@@ -60,7 +60,8 @@ public class SecurityConfig {
                                 "/api/v1/courses/**",
                                 "/api/v1/subscriptions/plans",
                                 "/internal/**",
-                                "/ws/**")
+                                "/ws/**",
+                                "/admin/**")
                         .permitAll()
                         .requestMatchers(
                                 "/api/v1/watchlist/**",
