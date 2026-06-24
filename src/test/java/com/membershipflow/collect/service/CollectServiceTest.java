@@ -16,6 +16,7 @@ import com.membershipflow.course.entity.MembershipType;
 import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.price.entity.PriceHistory;
 import com.membershipflow.price.repository.PriceHistoryRepository;
+import com.membershipflow.watchlist.service.AlertService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,7 @@ class CollectServiceTest {
     @Mock PriceHistoryRepository      priceHistoryRepository;
     @Mock CollectorRegistry           collectorRegistry;
     @Mock PriceCollector              collector;
+    @Mock AlertService                alertService;
 
     @InjectMocks CollectService collectService;
 
