@@ -40,7 +40,7 @@ public class DongaHistoryCollector {
 
     private static final String LISTING_URL   = "https://www.dongagolf.co.kr/membership/sise/";
     private static final String DETAIL_URL    = "https://www.dongagolf.co.kr/membership/info?custid=%s&code=%s";
-    private static final Pattern CUSTID_CODE  = Pattern.compile("href=\"/membership/info\\?custid=(\\d+)&code=(\\d+)\"[^>]*>([^<]+)</a>");
+    private static final Pattern CUSTID_CODE_URL = Pattern.compile("custid=(\\d+)&code=(\\d+)");
     private static final Pattern CATEGORIES   = Pattern.compile("categories:\\s*\\[([^\\]]+)\\]");
     private static final Pattern SERIES_DATA  = Pattern.compile("data:\\s*\\[([^\\]]+)\\]");
     private static final Pattern SERIES_NAME  = Pattern.compile("name:\\s*'([^']+)'");
@@ -84,13 +84,15 @@ public class DongaHistoryCollector {
                     .get();
 
             List<CourseLink> links = new ArrayList<>();
-            Matcher m = CUSTID_CODE.matcher(doc.html());
-            while (m.find()) {
-                String custid = m.group(1);
-                String code   = m.group(2);
-                String name   = m.group(3).trim();
-                if (!name.isBlank()) {
-                    links.add(new CourseLink(custid, code, name));
+            // .html()은 &amp; 인코딩 문제로 regex 미매칭 → Jsoup 선택자로 대체
+            for (var a : doc.select("a[href*=/membership/info]")) {
+                String href = a.attr("href"); // 디코딩된 원본값 반환
+                Matcher m = CUSTID_CODE_URL.matcher(href);
+                if (m.find()) {
+                    String name = a.text().trim();
+                    if (!name.isBlank()) {
+                        links.add(new CourseLink(m.group(1), m.group(2), name));
+                    }
                 }
             }
             return links;
