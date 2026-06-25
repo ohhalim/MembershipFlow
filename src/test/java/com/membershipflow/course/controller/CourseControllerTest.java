@@ -10,7 +10,6 @@ import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipType;
 import com.membershipflow.course.service.CourseService;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +22,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -61,15 +59,15 @@ class CourseControllerTest {
     void setUp() {
         sampleItem = new CourseListItemResponse(
                 1L, "레이크사이드CC", "경기",
-                CourseType.GOLF, MembershipType.REGULAR, 18,
-                438_000_000L, LocalDateTime.of(2026, 6, 22, 7, 0), 2.5);
+                "GOLF", "REGULAR", 18,
+                438_000_000L, "2026-06-22T07:00", 2.5);
 
         sampleDetail = new CourseDetailResponse(
                 1L, "레이크사이드CC", "경기",
-                CourseType.GOLF, MembershipType.REGULAR, 18,
+                "GOLF", "REGULAR", 18,
                 List.of(new CourseDetailResponse.SourcePrice(
                         "동부회원권", "http://dbm-market.co.kr",
-                        438_000_000L, LocalDateTime.of(2026, 6, 22, 7, 0))),
+                        438_000_000L, "2026-06-22T07:00", true)),
                 false, null);
     }
 
@@ -112,8 +110,8 @@ class CourseControllerTest {
         mockMvc.perform(get("/api/v1/courses/1").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.latestPrices[0].sourceName").value("동부회원권"))
-                .andExpect(jsonPath("$.latestPrices[0].price").value(438_000_000))
+                .andExpect(jsonPath("$.sources[0].sourceName").value("동부회원권"))
+                .andExpect(jsonPath("$.sources[0].price").value(438_000_000))
                 .andExpect(jsonPath("$.watchlisted").value(false));
     }
 
