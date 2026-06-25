@@ -78,7 +78,10 @@ public class WatchlistService {
     public WatchlistResponse update(Long watchlistId, Long memberId, WatchlistUpdateRequest req) {
         Watchlist watchlist = getOwnedWatchlist(watchlistId, memberId);
         watchlist.update(req.targetPrice(), req.alertYn());
-        return WatchlistResponse.of(watchlist, null);
+        Long courseId = watchlist.getCourse().getId();
+        Long latestPrice = priceHistoryRepository.findLatestByCourseIds(List.of(courseId))
+                .stream().findFirst().map(ph -> ph.getPrice()).orElse(null);
+        return WatchlistResponse.of(watchlist, latestPrice);
     }
 
     @Transactional

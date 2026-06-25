@@ -59,6 +59,7 @@ public class SecurityConfig {
                                 // 유효하지 않은 토큰은 JwtAuthenticationFilter에서 401 반환
                                 "/api/v1/courses/**",
                                 "/api/v1/subscriptions/plans",
+                                "/api/v1/subscriptions/callback",
                                 "/internal/**",
                                 "/ws/**",
                                 "/admin/**")
