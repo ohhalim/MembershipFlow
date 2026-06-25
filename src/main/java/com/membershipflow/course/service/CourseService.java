@@ -50,9 +50,11 @@ public class CourseService {
                     Double changeRate   = calcChangeRate(latest, base);
                     return new CourseListItemResponse(
                             c.getId(), c.getName(), c.getRegion(),
-                            c.getCourseType(), c.getMembershipType(), c.getHoles(),
+                            c.getCourseType() != null ? c.getCourseType().name() : null,
+                            c.getMembershipType() != null ? c.getMembershipType().name() : null,
+                            c.getHoles(),
                             latest != null ? latest.getPrice() : null,
-                            latest != null ? latest.getCollectedAt() : null,
+                            latest != null ? latest.getCollectedAt().toString() : null,
                             changeRate);
                 })
                 .toList();
@@ -64,17 +66,11 @@ public class CourseService {
         MembershipCourse course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
 
-        List<CourseDetailResponse.SourcePrice> latestPrices =
-                priceService.getLatestBySource(courseId).stream()
-                        .map(r -> new CourseDetailResponse.SourcePrice(
-                                r.sourceName(), r.sourceUrl(), r.price(), r.collectedAt()))
-                        .toList();
-
-        return new CourseDetailResponse(
+        return CourseDetailResponse.of(
                 course.getId(), course.getName(), course.getRegion(),
                 course.getCourseType(), course.getMembershipType(), course.getHoles(),
-                latestPrices,
-                false, null);   // watchlisted/targetPrice — Phase 4에서 구현
+                priceService.getLatestBySource(courseId),
+                false, null);
     }
 
     public List<RankingItemResponse> getRanking(String period, String sort,

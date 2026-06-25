@@ -128,11 +128,12 @@ public class SubscriptionService {
         return SubscriptionResponse.from(subscription);
     }
 
-    /** 내 구독 조회 */
+    /** 내 구독 조회 — 구독 없으면 null 반환 (404 아님) */
     @Transactional(readOnly = true)
     public SubscriptionResponse getMySubscription(Long memberId) {
-        Subscription sub = findActiveSubscription(memberId);
-        return SubscriptionResponse.from(sub);
+        return subscriptionRepository.findByMemberId(memberId)
+                .map(SubscriptionResponse::from)
+                .orElse(null);
     }
 
     /** 구독 해지 (기간 만료 시 실제 해지) */
