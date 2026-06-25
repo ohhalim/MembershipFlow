@@ -3,6 +3,7 @@ package com.membershipflow.collect.service;
 import com.membershipflow.collect.collector.CollectException;
 import com.membershipflow.collect.collector.CollectedPrice;
 import com.membershipflow.collect.collector.CollectorRegistry;
+import com.membershipflow.collect.collector.DongaHistoryCollector;
 import com.membershipflow.collect.collector.PriceCollector;
 import com.membershipflow.collect.entity.CollectRun;
 import com.membershipflow.collect.entity.CrawlSource;
@@ -36,6 +37,7 @@ public class CollectService {
     private final PriceHistoryRepository      priceHistoryRepository;
     private final CollectorRegistry           collectorRegistry;
     private final AlertService                alertService;
+    private final DongaHistoryCollector       dongaHistoryCollector;
 
     public void collectAll() {
         List<CrawlSource> sources = crawlSourceRepository.findAllByActiveTrue();
@@ -99,6 +101,45 @@ public class CollectService {
                 }
             });
         }
+    }
+
+    @Transactional
+    public int collectHistory() {
+        CrawlSource source = crawlSourceRepository.findByName("동아골프")
+                .orElseThrow(() -> new IllegalStateException("동아골프 소스 없음"));
+
+        List<DongaHistoryCollector.HistoricalPrice> histories = dongaHistoryCollector.collectAll();
+
+        List<PriceHistory> toSave = new ArrayList<>();
+        for (DongaHistoryCollector.HistoricalPrice hp : histories) {
+            try {
+                MembershipCourse course = membershipCourseRepository
+                        .findByNameAndCourseTypeAndMembershipType(hp.courseName(), hp.courseType(), hp.membershipType())
+                        .orElseGet(() -> membershipCourseRepository.save(
+                                MembershipCourse.builder()
+                                        .name(hp.courseName())
+                                        .courseType(hp.courseType())
+                                        .membershipType(hp.membershipType())
+                                        .build()));
+
+                boolean exists = priceHistoryRepository
+                        .existsByCourseAndSourceAndCollectedAt(course, source, hp.collectedAt());
+                if (!exists) {
+                    toSave.add(PriceHistory.builder()
+                            .course(course)
+                            .source(source)
+                            .price(hp.price())
+                            .collectedAt(hp.collectedAt())
+                            .build());
+                }
+            } catch (Exception e) {
+                log.warn("[동아히스토리] 저장 실패: {} - {}", hp.courseName(), e.getMessage());
+            }
+        }
+
+        priceHistoryRepository.saveAll(toSave);
+        log.info("[동아히스토리] 저장 완료: {}건", toSave.size());
+        return toSave.size();
     }
 
     // 이름+courseType+membershipType 으로 종목 조회, 없으면 자동 등록
