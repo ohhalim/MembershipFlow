@@ -2,23 +2,41 @@ package com.membershipflow.collect.collector;
 
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipType;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.security.Security;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 public class DongaHistoryCollector {
+
+    @PostConstruct
+    void init() {
+        // 동아골프 서버가 512-bit DH 키를 사용하므로 해당 제한만 제거
+        String current = Security.getProperty("jdk.tls.disabledAlgorithms");
+        if (current != null) {
+            String updated = Arrays.stream(current.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.startsWith("DH keySize"))
+                    .collect(Collectors.joining(", "));
+            Security.setProperty("jdk.tls.disabledAlgorithms", updated);
+            log.info("[동아히스토리] DH keySize 제한 해제 완료");
+        }
+    }
 
     private static final String LISTING_URL   = "https://www.dongagolf.co.kr/membership/sise/";
     private static final String DETAIL_URL    = "https://www.dongagolf.co.kr/membership/info?custid=%s&code=%s";
