@@ -42,11 +42,11 @@ public class PriceHistory {
 
     @Builder
     public PriceHistory(MembershipCourse course, CrawlSource source,
-                        long price, CollectRun collectRun) {
+                        long price, CollectRun collectRun, LocalDateTime collectedAt) {
         this.course      = course;
         this.source      = source;
         this.price       = price;
         this.collectRun  = collectRun;
-        this.collectedAt = LocalDateTime.now();
+        this.collectedAt = collectedAt != null ? collectedAt : LocalDateTime.now();
     }
 }
