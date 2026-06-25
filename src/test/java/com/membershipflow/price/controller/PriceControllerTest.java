@@ -37,6 +37,7 @@ class PriceControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockitoBean PriceService priceService;
+    @MockitoBean com.membershipflow.subscription.repository.SubscriptionRepository subscriptionRepository;
     @MockitoBean JwtAuthenticationFilter jwtAuthenticationFilter;
     @MockitoBean JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     @MockitoBean com.membershipflow.common.security.oauth.CustomOAuth2UserService customOAuth2UserService;

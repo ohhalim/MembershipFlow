@@ -1,5 +1,6 @@
 package com.membershipflow.collect.controller;
 
+import com.membershipflow.collect.service.CollectAsyncService;
 import com.membershipflow.collect.service.CollectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CollectAdminController {
 
     private final CollectService collectService;
+    private final CollectAsyncService collectAsyncService;
 
     @PostMapping
     public ResponseEntity<String> triggerCollect() {
@@ -22,7 +24,7 @@ public class CollectAdminController {
 
     @PostMapping("/history")
     public ResponseEntity<String> triggerHistoryCollect() {
-        int saved = collectService.collectHistory();
-        return ResponseEntity.ok("히스토리 수집 완료: " + saved + "건");
+        collectAsyncService.collectHistoryAsync();
+        return ResponseEntity.accepted().body("히스토리 수집 시작 (백그라운드 실행 중)");
     }
 }
