@@ -55,8 +55,8 @@ public class SecurityConfig {
                                 "/favicon.ico",
                                 "/oauth2/authorization/**",
                                 "/login/oauth2/code/**",
-                                // 공개 API — JWT 없어도 접근 가능 (optional principal)
-                                // 유효하지 않은 토큰은 JwtAuthenticationFilter에서 401 반환
+                                "/api/v1/auth/refresh",
+                                "/api/v1/auth/logout",
                                 "/api/v1/courses/**",
                                 "/api/v1/subscriptions/plans",
                                 "/api/v1/subscriptions/callback",
