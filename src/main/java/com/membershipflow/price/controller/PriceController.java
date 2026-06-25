@@ -1,11 +1,15 @@
 package com.membershipflow.price.controller;
 
+import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import com.membershipflow.price.dto.LatestSourcePriceResponse;
 import com.membershipflow.price.dto.PriceChartResponse;
 import com.membershipflow.price.service.PriceService;
+import com.membershipflow.subscription.entity.SubscriptionStatus;
+import com.membershipflow.subscription.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -17,16 +21,21 @@ import java.util.List;
 public class PriceController {
 
     private final PriceService priceService;
+    private final SubscriptionRepository subscriptionRepository;
 
     @GetMapping
     public ResponseEntity<PriceChartResponse> chart(
             @PathVariable Long courseId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(defaultValue = "DAY") String interval) {
+            @RequestParam(defaultValue = "DAY") String interval,
+            @AuthenticationPrincipal OAuth2UserPrincipal principal) {
 
-        // Phase 4에서 JWT 추출 구독 여부 체크 추가. 현재는 전원 비구독 처리
-        boolean isSubscriber = false;
+        boolean isSubscriber = principal != null && subscriptionRepository
+                .findByMemberId(principal.getMemberId())
+                .map(s -> s.getStatus() == SubscriptionStatus.ACTIVE)
+                .orElse(false);
+
         return ResponseEntity.ok(priceService.getChart(courseId, from, to, interval, isSubscriber));
     }
 
