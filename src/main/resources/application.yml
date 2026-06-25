@@ -2,7 +2,7 @@ spring:
   application:
     name: MembershipFlow
   datasource:
-    url: jdbc:mysql://localhost:3306/membershipflow?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/membershipflow?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -21,9 +21,44 @@ spring:
       initialize-schema: always
     job:
       enabled: false
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # 실제 값은 환경변수로 주입. 미설정 시 placeholder로 컨텍스트만 기동(로그인은 동작 안 함)
+            client-id: ${GOOGLE_CLIENT_ID:dummy-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dummy-client-secret}
+            scope:
+              - email
+              - profile
 
 server:
   port: 8081
+
+# JWT 설정
+jwt:
+  secret: ${JWT_SECRET:dev-only-secret-please-change-0123456789-0123456789-0123456789}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}   # 1시간(ms)
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:2592000000} # 30일(ms)
+
+# 애플리케이션 커스텀 설정
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  oauth2:
+    redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:3000/auth/callback}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+  cookie:
+    secure: ${COOKIE_SECURE:false}
+  billing:
+    encryption-key: ${BILLING_ENCRYPTION_KEY:0000000000000000000000000000000000000000000000000000000000000000}
+
+# 토스페이먼츠
+toss:
+  client-key: ${TOSS_CLIENT_KEY:test_ck_dummy}
+  secret-key: ${TOSS_SECRET_KEY:test_sk_dummy}
+  api-base-url: https://api.tosspayments.com
 
 springdoc:
   swagger-ui:
@@ -33,4 +68,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info
+        include: health, info, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
