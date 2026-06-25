@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
@@ -124,8 +125,8 @@ class SubscriptionControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/subscriptions/callback — 콜백 처리 후 구독 정보를 반환한다")
-    void callback_returnsSubscription() throws Exception {
+    @DisplayName("GET /api/v1/subscriptions/callback — 콜백 성공 시 프론트로 302 리다이렉트한다")
+    void callback_redirectsOnSuccess() throws Exception {
         // given
         given(subscriptionService.handleCallback(eq("customer-uuid"), eq("auth-key")))
                 .willReturn(sampleSubscription());
@@ -134,10 +135,8 @@ class SubscriptionControllerTest {
         mockMvc.perform(get("/api/v1/subscriptions/callback")
                         .param("customerKey", "customer-uuid")
                         .param("authKey", "auth-key"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(10))
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.plan.code").value("INDIVIDUAL"));
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", containsString("/my/subscription?success=1")));
     }
 
     @Test
