@@ -10,6 +10,7 @@ import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.entity.MemberRole;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import com.membershipflow.member.repository.MemberRepository;
+import com.membershipflow.member.service.RefreshTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,6 +80,7 @@ class AuthControllerTest {
     @MockitoBean JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     @MockitoBean JwtTokenProvider jwtTokenProvider;
     @MockitoBean MemberRepository memberRepository;
+    @MockitoBean RefreshTokenService refreshTokenService;
 
     @BeforeEach
     void configureMocks() throws Exception {

@@ -2,7 +2,7 @@ spring:
   application:
     name: MembershipFlow
   datasource:
-    url: jdbc:mysql://localhost:3306/membershipflow?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/membershipflow?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -39,16 +39,18 @@ server:
 # JWT 설정
 jwt:
   secret: ${JWT_SECRET:dev-only-secret-please-change-0123456789-0123456789-0123456789}
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000} # 1시간(ms)
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}   # 1시간(ms)
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:2592000000} # 30일(ms)
 
 # 애플리케이션 커스텀 설정
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
   oauth2:
-    # OAuth2 로그인 성공/실패 후 리다이렉트할 프런트 콜백 URL
     redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:3000/auth/callback}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+  cookie:
+    secure: ${COOKIE_SECURE:false}
   billing:
     encryption-key: ${BILLING_ENCRYPTION_KEY:0000000000000000000000000000000000000000000000000000000000000000}
 
@@ -66,4 +68,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info
+        include: health, info, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
