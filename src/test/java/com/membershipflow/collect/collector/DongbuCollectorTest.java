@@ -125,8 +125,8 @@ class DongbuCollectorTest {
         // when
         List<CollectedPrice> result = collector.parse(doc);
 
-        // then — replaceAll("[^0-9]", "") → "459" → Integer.parseInt("459") = 459
+        // then — '45+퍼9'에서 leading digit만 파싱 → 45
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).holes()).isEqualTo(459);
+        assertThat(result.get(0).holes()).isEqualTo(45);
     }
 }

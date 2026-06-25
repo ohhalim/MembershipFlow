@@ -74,8 +74,10 @@ public class DongbuCollector implements PriceCollector {
     }
 
     private Integer parseHoles(String text) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(\\d+)").matcher(text.trim());
+        if (!m.find()) return null;
         try {
-            int v = Integer.parseInt(text.replaceAll("[^0-9]", ""));
+            int v = Integer.parseInt(m.group(1));
             return (v > 0 && v <= 255) ? v : null;
         } catch (NumberFormatException e) {
             return null;
