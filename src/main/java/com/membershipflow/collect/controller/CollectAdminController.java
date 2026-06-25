@@ -19,4 +19,10 @@ public class CollectAdminController {
         collectService.collectAll();
         return ResponseEntity.ok("수집 완료");
     }
+
+    @PostMapping("/history")
+    public ResponseEntity<String> triggerHistoryCollect() {
+        int saved = collectService.collectHistory();
+        return ResponseEntity.ok("히스토리 수집 완료: " + saved + "건");
+    }
 }

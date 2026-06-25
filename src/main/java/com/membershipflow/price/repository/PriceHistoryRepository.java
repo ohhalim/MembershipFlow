@@ -1,5 +1,7 @@
 package com.membershipflow.price.repository;
 
+import com.membershipflow.collect.entity.CrawlSource;
+import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.price.entity.PriceHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -9,6 +11,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long> {
+
+    boolean existsByCourseAndSourceAndCollectedAt(MembershipCourse course, CrawlSource source, LocalDateTime collectedAt);
 
     // 소스별 최신가 — ROW_NUMBER() 윈도우 함수로 tie-break 포함
     @Query(value = """
