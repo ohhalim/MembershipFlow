@@ -393,7 +393,101 @@ Next.js 14에서 `useSearchParams()`, `useParams()` 등 동적 훅은 반드시 
 
 ---
 
-## 11. WatchlistService.update latestPrice null 반환
+## 12. 동아골프 TLS DH keySize 오류
+
+### 배경
+`DongaHistoryCollector`에서 `https://www.dongagolf.co.kr` 접속 시 SSL 핸드셰이크 실패:
+```
+javax.net.ssl.SSLHandshakeException: DH ServerKeyExchange does not comply to algorithm constraints
+```
+
+### 원인
+Java 기본 보안 정책(`java.security`)이 `DH keySize < 1024`인 DH 알고리즘을 차단한다. 동아골프 서버가 레거시 DH 파라미터를 사용.
+
+### 해결
+`@PostConstruct`에서 런타임에 `jdk.tls.disabledAlgorithms` Security 프로퍼티에서 `DH keySize` 항목만 제거:
+
+```java
+@PostConstruct
+void init() {
+    String current = Security.getProperty("jdk.tls.disabledAlgorithms");
+    if (current != null) {
+        String updated = Arrays.stream(current.split(","))
+                .map(String::trim)
+                .filter(s -> !s.startsWith("DH keySize"))
+                .collect(Collectors.joining(", "));
+        Security.setProperty("jdk.tls.disabledAlgorithms", updated);
+    }
+}
+```
+
+### 교훈
+레거시 HTTPS 사이트 크롤링 시 JVM 보안 정책 충돌에 주의. `jsse.enableCBCProtection=false` 같은 전역 설정보다 특정 알고리즘만 선택적으로 제거하는 것이 안전하다.
+
+---
+
+## 13. Jsoup `.html()` `&amp;` 인코딩으로 링크 파싱 0개
+
+### 배경
+`DongaHistoryCollector`에서 `custid`, `code` 파라미터를 추출하기 위해 `doc.html()` + regex를 사용했더니 매칭 0건.
+
+### 원인
+Jsoup의 `.html()`은 HTML 엔티티를 인코딩한다. `&` → `&amp;`. 정규식 `custid=(\d+)&code=(\d+)`가 `custid=123&amp;code=456`에는 매칭되지 않음.
+
+### 해결
+`.html()` + regex → Jsoup selector + `.attr("href")`로 변경. `.attr()`은 디코딩된 속성값을 반환:
+
+```java
+// Before
+String html = doc.html();
+Matcher m = Pattern.compile("custid=(\\d+)&code=(\\d+)").matcher(html);
+
+// After
+for (var a : doc.select("a[href*=/membership/info]")) {
+    String href = a.attr("href");  // &amp; → & 디코딩됨
+    Matcher m = CUSTID_CODE_URL.matcher(href);
+    ...
+}
+```
+
+### 교훈
+Jsoup에서 URL 파라미터 추출은 `.html()` 대신 `element.attr("href")`를 사용해야 한다. `.html()`은 HTML 렌더링용이고, `.attr()`은 실제 속성값을 반환한다.
+
+---
+
+## 14. 히스토리 수집 nginx 504 Gateway Timeout
+
+### 배경
+`POST /admin/collect/history` 호출 시 298개 종목 이력 수집에 약 5분 소요. nginx 기본 타임아웃(60s) 초과로 504 반환.
+
+### 원인
+동기 방식으로 수집 완료까지 HTTP 연결을 유지해야 하는 구조.
+
+### 해결
+`@Async` + `CollectAsyncService`로 비동기 처리:
+
+```java
+@Async
+public void collectHistoryAsync() {
+    try {
+        int saved = collectService.collectHistory();
+        log.info("[동아히스토리] 비동기 수집 완료: {}건", saved);
+    } catch (Exception e) {
+        log.error("[동아히스토리] 비동기 수집 실패: {}", e.getMessage(), e);
+    }
+}
+```
+
+컨트롤러는 즉시 `202 Accepted` 반환. 수집 진행은 백그라운드 스레드.
+
+`MembershipFlowApplication.java`에 `@EnableAsync` 추가 필수.
+
+### 교훈
+5초 이상 걸리는 작업은 HTTP 레이어에서 동기 처리하지 말고 비동기로 분리해야 한다. nginx `proxy_read_timeout`을 늘리는 것은 임시방편이며, 진짜 해결은 비동기 설계다.
+
+---
+
+## 15. WatchlistService.update latestPrice null 반환
 
 ### 배경
 관심종목 알림 설정 변경(targetPrice, alertYn) 후 프론트가 받은 응답에서 `latestPrice`가 항상 null.
