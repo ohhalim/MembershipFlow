@@ -1,76 +1,79 @@
 # MembershipFlow
 
-골프/콘도 회원권 **시세를 한 곳에 모아 차트로 보고, 목표가 알림을 받는** 서비스.
-한 줄로: **"회원권판 네이버 증권"**.
+골프 회원권 시세 추적 SaaS. 실운영 중 → **[membershipflow.site](https://membershipflow.site)**
 
-> CoinFlow(암호화폐 거래소 백엔드)에서 설계한 _시세 수집 → 저장 → 실시간 전송 → 차트_ 아키텍처를
-> 회원권 도메인에 재적용한 두 번째 서비스입니다.
+브로커 사이트 두 곳의 시세를 매일 자동 수집해 차트 시각화, 목표가 도달 시 실시간 WebSocket 알림. 구독(월 49,000원 / 299,000원)으로 전체 기간 데이터 및 관심 종목 무제한.
 
 ---
 
-## 왜 이 서비스인가
+## 스택
 
-회원권은 수천만~수억 원짜리 자산이면서 주식처럼 **시세가 매일 오르내린다.**
-그런데 현재 시세를 보여주는 거래소 사이트들은 대부분 20년 전 UI에 전화 상담으로 굴러간다.
-흩어진 시세를 한 곳에 모아 깔끔하게 보여주는 것만으로 명확한 수요가 있다.
-
-## MVP 범위 (이것만)
-
-1. 회원권 종목 목록 + 검색
-2. 종목별 현재 시세 + 시세 추이 차트(일별)
-3. 관심 종목 찜 + 목표가 알림 (WebSocket)
-4. 시세 자동 수집 배치 (수집 소스 1~2개부터, N개로 확장 가능한 구조)
-5. 회원 / 인증
-
-## 확장 계획 (코드 아님, 방향만)
-
-- 수집 소스 플러그인 추가 (거래소 N개)
-- 회원권 가격지수 산출
-- 거래소 송객 수수료 / 프리미엄 알림 구독
+Spring Boot 3.5 · Java 21 · MySQL · Spring WebSocket/STOMP · Jsoup · TossPayments  
+Next.js 14 · TypeScript · Tailwind CSS · SWR  
+Docker Compose · GitHub Actions · nginx · Prometheus · Grafana · AWS EC2
 
 ---
 
-## 아키텍처 (CoinFlow 재사용 맵)
-
-| CoinFlow | MembershipFlow |
-|---|---|
-| 코인 시세 수집 | 회원권 시세 수집 배치 |
-| 시세 DB 저장/조회 | 동일 (시계열) |
-| WebSocket 실시간 전송 | 목표가 도달 알림 |
-| 차트 데이터 API | 시세 추이 그래프 API |
-| 회원/인증 | 회원/찜/알림 |
-
-핵심 설계 포인트: **수집 소스를 추상화**해서 거래소 추가가 O(1)이 되도록 한다. (양보다 설계)
-
-## 데이터 모델 (코어)
+## 구조
 
 ```
-membership_course   회원권 종목 (골프장명, 지역, 종류)
-price_history       (course_id, price, collected_at)   ← 시계열
-crawl_source        수집 소스 (이름, base_url, 활성여부)
-member              회원
-watchlist           (member_id, course_id, target_price, alert_yn)
-alert_log           알림 발송 이력
+nginx (HTTPS)
+  ├── /api, /ws, /admin  →  Spring Boot :8081
+  └── /*                 →  Next.js :3000
+
+Scheduler (매일 07:00)
+  └── Jsoup 크롤링 (동부회원권, 동아회원권)
+        └── afterCommit() → AlertService → WebSocket 알림
 ```
 
-## 기술 스택
-
-- Java 21, Spring Boot 3.5
-- Spring Web / Data JPA / Validation / WebSocket
-- Flyway + MySQL
-- Spring Batch (시세 수집 스케줄)
-- springdoc-openapi (API 문서)
-
-## 수집 정책 (준법)
-
-- robots.txt 존중, 출처 표기, 과도한 요청 금지
-- 시세 "정보 집계/표시"만. 매물 원문 복제 / 직접 중개는 하지 않음
+단일 EC2(t3.small)에 프론트, 백엔드, DB, 모니터링 통합.
 
 ---
 
-## 로드맵
+## 핵심 구현
 
-- [ ] M1: 스캐폴딩 + ERD + 첫 수집 소스 1개 (← 지금)
-- [ ] M2: 시세 차트 API + 프런트 최소 화면
-- [ ] M3: 찜 + 목표가 WebSocket 알림
-- [ ] M4: 수집 소스 추상화 + 2번째 소스 추가
+**시세 수집**  
+Jsoup으로 두 소스 크롤링. 구현 중 두 가지 이슈 해결.
+
+동아회원권은 Java 21이 기본 차단하는 구형 DH 키 사이즈 사용. JVM 전체 보안 정책 대신 `@PostConstruct`에서 해당 항목만 런타임 제거로 최소 범위 처리.
+
+Jsoup HTML 파싱 시 `&amp;` → `&` 디코딩 탓에 regex URL 추출 0건. `select("a[href*=...]").attr("href")` 방식으로 전환 해결.
+
+1년치 히스토리 수집은 수십 초 소요로 nginx 504 발생. `@Async` + 즉시 202 반환으로 분리. CoinFlow HTTP 응답 분리 패턴 재적용.
+
+**구독 결제**  
+TossPayments 빌링키 방식. 카드 1회 등록 후 월 자동결제. `BillingScheduler`가 매일 자정 만료 구독 재청구, 연속 3회 실패 시 `SUSPENDED`. 빌링키 AES-256 암호화 저장.
+
+구독 상태에 따라 차트 기간(비구독자 7일 clamp)과 관심 종목 한도(비구독자 3개) 게이팅.
+
+**알림**  
+수집 완료 후 `afterCommit()` 트리거. 커밋 전 알림 발송 시 DB에 없는 데이터 기준 알림 발생 방지. STOMP `/user/queue/alert` push, `alert_log`로 24시간 중복 방지.
+
+**CI/CD**  
+main push → 테스트 통과 → Docker 이미지 빌드 → scp로 nginx 설정·Grafana 프로비저닝 파일 EC2 자동 복사. 수동 SSH 없이 코드 변경 즉시 반영.
+
+---
+
+## 모니터링
+
+Prometheus + Grafana 로컬호스트 전용. 로컬 접근은 SSH 터널 사용.
+
+```bash
+make tunnel  # Grafana: localhost:3001 / Prometheus: localhost:9090
+```
+
+---
+
+## 로컬 실행
+
+```bash
+cp .env.example .env  # DB, JWT, Google OAuth, TossPayments 키 설정
+docker compose up -d
+```
+
+---
+
+## 관련 프로젝트
+
+- [CoinFlow](https://github.com/ohhalim/CoinFlow) — 비동기 응답 분리, STOMP 구조 원본
+- [HomeSweetHome](https://github.com/ohhalim/HomeSweetHome-backend) — TossPayments 결제 정합성 원본
