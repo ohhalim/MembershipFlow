@@ -60,10 +60,10 @@ public class SecurityConfig {
                                 "/api/v1/courses/**",
                                 "/api/v1/subscriptions/plans",
                                 "/api/v1/subscriptions/callback",
-                                "/internal/**",
-                                "/ws/**",
-                                "/admin/**")
+                                "/ws/**")
                         .permitAll()
+                        // 수집 트리거 등 운영 전용 — ADMIN 권한 필수 (외부 어뷰징 차단)
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers(
                                 "/api/v1/watchlist/**",
                                 "/api/v1/alerts/**",
