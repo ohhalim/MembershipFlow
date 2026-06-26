@@ -24,6 +24,7 @@
 | JWT Access Token 발급 (1시간) | ✅ |
 | Refresh Token (httpOnly 쿠키, 30일, 로테이션) | ✅ |
 | `GET /api/v1/auth/me` | ✅ |
+| `ROLE_USER` / `ROLE_ADMIN` 권한 분리 | ✅ |
 | 비밀번호 로그인 | ❌ 미구현 (OAuth 전용) |
 
 **Refresh Token 상세:**
@@ -160,7 +161,8 @@ POST /admin/collect          전체 수집 (동기, 완료 후 응답)
 POST /admin/collect/history  1년 이력 수집 (비동기, 즉시 202)
 ```
 
-nginx에서 `/admin/` 경로는 별도 `proxy_read_timeout 600s` 설정.
+- **보안**: `MemberRole.ADMIN` (`ROLE_ADMIN` authority) 보유 회원만 접근 가능. `SecurityConfig.hasRole("ADMIN")` 적용.
+- **nginx**: `/admin/` 경로 `proxy_read_timeout 600s` 설정 (장시간 수집 대응).
 
 ---
 
@@ -253,11 +255,14 @@ push to main
   → GitHub Actions
     ① Lint + Type Check + Test + Build
     ② Docker image build → ghcr.io/ohhalim/{repo}:latest
-    ③ SSH → EC2: docker compose pull && docker compose up -d --no-deps {service}
+    ③ scp → EC2: nginx/nginx.conf 자동 복사 (백엔드 파이프라인)
+    ④ SSH → EC2: docker compose pull && docker compose up -d --no-deps {service}
+                  docker compose restart nginx
 ```
 
 - 백엔드, 프론트엔드 각각 독립 파이프라인
 - CI 실패 시 배포 차단
+- nginx 설정 변경도 main push 시 자동 반영 (수동 SSH 불필요)
 
 ### 3.3 Git 브랜치 전략
 
@@ -287,8 +292,11 @@ OAUTH2_REDIRECT_URI
 ### 3.5 nginx 주요 설정
 
 - `proxy_set_header X-Forwarded-For` / `X-Forwarded-Proto` → Spring의 `ForwardedHeaderFilter`로 신뢰
+- `/ws` 경로: WebSocket `Upgrade` / `Connection` 헤더 + `proxy_read_timeout 3600s`
 - `/admin/` 경로: `proxy_read_timeout 600s` (장기 수집 요청 대응)
+- `/actuator/` 외부 차단 (`deny all`)
 - HTTPS 강제 리다이렉트 (80 → 443)
+- 설정 파일: `nginx/nginx.conf` 단일 파일 (`nginx.https.conf` 삭제됨)
 
 ---
 
