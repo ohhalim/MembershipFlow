@@ -487,6 +487,55 @@ public void collectHistoryAsync() {
 
 ---
 
+## 16. /admin 엔드포인트 인증 누락 (보안 취약점)
+
+### 배경
+`POST /admin/collect`, `POST /admin/collect/history`가 `SecurityConfig`에서 `permitAll()`로 설정되어 있어 누구나 수집 트리거 가능한 상태였음.
+
+### 원인
+초기 개발 시 편의를 위해 `/admin/**`를 공개 경로에 포함시킨 후 수정하지 않음.
+
+### 해결
+1. `MemberRole` enum에 `ADMIN("ROLE_ADMIN")` 추가
+2. `SecurityConfig`에서 `/admin/**`를 `hasRole("ADMIN")`으로 변경
+
+```java
+.requestMatchers("/admin/**").hasRole("ADMIN")
+```
+
+JWT 필터가 요청마다 DB에서 회원 정보를 새로 조회하므로 DB에서 역할 변경 즉시 적용됨 (토큰 재발급 불필요).
+
+### 교훈
+관리자 기능은 처음부터 인증/인가를 적용해야 한다. `permitAll()`은 정말 공개된 엔드포인트에만 사용.
+
+---
+
+## 17. nginx.conf vs nginx.https.conf 이중화로 설정 미적용
+
+### 배경
+WebSocket `/ws` 블록과 `/admin/` timeout을 `nginx.https.conf`에 추가했지만 EC2 nginx에 반영되지 않음.
+
+### 원인
+- `docker-compose.yml`이 `nginx/nginx.conf`를 마운트
+- 변경은 `nginx/nginx.https.conf`에만 적용
+- CD 파이프라인(PR #55)도 `nginx.https.conf`를 복사 → 실제 적용 파일(`nginx.conf`)과 달라 반영 안 됨
+
+```yaml
+# docker-compose.yml
+- ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro  # 이 파일이 실제 사용됨
+```
+
+### 해결
+1. `nginx.https.conf` 내용을 `nginx.conf`에 통합
+2. `nginx.https.conf` 삭제
+3. CD scp-action source를 `nginx/nginx.conf`로 수정
+4. `DEPLOYMENT.md`, `server-setup.sh`의 잔여 참조 제거
+
+### 교훈
+nginx 설정 파일은 단일 파일로 유지하고 `docker-compose.yml` 마운트 경로와 반드시 일치시켜야 한다. "HTTPS용 별도 파일"은 혼란만 야기한다.
+
+---
+
 ## 15. WatchlistService.update latestPrice null 반환
 
 ### 배경
