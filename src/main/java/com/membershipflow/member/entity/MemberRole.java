@@ -4,7 +4,8 @@ package com.membershipflow.member.entity;
  * 회원 역할. Spring Security와 호환되도록 ROLE_ 접두사를 가진 authority를 제공한다.
  */
 public enum MemberRole {
-    USER("ROLE_USER");
+    USER("ROLE_USER"),
+    ADMIN("ROLE_ADMIN");
 
     private final String authority;
 
