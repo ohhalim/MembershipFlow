@@ -6,21 +6,22 @@
 #   Prometheus → http://localhost:9090
 tunnel:
 	@echo "🔌 SSH 터널 연결 중... (종료: Ctrl+C)"
-	ssh -L 3001:localhost:3001 -L 9090:localhost:9090 \
+	ssh -i ~/.ssh/membershipflow-key.pem \
+		-L 3001:localhost:3001 -L 9090:localhost:9090 \
 		-N -o ServerAliveInterval=60 \
 		ubuntu@membershipflow.site
 
 # Grafana만 접속
 grafana:
 	@echo "📊 Grafana 터널 → http://localhost:3001"
-	ssh -L 3001:localhost:3001 -N ubuntu@membershipflow.site
+	ssh -i ~/.ssh/membershipflow-key.pem -L 3001:localhost:3001 -N ubuntu@membershipflow.site
 
 # Prometheus만 접속
 prometheus:
 	@echo "📈 Prometheus 터널 → http://localhost:9090"
-	ssh -L 9090:localhost:9090 -N ubuntu@membershipflow.site
+	ssh -i ~/.ssh/membershipflow-key.pem -L 9090:localhost:9090 -N ubuntu@membershipflow.site
 
 # EC2 백엔드 로그 실시간
 logs:
-	ssh ubuntu@membershipflow.site \
+	ssh -i ~/.ssh/membershipflow-key.pem ubuntu@membershipflow.site \
 		"docker compose -f /opt/membershipflow/docker-compose.yml logs -f backend"
