@@ -71,10 +71,7 @@ docker compose --profile certbot run certbot certonly \
   -d membershipflow.site -d www.membershipflow.site \
   --email ohhalim777@gmail.com --agree-tos --non-interactive
 
-# nginx.conf를 HTTPS 버전으로 교체
-cp nginx/nginx.https.conf nginx/nginx.conf
-
-# nginx 재시작
+# nginx 재시작 (nginx.conf가 이미 HTTPS 설정 포함)
 docker compose restart nginx
 ```
 
