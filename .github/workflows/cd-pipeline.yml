@@ -55,6 +55,17 @@ jobs:
           target: /opt/membershipflow/nginx/
           strip_components: 1
 
+      - name: Prepare Grafana directories on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo mkdir -p /opt/membershipflow/grafana/provisioning/datasources
+            sudo mkdir -p /opt/membershipflow/grafana/provisioning/dashboards
+            sudo chown -R ubuntu:ubuntu /opt/membershipflow/grafana
+
       - name: Copy Grafana provisioning to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
