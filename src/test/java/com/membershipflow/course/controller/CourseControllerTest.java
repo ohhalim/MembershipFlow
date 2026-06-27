@@ -75,7 +75,7 @@ class CourseControllerTest {
     @DisplayName("GET /api/v1/courses — 종목 목록을 반환한다")
     void list_returnsPagedCourses() throws Exception {
         // given
-        given(courseService.search(any(), any(), any(), any(), any()))
+        given(courseService.search(any(), any(), any(), any(), any(), any()))
                 .willReturn(new PageImpl<>(List.of(sampleItem), PageRequest.of(0, 20), 1));
 
         // when / then
@@ -91,7 +91,7 @@ class CourseControllerTest {
     @DisplayName("GET /api/v1/courses?q=레이크 — 이름 필터가 서비스로 전달된다")
     void list_withQuery_passesFilterToService() throws Exception {
         // given
-        given(courseService.search(eq("레이크"), any(), any(), any(), any()))
+        given(courseService.search(eq("레이크"), any(), any(), any(), any(), any()))
                 .willReturn(new PageImpl<>(List.of(sampleItem), PageRequest.of(0, 20), 1));
 
         // when / then
