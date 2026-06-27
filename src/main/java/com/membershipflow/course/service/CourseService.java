@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -61,33 +60,24 @@ public class CourseService {
     private Page<CourseListItemResponse> searchWithPriceSort(String q, CourseType courseType,
                                                               MembershipType membershipType, String region,
                                                               String sort, Pageable pageable) {
-        List<MembershipCourse> all = courseRepository.searchAll(q, courseType, membershipType, region);
-        List<Long> ids = all.stream().map(MembershipCourse::getId).toList();
+        String courseTypeStr     = courseType     != null ? courseType.name()     : null;
+        String membershipTypeStr = membershipType != null ? membershipType.name() : null;
 
+        List<MembershipCourse> paged = courseRepository.searchWithPriceSort(
+                q, courseTypeStr, membershipTypeStr, region, sort,
+                pageable.getPageSize(), pageable.getOffset());
+
+        long total = courseRepository.countSearch(q, courseTypeStr, membershipTypeStr, region);
+
+        List<Long> ids = paged.stream().map(MembershipCourse::getId).toList();
         Map<Long, PriceHistory> latestMap = ids.isEmpty() ? Map.of() : priceService.getLatestPriceBatch(ids);
         Map<Long, PriceHistory> baseMap   = ids.isEmpty() ? Map.of() : priceService.get7dBasePriceBatch(ids);
 
-        List<CourseListItemResponse> items = all.stream()
+        List<CourseListItemResponse> content = paged.stream()
                 .map(c -> toCourseListItem(c, latestMap, baseMap))
                 .toList();
 
-        Comparator<CourseListItemResponse> comparator = switch (sort) {
-            case "price_asc"  -> Comparator.comparingLong(r -> r.latestPrice() != null ? r.latestPrice() : Long.MAX_VALUE);
-            case "price_desc" -> Comparator.comparingLong((CourseListItemResponse r) ->
-                    r.latestPrice() != null ? r.latestPrice() : Long.MIN_VALUE).reversed();
-            case "latest"     -> Comparator.comparing(
-                    (CourseListItemResponse r) -> r.updatedAt() != null ? r.updatedAt() : "",
-                    Comparator.reverseOrder());
-            default           -> Comparator.comparing(CourseListItemResponse::name);
-        };
-
-        List<CourseListItemResponse> sorted = items.stream().sorted(comparator).toList();
-
-        int from = (int) pageable.getOffset();
-        int to   = Math.min(from + pageable.getPageSize(), sorted.size());
-        List<CourseListItemResponse> pageContent = from >= sorted.size() ? List.of() : sorted.subList(from, to);
-
-        return new PageImpl<>(pageContent, pageable, sorted.size());
+        return new PageImpl<>(content, pageable, total);
     }
 
     private CourseListItemResponse toCourseListItem(MembershipCourse c,
