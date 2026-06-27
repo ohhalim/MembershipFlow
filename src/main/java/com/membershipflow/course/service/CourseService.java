@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -35,7 +36,13 @@ public class CourseService {
 
     public Page<CourseListItemResponse> search(String q, CourseType courseType,
                                                 MembershipType membershipType, String region,
-                                                Pageable pageable) {
+                                                String sort, Pageable pageable) {
+        boolean priceSort = "price_asc".equals(sort) || "price_desc".equals(sort) || "latest".equals(sort);
+
+        if (priceSort) {
+            return searchWithPriceSort(q, courseType, membershipType, region, sort, pageable);
+        }
+
         Page<MembershipCourse> page = courseRepository.search(q, courseType, membershipType, region, pageable);
         List<Long> ids = page.map(MembershipCourse::getId).toList();
 
@@ -45,22 +52,57 @@ public class CourseService {
                 : priceService.get7dBasePriceBatch(ids);
 
         List<CourseListItemResponse> content = page.getContent().stream()
-                .map(c -> {
-                    PriceHistory latest = latestMap.get(c.getId());
-                    PriceHistory base   = baseMap.get(c.getId());
-                    Double changeRate   = calcChangeRate(latest, base);
-                    return new CourseListItemResponse(
-                            c.getId(), c.getName(), c.getRegion(),
-                            c.getCourseType() != null ? c.getCourseType().name() : null,
-                            c.getMembershipType() != null ? c.getMembershipType().name() : null,
-                            c.getHoles(),
-                            latest != null ? latest.getPrice() : null,
-                            latest != null ? latest.getCollectedAt().toString() : null,
-                            changeRate);
-                })
+                .map(c -> toCourseListItem(c, latestMap, baseMap))
                 .toList();
 
         return new PageImpl<>(content, pageable, page.getTotalElements());
+    }
+
+    private Page<CourseListItemResponse> searchWithPriceSort(String q, CourseType courseType,
+                                                              MembershipType membershipType, String region,
+                                                              String sort, Pageable pageable) {
+        List<MembershipCourse> all = courseRepository.searchAll(q, courseType, membershipType, region);
+        List<Long> ids = all.stream().map(MembershipCourse::getId).toList();
+
+        Map<Long, PriceHistory> latestMap = ids.isEmpty() ? Map.of() : priceService.getLatestPriceBatch(ids);
+        Map<Long, PriceHistory> baseMap   = ids.isEmpty() ? Map.of() : priceService.get7dBasePriceBatch(ids);
+
+        List<CourseListItemResponse> items = all.stream()
+                .map(c -> toCourseListItem(c, latestMap, baseMap))
+                .toList();
+
+        Comparator<CourseListItemResponse> comparator = switch (sort) {
+            case "price_asc"  -> Comparator.comparingLong(r -> r.latestPrice() != null ? r.latestPrice() : Long.MAX_VALUE);
+            case "price_desc" -> Comparator.comparingLong((CourseListItemResponse r) ->
+                    r.latestPrice() != null ? r.latestPrice() : Long.MIN_VALUE).reversed();
+            case "latest"     -> Comparator.comparing(
+                    (CourseListItemResponse r) -> r.updatedAt() != null ? r.updatedAt() : "",
+                    Comparator.reverseOrder());
+            default           -> Comparator.comparing(CourseListItemResponse::name);
+        };
+
+        List<CourseListItemResponse> sorted = items.stream().sorted(comparator).toList();
+
+        int from = (int) pageable.getOffset();
+        int to   = Math.min(from + pageable.getPageSize(), sorted.size());
+        List<CourseListItemResponse> pageContent = from >= sorted.size() ? List.of() : sorted.subList(from, to);
+
+        return new PageImpl<>(pageContent, pageable, sorted.size());
+    }
+
+    private CourseListItemResponse toCourseListItem(MembershipCourse c,
+                                                     Map<Long, PriceHistory> latestMap,
+                                                     Map<Long, PriceHistory> baseMap) {
+        PriceHistory latest = latestMap.get(c.getId());
+        PriceHistory base   = baseMap.get(c.getId());
+        return new CourseListItemResponse(
+                c.getId(), c.getName(), c.getRegion(),
+                c.getCourseType() != null ? c.getCourseType().name() : null,
+                c.getMembershipType() != null ? c.getMembershipType().name() : null,
+                c.getHoles(),
+                latest != null ? latest.getPrice() : null,
+                latest != null ? latest.getCollectedAt().toString() : null,
+                calcChangeRate(latest, base));
     }
 
     public CourseDetailResponse getDetail(Long courseId) {
