@@ -10,8 +10,10 @@ services:
       - certbot_www:/var/www/certbot:ro
       - certbot_conf:/etc/letsencrypt:ro
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -19,11 +21,18 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   backend:
     image: ghcr.io/ohhalim/membershipflow-backend:latest
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     environment:
       - DB_HOST=mysql
       - DB_USERNAME=${DB_USERNAME}
