@@ -34,4 +34,19 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
 
     @Query("SELECT c FROM MembershipCourse c WHERE c.id IN :ids AND c.active = true")
     List<MembershipCourse> findAllByIdIn(@Param("ids") List<Long> ids);
+
+    @Query("""
+            SELECT c FROM MembershipCourse c
+            WHERE (:q IS NULL OR c.name LIKE %:q%)
+              AND (:courseType IS NULL OR c.courseType = :courseType)
+              AND (:membershipType IS NULL OR c.membershipType = :membershipType)
+              AND (:region IS NULL OR c.region = :region)
+              AND c.active = true
+            ORDER BY c.name ASC
+            """)
+    List<MembershipCourse> searchAll(
+            @Param("q") String q,
+            @Param("courseType") CourseType courseType,
+            @Param("membershipType") MembershipType membershipType,
+            @Param("region") String region);
 }

@@ -29,12 +29,13 @@ public class CourseController {
             @RequestParam(required = false) CourseType courseType,
             @RequestParam(required = false) MembershipType membershipType,
             @RequestParam(required = false) String region,
+            @RequestParam(defaultValue = "name") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         int clampedSize = Math.min(size, 100);
         PageRequest pageable = PageRequest.of(page, clampedSize, Sort.by("name").ascending());
-        return ResponseEntity.ok(courseService.search(q, courseType, membershipType, region, pageable));
+        return ResponseEntity.ok(courseService.search(q, courseType, membershipType, region, sort, pageable));
     }
 
     // /courses/ranking 이 /courses/{courseId} 보다 먼저 위치해야 경로 충돌 없음
