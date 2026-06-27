@@ -107,8 +107,10 @@ public class PriceService {
     }
 
     public Map<Long, PriceHistory> getBasePriceBatch(List<Long> courseIds, LocalDateTime baseTime) {
-        LocalDateTime from = baseTime.minusDays(7);
-        LocalDateTime to   = baseTime.plusDays(7);
+        long periodDays = java.time.temporal.ChronoUnit.DAYS.between(baseTime, LocalDateTime.now());
+        long windowDays = Math.max(7, periodDays);
+        LocalDateTime from = baseTime.minusDays(windowDays);
+        LocalDateTime to   = baseTime.plusDays(windowDays);
         return priceHistoryRepository.findBasePriceForRanking(courseIds, baseTime, from, to).stream()
                 .collect(Collectors.toMap(ph -> ph.getCourse().getId(), ph -> ph));
     }
