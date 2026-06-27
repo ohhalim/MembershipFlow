@@ -5,6 +5,7 @@ import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
 import com.membershipflow.course.dto.RankingItemResponse;
+import com.membershipflow.course.dto.RankingPageResponse;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.course.entity.MembershipType;
@@ -73,8 +74,8 @@ public class CourseService {
                 false, null);
     }
 
-    public List<RankingItemResponse> getRanking(String period, String sort,
-                                                 CourseType courseType, int size) {
+    public RankingPageResponse getRanking(String period, String sort,
+                                          CourseType courseType, int page, int size) {
         List<MembershipCourse> all = courseType != null
                 ? courseRepository.findAll().stream()
                         .filter(c -> c.getCourseType() == courseType && c.isActive())
@@ -83,7 +84,7 @@ public class CourseService {
                         .filter(MembershipCourse::isActive)
                         .toList();
 
-        if (all.isEmpty()) return List.of();
+        if (all.isEmpty()) return new RankingPageResponse(List.of(), page, size, 0, false);
 
         List<Long> ids = all.stream().map(MembershipCourse::getId).toList();
         LocalDateTime baseTime = LocalDateTime.now().minus(parsePeriod(period));
@@ -116,16 +117,20 @@ public class CourseService {
                 ? (a, b) -> Double.compare(a.changeRate(), b.changeRate())
                 : (a, b) -> Double.compare(b.changeRate(), a.changeRate()));
 
-        // rank 번호 부여
-        List<RankingItemResponse> result = new ArrayList<>();
-        int limit = Math.min(size, ranked.size());
-        for (int i = 0; i < limit; i++) {
+        // rank 번호 부여 + 페이지 슬라이싱
+        long totalElements = ranked.size();
+        int fromIndex = page * size;
+        if (fromIndex >= totalElements) return new RankingPageResponse(List.of(), page, size, totalElements, false);
+
+        int toIndex = (int) Math.min(fromIndex + size, totalElements);
+        List<RankingItemResponse> content = new ArrayList<>();
+        for (int i = fromIndex; i < toIndex; i++) {
             RankingItemResponse r = ranked.get(i);
-            result.add(new RankingItemResponse(i + 1, r.courseId(), r.name(), r.region(),
+            content.add(new RankingItemResponse(i + 1, r.courseId(), r.name(), r.region(),
                     r.courseType(), r.membershipType(), r.currentPrice(), r.basePrice(),
                     r.changeRate(), r.changeAmount()));
         }
-        return result;
+        return new RankingPageResponse(content, page, size, totalElements, toIndex < totalElements);
     }
 
     private Double calcChangeRate(PriceHistory latest, PriceHistory base) {
