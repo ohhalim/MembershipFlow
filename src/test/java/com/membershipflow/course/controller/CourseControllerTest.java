@@ -123,15 +123,16 @@ class CourseControllerTest {
                 1, 1L, "레이크사이드CC", "경기",
                 CourseType.GOLF, MembershipType.REGULAR,
                 438_000_000L, 420_000_000L, 4.29, 18_000_000L);
-        given(courseService.getRanking(any(), any(), any(), anyInt()))
-                .willReturn(List.of(item));
+        given(courseService.getRanking(any(), any(), any(), anyInt(), anyInt()))
+                .willReturn(new com.membershipflow.course.dto.RankingPageResponse(
+                        List.of(item), 0, 20, 1L, false));
 
         // when / then
         mockMvc.perform(get("/api/v1/courses/ranking").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].rank").value(1))
-                .andExpect(jsonPath("$[0].name").value("레이크사이드CC"))
-                .andExpect(jsonPath("$[0].changeRate").value(4.29));
+                .andExpect(jsonPath("$.content[0].rank").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("레이크사이드CC"))
+                .andExpect(jsonPath("$.content[0].changeRate").value(4.29));
     }
 
     @Test
