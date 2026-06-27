@@ -3,6 +3,7 @@ package com.membershipflow.course.controller;
 import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
 import com.membershipflow.course.dto.RankingItemResponse;
+import com.membershipflow.course.dto.RankingPageResponse;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipType;
 import com.membershipflow.course.service.CourseService;
@@ -38,14 +39,15 @@ public class CourseController {
 
     // /courses/ranking 이 /courses/{courseId} 보다 먼저 위치해야 경로 충돌 없음
     @GetMapping("/ranking")
-    public ResponseEntity<List<RankingItemResponse>> ranking(
+    public ResponseEntity<RankingPageResponse> ranking(
             @RequestParam(defaultValue = "7d") String period,
             @RequestParam(defaultValue = "GAIN") String sort,
             @RequestParam(required = false) CourseType courseType,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
 
         int clampedSize = Math.min(size, 50);
-        return ResponseEntity.ok(courseService.getRanking(period, sort, courseType, clampedSize));
+        return ResponseEntity.ok(courseService.getRanking(period, sort, courseType, page, clampedSize));
     }
 
     @GetMapping("/{courseId}")
