@@ -125,6 +125,26 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
             """, nativeQuery = true)
     List<PriceHistory> findCurrentPriceForRanking(@Param("courseIds") List<Long> courseIds);
 
+    // 소스 비교용: 두 소스 모두 최신가가 있는 종목 조회
+    @Query(value = """
+            SELECT ph.course_id,
+                   MAX(CASE WHEN cs.name = :sourceA THEN ph.price END) AS price_a,
+                   MAX(CASE WHEN cs.name = :sourceB THEN ph.price END) AS price_b
+            FROM (
+                SELECT id, course_id, source_id, price,
+                       ROW_NUMBER() OVER (PARTITION BY course_id, source_id ORDER BY collected_at DESC, id DESC) AS rn
+                FROM price_history
+            ) ph
+            JOIN crawl_source cs ON cs.id = ph.source_id
+            WHERE ph.rn = 1
+              AND cs.name IN (:sourceA, :sourceB)
+            GROUP BY ph.course_id
+            HAVING price_a IS NOT NULL AND price_b IS NOT NULL
+            """, nativeQuery = true)
+    List<Object[]> findLatestByTwoSources(
+            @Param("sourceA") String sourceA,
+            @Param("sourceB") String sourceB);
+
     // 랭킹용 기준 시점 가격 (period 시작 시점 가장 근접 레코드)
     @Query(value = """
             SELECT ph.id, ph.course_id, ph.source_id, ph.price, ph.collected_at, ph.collect_run_id

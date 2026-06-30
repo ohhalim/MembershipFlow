@@ -6,6 +6,7 @@ import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
 import com.membershipflow.course.dto.RankingItemResponse;
 import com.membershipflow.course.dto.RankingPageResponse;
+import com.membershipflow.course.dto.SourceComparisonItem;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.course.entity.MembershipType;
@@ -164,6 +165,38 @@ public class CourseService {
                     r.changeRate(), r.changeAmount()));
         }
         return new RankingPageResponse(content, page, size, totalElements, toIndex < totalElements);
+    }
+
+    public List<SourceComparisonItem> getSourceComparison(int limit) {
+        List<Object[]> rows = priceService.getLatestByTwoSources("동아골프", "동부회원권");
+
+        List<Long> courseIds = rows.stream()
+                .map(r -> ((Number) r[0]).longValue())
+                .toList();
+
+        Map<Long, MembershipCourse> courseMap = courseRepository.findAllById(courseIds).stream()
+                .collect(Collectors.toMap(MembershipCourse::getId, c -> c));
+
+        return rows.stream()
+                .map(r -> {
+                    long courseId  = ((Number) r[0]).longValue();
+                    long dongaPrice = ((Number) r[1]).longValue();
+                    long dongbuPrice = ((Number) r[2]).longValue();
+                    long diffAmount  = dongbuPrice - dongaPrice;
+                    double diffRate  = dongaPrice == 0 ? 0
+                            : Math.round((double) diffAmount / dongaPrice * 10000d) / 100d;
+
+                    MembershipCourse c = courseMap.get(courseId);
+                    if (c == null) return null;
+                    return new SourceComparisonItem(
+                            courseId, c.getName(), c.getRegion(),
+                            c.getCourseType() != null ? c.getCourseType().name() : null,
+                            dongaPrice, dongbuPrice, diffAmount, diffRate);
+                })
+                .filter(item -> item != null)
+                .sorted((a, b) -> Double.compare(Math.abs(b.diffRate()), Math.abs(a.diffRate())))
+                .limit(limit)
+                .toList();
     }
 
     private Double calcChangeRate(PriceHistory latest, PriceHistory base) {

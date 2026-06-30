@@ -106,6 +106,10 @@ public class PriceService {
                 .collect(Collectors.toMap(ph -> ph.getCourse().getId(), ph -> ph));
     }
 
+    public List<Object[]> getLatestByTwoSources(String sourceA, String sourceB) {
+        return priceHistoryRepository.findLatestByTwoSources(sourceA, sourceB);
+    }
+
     public Map<Long, PriceHistory> getBasePriceBatch(List<Long> courseIds, LocalDateTime baseTime) {
         long periodDays = java.time.temporal.ChronoUnit.DAYS.between(baseTime, LocalDateTime.now());
         long windowDays = Math.max(7, periodDays);
