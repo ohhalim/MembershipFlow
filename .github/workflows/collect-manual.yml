@@ -1,0 +1,19 @@
+name: 수동 크롤링 트리거
+
+on:
+  workflow_dispatch:
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH → 크롤링 실행
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker exec membershipflow-nginx-1 wget -qO- --post-data="" \
+              http://membershipflow-backend-1:8081/admin/collect
