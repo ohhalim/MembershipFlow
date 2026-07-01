@@ -146,8 +146,14 @@ public class CourseService {
                     currentPrice, basePrice, changeRate, changeAmount));
         }
 
+        // 실제 변동이 있는 항목만 포함 (0.0% 제외)
+        boolean isLoss = "LOSS".equalsIgnoreCase(sort);
+        ranked = ranked.stream()
+                .filter(r -> isLoss ? r.changeRate() < 0 : r.changeRate() > 0)
+                .collect(Collectors.toCollection(ArrayList::new));
+
         // GAIN: 상승률 내림차순, LOSS: 하락률 오름차순
-        ranked.sort("LOSS".equalsIgnoreCase(sort)
+        ranked.sort(isLoss
                 ? (a, b) -> Double.compare(a.changeRate(), b.changeRate())
                 : (a, b) -> Double.compare(b.changeRate(), a.changeRate()));
 
