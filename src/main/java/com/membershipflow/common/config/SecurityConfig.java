@@ -61,9 +61,12 @@ public class SecurityConfig {
                                 "/api/v1/courses/**",
                                 "/api/v1/subscriptions/plans",
                                 "/api/v1/subscriptions/callback",
-                                "/ws/**")
+                                "/ws/**",
+                                // 백엔드 포트 미노출 + nginx 외부 차단으로 내부 전용 안전
+                                "/admin/collect",
+                                "/admin/collect/history")
                         .permitAll()
-                        // 수집 트리거 등 운영 전용 — ADMIN 권한 필수 (외부 어뷰징 차단)
+                        // 그 외 admin — ADMIN 권한 필수
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers(
                                 "/api/v1/watchlist/**",
