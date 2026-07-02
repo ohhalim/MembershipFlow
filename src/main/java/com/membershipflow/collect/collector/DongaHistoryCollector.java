@@ -1,11 +1,14 @@
 package com.membershipflow.collect.collector;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipType;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -39,12 +42,17 @@ public class DongaHistoryCollector {
     }
 
     private static final String LISTING_URL   = "https://www.dongagolf.co.kr/membership/sise/";
-    private static final String DETAIL_URL    = "https://www.dongagolf.co.kr/membership/info?custid=%s&code=%s";
+    // 상세 페이지 차트가 내부적으로 쓰는 JSON API. type=m(월간) 응답은 약 2일 간격 포인트,
+    // previousDay 필드로 과거 월로 페이지네이션 가능
+    private static final String CHART_API_URL = "https://www.dongagolf.co.kr/api/chart.php?id=%s&code=%s&type=m&start=%s";
     private static final Pattern CUSTID_CODE_URL = Pattern.compile("custid=(\\d+)&code=(\\d+)");
-    private static final Pattern CATEGORIES   = Pattern.compile("categories:\\s*\\[([^\\]]+)\\]");
-    private static final Pattern SERIES_DATA  = Pattern.compile("data:\\s*\\[([^\\]]+)\\]");
-    private static final Pattern SERIES_NAME  = Pattern.compile("name:\\s*'([^']+)'");
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yy/MM/dd");
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // 종목당 과거로 조회할 개월 수 (서비스 차트 최대 기간인 1년에 맞춤)
+    @Value("${app.collect.donga-history-months:12}")
+    private int monthsBack;
 
     public record HistoricalPrice(
             String courseName,
@@ -101,52 +109,54 @@ public class DongaHistoryCollector {
         }
     }
 
-    private List<HistoricalPrice> fetchHistory(CourseLink link) throws IOException {
-        String url = String.format(DETAIL_URL, link.custid(), link.code());
-        Document doc = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (compatible; MembershipFlowBot/1.0)")
-                .timeout(15_000)
-                .get();
-
-        String html = doc.html();
-
-        Matcher nameMatcher = SERIES_NAME.matcher(html);
-        String courseName = nameMatcher.find() ? nameMatcher.group(1) : link.name();
-
-        Matcher catMatcher = CATEGORIES.matcher(html);
-        Matcher dataMatcher = SERIES_DATA.matcher(html);
-
-        if (!catMatcher.find() || !dataMatcher.find()) {
-            log.debug("[동아히스토리] 차트 데이터 없음: {}", link.name());
-            return List.of();
-        }
-
-        String[] dateStrs = catMatcher.group(1).replaceAll("\"", "").split(",");
-        String[] priceStrs = dataMatcher.group(1).split(",");
-
-        if (dateStrs.length != priceStrs.length) {
-            log.warn("[동아히스토리] 날짜/가격 배열 길이 불일치: {}", link.name());
-            return List.of();
-        }
-
-        MembershipType membershipType = extractMembershipType(courseName);
+    // 월간 차트 API를 previousDay로 과거 페이지네이션하며 monthsBack개월치 수집
+    private List<HistoricalPrice> fetchHistory(CourseLink link) throws IOException, InterruptedException {
+        MembershipType membershipType = extractMembershipType(link.name());
         List<HistoricalPrice> result = new ArrayList<>();
 
-        for (int i = 0; i < dateStrs.length; i++) {
-            try {
-                String dateStr = dateStrs[i].trim();
-                long price = Long.parseLong(priceStrs[i].trim()) * 10_000L;
-                LocalDate date = LocalDate.parse(dateStr, FMT);
-                LocalDateTime collectedAt = date.atTime(7, 0);
+        String start = "";
+        for (int month = 0; month < monthsBack; month++) {
+            ChartResponse res = fetchChartPage(link, start);
+            if (res == null || res.data() == null || res.data().isEmpty()) break;
 
-                result.add(new HistoricalPrice(courseName, CourseType.GOLF, membershipType, price, collectedAt));
-            } catch (Exception e) {
-                log.debug("[동아히스토리] 데이터 파싱 실패: {} idx={}", link.name(), i);
+            String courseName = res.data().get(0).name() != null && !res.data().get(0).name().isBlank()
+                    ? res.data().get(0).name() : link.name();
+
+            for (ChartPoint point : res.data()) {
+                try {
+                    LocalDate date = LocalDate.parse(point.date().trim(), FMT);
+                    result.add(new HistoricalPrice(
+                            courseName, CourseType.GOLF, membershipType,
+                            point.price() * 10_000L, date.atTime(7, 0)));
+                } catch (Exception e) {
+                    log.debug("[동아히스토리] 포인트 파싱 실패: {} date={}", link.name(), point.date());
+                }
             }
+
+            if (res.previousDay() == null || res.previousDay().isBlank()) break;
+            start = res.previousDay();
+            Thread.sleep(200); // 같은 종목 내 페이지 간 rate limit
         }
 
         return result;
     }
+
+    private ChartResponse fetchChartPage(CourseLink link, String start) throws IOException {
+        String url = String.format(CHART_API_URL, link.custid(), link.code(), start);
+        String body = Jsoup.connect(url)
+                .userAgent("Mozilla/5.0 (compatible; MembershipFlowBot/1.0)")
+                .ignoreContentType(true)
+                .timeout(15_000)
+                .execute()
+                .body();
+        return objectMapper.readValue(body, ChartResponse.class);
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ChartResponse(List<ChartPoint> data, String previousDay, String nextDay) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ChartPoint(long price, String date, String name) {}
 
     private MembershipType extractMembershipType(String name) {
         if (name.contains("주중")) return MembershipType.WEEKDAY;
