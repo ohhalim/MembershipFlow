@@ -4,6 +4,7 @@ import com.membershipflow.common.exception.BusinessException;
 import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
+import com.membershipflow.course.dto.MarketSummaryResponse;
 import com.membershipflow.course.dto.RankingItemResponse;
 import com.membershipflow.course.dto.RankingPageResponse;
 import com.membershipflow.course.dto.SourceComparisonItem;
@@ -51,9 +52,10 @@ public class CourseService {
                 : priceService.getLatestPriceBatch(ids);
         Map<Long, PriceHistory> baseMap   = ids.isEmpty() ? Map.of()
                 : priceService.get7dBasePriceBatch(ids);
+        Map<Long, List<CourseListItemResponse.SourcePriceItem>> sourcePriceMap = getSourcePriceMap(ids);
 
         List<CourseListItemResponse> content = page.getContent().stream()
-                .map(c -> toCourseListItem(c, latestMap, baseMap))
+                .map(c -> toCourseListItem(c, latestMap, baseMap, sourcePriceMap))
                 .toList();
 
         return new PageImpl<>(content, pageable, page.getTotalElements());
@@ -74,17 +76,31 @@ public class CourseService {
         List<Long> ids = paged.stream().map(MembershipCourse::getId).toList();
         Map<Long, PriceHistory> latestMap = ids.isEmpty() ? Map.of() : priceService.getLatestPriceBatch(ids);
         Map<Long, PriceHistory> baseMap   = ids.isEmpty() ? Map.of() : priceService.get7dBasePriceBatch(ids);
+        Map<Long, List<CourseListItemResponse.SourcePriceItem>> sourcePriceMap = getSourcePriceMap(ids);
 
         List<CourseListItemResponse> content = paged.stream()
-                .map(c -> toCourseListItem(c, latestMap, baseMap))
+                .map(c -> toCourseListItem(c, latestMap, baseMap, sourcePriceMap))
                 .toList();
 
         return new PageImpl<>(content, pageable, total);
     }
 
+    // (courseId, sourceName, price) 행을 courseId별로 그룹핑
+    private Map<Long, List<CourseListItemResponse.SourcePriceItem>> getSourcePriceMap(List<Long> ids) {
+        if (ids.isEmpty()) return Map.of();
+        return priceService.getLatestPerSourceRows(ids).stream()
+                .collect(Collectors.groupingBy(
+                        row -> ((Number) row[0]).longValue(),
+                        Collectors.mapping(
+                                row -> new CourseListItemResponse.SourcePriceItem(
+                                        (String) row[1], ((Number) row[2]).longValue()),
+                                Collectors.toList())));
+    }
+
     private CourseListItemResponse toCourseListItem(MembershipCourse c,
                                                      Map<Long, PriceHistory> latestMap,
-                                                     Map<Long, PriceHistory> baseMap) {
+                                                     Map<Long, PriceHistory> baseMap,
+                                                     Map<Long, List<CourseListItemResponse.SourcePriceItem>> sourcePriceMap) {
         PriceHistory latest = latestMap.get(c.getId());
         PriceHistory base   = baseMap.get(c.getId());
         return new CourseListItemResponse(
@@ -94,7 +110,8 @@ public class CourseService {
                 c.getHoles(),
                 latest != null ? latest.getPrice() : null,
                 latest != null ? latest.getCollectedAt().toString() : null,
-                calcChangeRate(latest, base));
+                calcChangeRate(latest, base),
+                sourcePriceMap.getOrDefault(c.getId(), List.of()));
     }
 
     public CourseDetailResponse getDetail(Long courseId) {
@@ -171,6 +188,32 @@ public class CourseService {
                     r.changeRate(), r.changeAmount()));
         }
         return new RankingPageResponse(content, page, size, totalElements, toIndex < totalElements);
+    }
+
+    // 시장 요약: 오늘 갱신 종목 수 + 1일 기준 상승/하락 종목 수
+    public MarketSummaryResponse getSummary() {
+        List<MembershipCourse> all = courseRepository.findAll().stream()
+                .filter(MembershipCourse::isActive)
+                .toList();
+        if (all.isEmpty()) return new MarketSummaryResponse(0, 0, 0);
+
+        long updatedToday = priceService.countCoursesUpdatedSince(
+                java.time.LocalDate.now().atStartOfDay());
+
+        List<Long> ids = all.stream().map(MembershipCourse::getId).toList();
+        Map<Long, PriceHistory> currentMap = priceService.getCurrentPriceBatch(ids);
+        Map<Long, PriceHistory> baseMap    = priceService.getBasePriceBatch(ids, LocalDateTime.now().minusDays(1));
+
+        int risers = 0, fallers = 0;
+        for (Long id : ids) {
+            PriceHistory current = currentMap.get(id);
+            PriceHistory base    = baseMap.get(id);
+            if (current == null || base == null || base.getPrice() == 0) continue;
+            long diff = current.getPrice() - base.getPrice();
+            if (diff > 0) risers++;
+            else if (diff < 0) fallers++;
+        }
+        return new MarketSummaryResponse(updatedToday, risers, fallers);
     }
 
     public List<SourceComparisonItem> getSourceComparison(int limit) {
