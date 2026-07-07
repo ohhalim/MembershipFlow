@@ -68,7 +68,9 @@ public class DongaCollector implements PriceCollector {
                 continue;
             }
 
-            MembershipType membershipType = extractMembershipType(courseName);
+            // 이름 중간에 포함된 구분만 우선 추출 (null이면 CollectService에서
+            // alias/CourseNameNormalizer 추출값 → REGULAR 순으로 결정)
+            MembershipType membershipType = CourseNameNormalizer.extractEmbeddedType(courseName);
 
             result.add(new CollectedPrice(
                     courseName, null, CourseType.GOLF,
@@ -84,16 +86,5 @@ public class DongaCollector implements PriceCollector {
         String cleaned = text.replaceAll("[^0-9]", "");
         if (cleaned.isBlank()) throw new CollectException("가격 파싱 실패: " + text);
         return Long.parseLong(cleaned) * 10_000L;
-    }
-
-    // 동아는 코스명 자체에 "주중", "주말", "우대" 등이 포함된 경우가 있음
-    private MembershipType extractMembershipType(String courseName) {
-        if (courseName.contains("주중")) return MembershipType.WEEKDAY;
-        if (courseName.contains("주말")) return MembershipType.WEEKEND;
-        if (courseName.contains("우대")) return MembershipType.PREFERRED;
-        if (courseName.contains("법인")) return MembershipType.CORPORATE;
-        if (courseName.contains("가족") || courseName.contains("부부")) return MembershipType.FAMILY;
-        if (courseName.contains("개인")) return MembershipType.INDIVIDUAL;
-        return MembershipType.REGULAR;
     }
 }

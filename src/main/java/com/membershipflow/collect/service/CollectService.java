@@ -3,13 +3,18 @@ package com.membershipflow.collect.service;
 import com.membershipflow.collect.collector.CollectException;
 import com.membershipflow.collect.collector.CollectedPrice;
 import com.membershipflow.collect.collector.CollectorRegistry;
+import com.membershipflow.collect.collector.CourseNameNormalizer;
 import com.membershipflow.collect.collector.DongaHistoryCollector;
 import com.membershipflow.collect.collector.PriceCollector;
 import com.membershipflow.collect.entity.CollectRun;
+import com.membershipflow.collect.entity.CourseAlias;
 import com.membershipflow.collect.entity.CrawlSource;
 import com.membershipflow.collect.repository.CollectRunRepository;
+import com.membershipflow.collect.repository.CourseAliasRepository;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
+import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
+import com.membershipflow.course.entity.MembershipType;
 import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.price.entity.PriceHistory;
 import com.membershipflow.price.repository.PriceHistoryRepository;
@@ -23,6 +28,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -32,6 +40,7 @@ public class CollectService {
     private static final String PARSER_VERSION = "1.0";
 
     private final CrawlSourceRepository       crawlSourceRepository;
+    private final CourseAliasRepository       courseAliasRepository;
     private final CollectRunRepository        collectRunRepository;
     private final MembershipCourseRepository  membershipCourseRepository;
     private final PriceHistoryRepository      priceHistoryRepository;
@@ -70,10 +79,13 @@ public class CollectService {
         int successCount = 0;
         int failCount    = 0;
         List<PriceHistory> toSave = new ArrayList<>();
+        Map<String, CourseAlias> aliases = loadAliases();
 
         for (CollectedPrice cp : prices) {
             try {
-                MembershipCourse course = findOrRegisterCourse(cp);
+                MembershipCourse course = findOrRegisterCourse(
+                        cp.courseName(), cp.region(), cp.courseType(),
+                        cp.membershipType(), cp.holes(), aliases);
                 toSave.add(PriceHistory.builder()
                         .course(course)
                         .source(source)
@@ -111,16 +123,12 @@ public class CollectService {
         List<DongaHistoryCollector.HistoricalPrice> histories = dongaHistoryCollector.collectAll();
 
         List<PriceHistory> toSave = new ArrayList<>();
+        Map<String, CourseAlias> aliases = loadAliases();
         for (DongaHistoryCollector.HistoricalPrice hp : histories) {
             try {
-                MembershipCourse course = membershipCourseRepository
-                        .findByNameAndCourseTypeAndMembershipType(hp.courseName(), hp.courseType(), hp.membershipType())
-                        .orElseGet(() -> membershipCourseRepository.save(
-                                MembershipCourse.builder()
-                                        .name(hp.courseName())
-                                        .courseType(hp.courseType())
-                                        .membershipType(hp.membershipType())
-                                        .build()));
+                MembershipCourse course = findOrRegisterCourse(
+                        hp.courseName(), null, hp.courseType(),
+                        hp.membershipType(), null, aliases);
 
                 boolean exists = priceHistoryRepository
                         .existsByCourseAndSourceAndCollectedAt(course, source, hp.collectedAt());
@@ -142,22 +150,48 @@ public class CollectService {
         return toSave.size();
     }
 
-    // 이름+courseType+membershipType 으로 종목 조회, 없으면 자동 등록
+    // 원본 코스명을 alias → CourseNameNormalizer 순으로 정규화한 뒤
+    // (정규명, courseType, 최종 membershipType)으로 조회, 없으면 자동 등록
     // INSERT IGNORE 대신 findOrCreate 패턴 사용 (단일 인스턴스 MVP 전제)
-    private MembershipCourse findOrRegisterCourse(CollectedPrice cp) {
+    private MembershipCourse findOrRegisterCourse(String rawName, String region, CourseType courseType,
+                                                  MembershipType collectedType, Integer holes,
+                                                  Map<String, CourseAlias> aliases) {
+        String trimmed = rawName == null ? "" : rawName.trim();
+
+        String name;
+        MembershipType extractedType;
+        CourseAlias alias = aliases.get(trimmed);
+        if (alias != null) {
+            name          = alias.getCanonicalName();
+            extractedType = alias.getMembershipType();
+        } else {
+            CourseNameNormalizer.NormalizedCourse normalized = CourseNameNormalizer.normalize(trimmed);
+            name          = normalized.name();
+            extractedType = normalized.type();
+        }
+
+        // 수집기가 판별한 구분 우선, 없으면 이름에서 추출한 값, 둘 다 없으면 REGULAR
+        MembershipType membershipType = collectedType != null ? collectedType
+                : extractedType != null ? extractedType
+                : MembershipType.REGULAR;
+
         return membershipCourseRepository
-                .findByNameAndCourseTypeAndMembershipType(
-                        cp.courseName(), cp.courseType(), cp.membershipType())
+                .findByNameAndCourseTypeAndMembershipType(name, courseType, membershipType)
                 .orElseGet(() -> {
-                    log.debug("신규 종목 등록: {}", cp.courseName());
+                    log.debug("신규 종목 등록: {} (원본: {})", name, trimmed);
                     return membershipCourseRepository.save(
                             MembershipCourse.builder()
-                                    .name(cp.courseName())
-                                    .region(cp.region())
-                                    .courseType(cp.courseType())
-                                    .membershipType(cp.membershipType())
-                                    .holes(cp.holes())
+                                    .name(name)
+                                    .region(region)
+                                    .courseType(courseType)
+                                    .membershipType(membershipType)
+                                    .holes(holes)
                                     .build());
                 });
+    }
+
+    private Map<String, CourseAlias> loadAliases() {
+        return courseAliasRepository.findAll().stream()
+                .collect(Collectors.toMap(CourseAlias::getAliasName, Function.identity()));
     }
 }

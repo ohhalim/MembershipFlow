@@ -20,15 +20,17 @@ class MembershipTypeMapperTest {
             "주말,         WEEKEND",
             "가족,         FAMILY",
             "부부,         FAMILY",
-            "개인,         INDIVIDUAL",
-            "개인회원,     INDIVIDUAL",
+            "개인,         REGULAR",
+            "개인회원,     REGULAR",
             "법인,         CORPORATE",
             "주주,         SHAREHOLDER",
             "우대,         PREFERRED",
             "남자,         MALE",
             "남성,         MALE",
+            "'개인 남자',  MALE",
             "여자,         FEMALE",
             "여성,         FEMALE",
+            "'개인 여자',  FEMALE",
     })
     @DisplayName("알려진 type2 문자열은 대응 MembershipType으로 매핑된다")
     void knownRaw_mapsToExpected(String raw, MembershipType expected) {

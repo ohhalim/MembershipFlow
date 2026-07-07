@@ -6,9 +6,11 @@ import com.membershipflow.collect.collector.CollectorRegistry;
 import com.membershipflow.collect.collector.PriceCollector;
 import com.membershipflow.collect.entity.CollectRun;
 import com.membershipflow.collect.entity.CollectStatus;
+import com.membershipflow.collect.entity.CourseAlias;
 import com.membershipflow.collect.entity.CrawlSource;
 import com.membershipflow.collect.entity.CrawlType;
 import com.membershipflow.collect.repository.CollectRunRepository;
+import com.membershipflow.collect.repository.CourseAliasRepository;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
@@ -39,6 +41,7 @@ import static org.mockito.Mockito.never;
 class CollectServiceTest {
 
     @Mock CrawlSourceRepository      crawlSourceRepository;
+    @Mock CourseAliasRepository       courseAliasRepository;
     @Mock CollectRunRepository        collectRunRepository;
     @Mock MembershipCourseRepository  membershipCourseRepository;
     @Mock PriceHistoryRepository      priceHistoryRepository;
@@ -70,14 +73,15 @@ class CollectServiceTest {
                 18, 438_000_000L, "동부회원권");
 
         MembershipCourse course = MembershipCourse.builder()
-                .name("레이크사이드CC").courseType(CourseType.GOLF)
+                .name("레이크사이드").courseType(CourseType.GOLF)
                 .membershipType(MembershipType.REGULAR).holes(18)
                 .build();
 
         given(collector.collect()).willReturn(List.of(cp));
         given(collectRunRepository.save(any())).willReturn(run);
+        // 끝의 CC가 제거된 정규명으로 조회된다
         given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
-                "레이크사이드CC", CourseType.GOLF, MembershipType.REGULAR))
+                "레이크사이드", CourseType.GOLF, MembershipType.REGULAR))
                 .willReturn(Optional.of(course));
 
         // when
@@ -115,6 +119,67 @@ class CollectServiceTest {
 
         // then
         then(membershipCourseRepository).should().save(any(MembershipCourse.class));
+    }
+
+    @Test
+    @DisplayName("별칭(course_alias)에 등록된 원본명은 정식명·구분으로 치환되어 조회된다")
+    void collectOne_aliasedName_resolvesToCanonical() {
+        // given — 동아 원본 "88(팔팔)" → 정식명 88, REGULAR
+        CollectedPrice cp = new CollectedPrice(
+                "88(팔팔)", null, CourseType.GOLF, null,
+                null, 438_000_000L, "동아골프");
+
+        MembershipCourse course = MembershipCourse.builder()
+                .name("88").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR)
+                .build();
+
+        given(courseAliasRepository.findAll()).willReturn(List.of(
+                CourseAlias.builder()
+                        .aliasName("88(팔팔)").canonicalName("88")
+                        .membershipType(MembershipType.REGULAR)
+                        .build()));
+        given(collector.collect()).willReturn(List.of(cp));
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "88", CourseType.GOLF, MembershipType.REGULAR))
+                .willReturn(Optional.of(course));
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then — 새 코스를 만들지 않고 기존 정식 코스로 저장
+        then(membershipCourseRepository).should(never()).save(any(MembershipCourse.class));
+        ArgumentCaptor<List<PriceHistory>> captor = ArgumentCaptor.captor();
+        then(priceHistoryRepository).should().saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
+        assertThat(captor.getValue().get(0).getCourse().getName()).isEqualTo("88");
+    }
+
+    @Test
+    @DisplayName("구분이 코스명 끝에 붙은 동아 원본명은 정규화되어 조회된다")
+    void collectOne_trailingTypeToken_isNormalized() {
+        // given — "경주신라주주" → (경주신라, SHAREHOLDER)
+        CollectedPrice cp = new CollectedPrice(
+                "경주신라주주", null, CourseType.GOLF, null,
+                null, 100_000_000L, "동아골프");
+
+        MembershipCourse course = MembershipCourse.builder()
+                .name("경주신라").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.SHAREHOLDER)
+                .build();
+
+        given(collector.collect()).willReturn(List.of(cp));
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "경주신라", CourseType.GOLF, MembershipType.SHAREHOLDER))
+                .willReturn(Optional.of(course));
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then
+        then(membershipCourseRepository).should(never()).save(any(MembershipCourse.class));
     }
 
     @Test
