@@ -2,6 +2,7 @@ package com.membershipflow.course.controller;
 
 import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
+import com.membershipflow.course.dto.MarketSummaryResponse;
 import com.membershipflow.course.dto.RankingItemResponse;
 import com.membershipflow.course.dto.RankingPageResponse;
 import com.membershipflow.course.dto.SourceComparisonItem;
@@ -50,6 +51,12 @@ public class CourseController {
 
         int clampedSize = Math.min(size, 50);
         return ResponseEntity.ok(courseService.getRanking(period, sort, courseType, page, clampedSize));
+    }
+
+    // /courses/summary 가 /courses/{courseId} 보다 먼저 위치해야 경로 충돌 없음
+    @GetMapping("/summary")
+    public ResponseEntity<MarketSummaryResponse> summary() {
+        return ResponseEntity.ok(courseService.getSummary());
     }
 
     // /courses/source-comparison 이 /courses/{courseId} 보다 먼저 위치해야 경로 충돌 없음

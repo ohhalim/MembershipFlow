@@ -1,5 +1,7 @@
 package com.membershipflow.course.dto;
 
+import java.util.List;
+
 public record CourseListItemResponse(
         Long id,
         String name,
@@ -9,5 +11,8 @@ public record CourseListItemResponse(
         Integer holes,
         Long latestPrice,
         String updatedAt,
-        Double changeRate
-) {}
+        Double changeRate,
+        List<SourcePriceItem> sourcePrices
+) {
+    public record SourcePriceItem(String source, Long price) {}
+}
