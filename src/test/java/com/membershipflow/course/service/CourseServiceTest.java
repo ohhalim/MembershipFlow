@@ -1,0 +1,129 @@
+package com.membershipflow.course.service;
+
+import com.membershipflow.course.dto.CourseListItemResponse;
+import com.membershipflow.course.entity.CourseType;
+import com.membershipflow.course.entity.MembershipCourse;
+import com.membershipflow.course.entity.MembershipType;
+import com.membershipflow.course.repository.MembershipCourseRepository;
+import com.membershipflow.price.entity.PriceHistory;
+import com.membershipflow.price.service.PriceService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.BDDMockito.given;
+
+@ExtendWith(MockitoExtension.class)
+class CourseServiceTest {
+
+    @Mock MembershipCourseRepository courseRepository;
+    @Mock PriceService priceService;
+
+    @InjectMocks CourseService courseService;
+
+    private static final long COURSE_ID = 1L;
+    private final Pageable pageable = PageRequest.of(0, 20);
+
+    private MembershipCourse course;
+    private PriceHistory latest;
+
+    @BeforeEach
+    void setUp() {
+        course = MembershipCourse.builder()
+                .name("88").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR)
+                .build();
+        ReflectionTestUtils.setField(course, "id", COURSE_ID);
+
+        // 소스 무관 최신가: 동아 450,000,000 (가장 최근 수집)
+        latest = PriceHistory.builder()
+                .price(450_000_000L)
+                .collectedAt(LocalDateTime.of(2026, 7, 7, 7, 0))
+                .build();
+    }
+
+    private void stubSearch(List<Object[]> sourceRows) {
+        given(courseRepository.search(any(), any(), any(), any(), any()))
+                .willReturn(new PageImpl<>(List.of(course), pageable, 1));
+        given(priceService.getLatestPriceBatch(anyList()))
+                .willReturn(Map.of(COURSE_ID, latest));
+        given(priceService.getLatestPerSourceRows(anyList()))
+                .willReturn(sourceRows);
+    }
+
+    @Test
+    @DisplayName("대표 가격은 거래소별 최신가 중 최저가다 (매수자 관점)")
+    void search_listPrice_isMinOfSourcePrices() {
+        // given — 동아 450,000,000 / 동부 438,000,000
+        stubSearch(List.of(
+                new Object[]{COURSE_ID, "동아골프", 450_000_000L},
+                new Object[]{COURSE_ID, "동부회원권", 438_000_000L}));
+
+        // when
+        Page<CourseListItemResponse> result =
+                courseService.search(null, null, null, null, null, pageable);
+
+        // then — 최신 수집가(450M)가 아니라 거래소 최저가(438M)가 대표 가격
+        CourseListItemResponse item = result.getContent().get(0);
+        assertThat(item.latestPrice()).isEqualTo(438_000_000L);
+        assertThat(item.sourcePrices()).hasSize(2);
+        // updatedAt은 기존 로직(소스 무관 최신 수집 시각) 유지
+        assertThat(item.updatedAt()).isEqualTo("2026-07-07T07:00");
+    }
+
+    @Test
+    @DisplayName("거래소별 가격이 없으면 소스 무관 최신가로 폴백한다")
+    void search_noSourcePrices_fallsBackToLatest() {
+        // given
+        stubSearch(List.of());
+
+        // when
+        Page<CourseListItemResponse> result =
+                courseService.search(null, null, null, null, null, pageable);
+
+        // then
+        CourseListItemResponse item = result.getContent().get(0);
+        assertThat(item.latestPrice()).isEqualTo(450_000_000L);
+        assertThat(item.sourcePrices()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("changeRate는 대표 가격이 아닌 기존 로직(소스 무관 최신가 vs 7일 기준가)을 유지한다")
+    void search_changeRate_keepsExistingLogic() {
+        // given — 7일 전 기준가 400,000,000 → (450M-400M)/400M = +12.5%
+        PriceHistory base = PriceHistory.builder()
+                .price(400_000_000L)
+                .collectedAt(LocalDateTime.of(2026, 6, 30, 7, 0))
+                .build();
+        stubSearch(List.of(
+                new Object[]{COURSE_ID, "동아골프", 450_000_000L},
+                new Object[]{COURSE_ID, "동부회원권", 438_000_000L}));
+        given(priceService.get7dBasePriceBatch(anyList()))
+                .willReturn(Map.of(COURSE_ID, base));
+
+        // when
+        Page<CourseListItemResponse> result =
+                courseService.search(null, null, null, null, null, pageable);
+
+        // then — 대표 가격은 최저가지만 등락률은 최신 수집가 기준
+        CourseListItemResponse item = result.getContent().get(0);
+        assertThat(item.latestPrice()).isEqualTo(438_000_000L);
+        assertThat(item.changeRate()).isEqualTo(12.5);
+    }
+}

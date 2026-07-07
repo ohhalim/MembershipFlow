@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -103,15 +104,29 @@ public class CourseService {
                                                      Map<Long, List<CourseListItemResponse.SourcePriceItem>> sourcePriceMap) {
         PriceHistory latest = latestMap.get(c.getId());
         PriceHistory base   = baseMap.get(c.getId());
+        List<CourseListItemResponse.SourcePriceItem> sourcePrices =
+                sourcePriceMap.getOrDefault(c.getId(), List.of());
         return new CourseListItemResponse(
                 c.getId(), c.getName(), c.getRegion(),
                 c.getCourseType() != null ? c.getCourseType().name() : null,
                 c.getMembershipType() != null ? c.getMembershipType().name() : null,
                 c.getHoles(),
-                latest != null ? latest.getPrice() : null,
+                resolveListPrice(latest, sourcePrices),
                 latest != null ? latest.getCollectedAt().toString() : null,
                 calcChangeRate(latest, base),
-                sourcePriceMap.getOrDefault(c.getId(), List.of()));
+                sourcePrices);
+    }
+
+    // 목록 대표 가격 규칙 (#130): 코스 통합 후 거래소별 최신가가 섞이지 않도록,
+    // 매수자 관점에서 거래소별 최신가 중 최저가를 대표 가격으로 사용.
+    // 거래소별 가격이 없으면 소스 무관 최신가로 폴백
+    private Long resolveListPrice(PriceHistory latest,
+                                  List<CourseListItemResponse.SourcePriceItem> sourcePrices) {
+        return sourcePrices.stream()
+                .map(CourseListItemResponse.SourcePriceItem::price)
+                .filter(Objects::nonNull)
+                .min(Long::compareTo)
+                .orElse(latest != null ? latest.getPrice() : null);
     }
 
     public CourseDetailResponse getDetail(Long courseId) {
