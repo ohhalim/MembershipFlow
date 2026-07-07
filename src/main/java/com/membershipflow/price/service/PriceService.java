@@ -110,6 +110,15 @@ public class PriceService {
         return priceHistoryRepository.findLatestByTwoSources(sourceA, sourceB);
     }
 
+    // (courseId, sourceName, price) 행 목록 — 목록 거래소별 가격 표시용
+    public List<Object[]> getLatestPerSourceRows(List<Long> courseIds) {
+        return priceHistoryRepository.findLatestPerSourceByCourseIds(courseIds);
+    }
+
+    public long countCoursesUpdatedSince(LocalDateTime since) {
+        return priceHistoryRepository.countCoursesUpdatedSince(since);
+    }
+
     public Map<Long, PriceHistory> getBasePriceBatch(List<Long> courseIds, LocalDateTime baseTime) {
         long periodDays = java.time.temporal.ChronoUnit.DAYS.between(baseTime, LocalDateTime.now());
         long windowDays = Math.max(7, periodDays);

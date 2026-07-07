@@ -145,6 +145,25 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
             @Param("sourceA") String sourceA,
             @Param("sourceB") String sourceB);
 
+    // 여러 종목의 (종목, 소스)별 최신가 배치 조회 — 목록 거래소별 가격 표시용
+    @Query(value = """
+            SELECT ph.course_id, cs.name, ph.price
+            FROM (
+                SELECT course_id, source_id, price,
+                       ROW_NUMBER() OVER (PARTITION BY course_id, source_id ORDER BY collected_at DESC, id DESC) AS rn
+                FROM price_history
+                WHERE course_id IN (:courseIds)
+            ) ph
+            JOIN crawl_source cs ON cs.id = ph.source_id
+            WHERE ph.rn = 1
+            ORDER BY ph.course_id, cs.name
+            """, nativeQuery = true)
+    List<Object[]> findLatestPerSourceByCourseIds(@Param("courseIds") List<Long> courseIds);
+
+    // 특정 시점 이후 가격이 갱신된 종목 수 (시장 요약용)
+    @Query("SELECT COUNT(DISTINCT ph.course.id) FROM PriceHistory ph WHERE ph.collectedAt >= :since")
+    long countCoursesUpdatedSince(@Param("since") LocalDateTime since);
+
     // 랭킹용 기준 시점 가격 (period 시작 시점 가장 근접 레코드)
     @Query(value = """
             SELECT ph.id, ph.course_id, ph.source_id, ph.price, ph.collected_at, ph.collect_run_id

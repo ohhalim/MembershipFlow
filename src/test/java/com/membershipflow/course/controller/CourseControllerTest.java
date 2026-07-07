@@ -60,7 +60,9 @@ class CourseControllerTest {
         sampleItem = new CourseListItemResponse(
                 1L, "레이크사이드CC", "경기",
                 "GOLF", "REGULAR", 18,
-                438_000_000L, "2026-06-22T07:00", 2.5);
+                438_000_000L, "2026-06-22T07:00", 2.5,
+                List.of(new CourseListItemResponse.SourcePriceItem("동아골프", 438_000_000L),
+                        new CourseListItemResponse.SourcePriceItem("동부회원권", 440_000_000L)));
 
         sampleDetail = new CourseDetailResponse(
                 1L, "레이크사이드CC", "경기",
@@ -133,6 +135,36 @@ class CourseControllerTest {
                 .andExpect(jsonPath("$.content[0].rank").value(1))
                 .andExpect(jsonPath("$.content[0].name").value("레이크사이드CC"))
                 .andExpect(jsonPath("$.content[0].changeRate").value(4.29));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/courses — 목록에 거래소별 가격이 포함된다")
+    void list_includesSourcePrices() throws Exception {
+        // given
+        given(courseService.search(any(), any(), any(), any(), any(), any()))
+                .willReturn(new PageImpl<>(List.of(sampleItem), PageRequest.of(0, 20), 1));
+
+        // when / then
+        mockMvc.perform(get("/api/v1/courses").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].sourcePrices[0].source").value("동아골프"))
+                .andExpect(jsonPath("$.content[0].sourcePrices[0].price").value(438_000_000))
+                .andExpect(jsonPath("$.content[0].sourcePrices[1].source").value("동부회원권"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/courses/summary — 시장 요약을 반환한다")
+    void summary_returnsMarketSummary() throws Exception {
+        // given
+        given(courseService.getSummary())
+                .willReturn(new com.membershipflow.course.dto.MarketSummaryResponse(132, 3, 5));
+
+        // when / then
+        mockMvc.perform(get("/api/v1/courses/summary").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.updatedToday").value(132))
+                .andExpect(jsonPath("$.risers").value(3))
+                .andExpect(jsonPath("$.fallers").value(5));
     }
 
     @Test
