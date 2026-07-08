@@ -20,6 +20,8 @@ services:
     image: ghcr.io/ohhalim/membershipflow-front:latest
     environment:
       - NEXT_PUBLIC_API_URL=
+      # sitemap.ts/generateMetadata 등 Next 서버 프로세스가 브라우저 없이 backend를 직접 호출할 때 사용
+      - INTERNAL_API_URL=http://backend:8081
     depends_on:
       backend:
         condition: service_healthy
