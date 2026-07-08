@@ -111,7 +111,9 @@ public class DongaHistoryCollector {
 
     // 월간 차트 API를 previousDay로 과거 페이지네이션하며 monthsBack개월치 수집
     private List<HistoricalPrice> fetchHistory(CourseLink link) throws IOException, InterruptedException {
-        MembershipType membershipType = extractMembershipType(link.name());
+        // 이름 중간에 포함된 구분만 우선 추출 (null이면 CollectService에서
+        // alias/CourseNameNormalizer 추출값 → REGULAR 순으로 결정)
+        MembershipType membershipType = CourseNameNormalizer.extractEmbeddedType(link.name());
         List<HistoricalPrice> result = new ArrayList<>();
 
         String start = "";
@@ -157,16 +159,6 @@ public class DongaHistoryCollector {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ChartPoint(long price, String date, String name) {}
-
-    private MembershipType extractMembershipType(String name) {
-        if (name.contains("주중")) return MembershipType.WEEKDAY;
-        if (name.contains("주말")) return MembershipType.WEEKEND;
-        if (name.contains("우대")) return MembershipType.PREFERRED;
-        if (name.contains("법인")) return MembershipType.CORPORATE;
-        if (name.contains("가족") || name.contains("부부")) return MembershipType.FAMILY;
-        if (name.contains("개인")) return MembershipType.INDIVIDUAL;
-        return MembershipType.REGULAR;
-    }
 
     private record CourseLink(String custid, String code, String name) {}
 }
