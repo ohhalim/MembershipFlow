@@ -47,7 +47,8 @@ class DongaCollectorTest {
         assertThat(first.courseName()).isEqualTo("88(팔팔)");
         assertThat(first.price()).isEqualTo(438_000_000L);  // 43,800만원 × 10,000
         assertThat(first.courseType()).isEqualTo(CourseType.GOLF);
-        assertThat(first.membershipType()).isEqualTo(MembershipType.REGULAR);
+        // 이름 중간에 구분 키워드가 없으면 null → CollectService에서 alias/normalizer로 최종 결정
+        assertThat(first.membershipType()).isNull();
         assertThat(first.holes()).isNull();
         assertThat(first.sourceName()).isEqualTo("동아골프");
     }
