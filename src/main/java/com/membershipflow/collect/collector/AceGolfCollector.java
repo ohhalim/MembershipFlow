@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 에이스회원권(acegolf.com) 골프회원권 시세 수집기.
@@ -37,6 +39,8 @@ public class AceGolfCollector implements PriceCollector {
     // 컬럼: [회원권명(td.cc)][금일시세][등락][등락율][시가표준액][그래프][상담] — 단위 만원
     // 시가표준액(td[4])은 이번 스코프 제외, 후속 이슈에서 별도 처리 예정
     private static final String ROW_SELECTOR = "table.list tbody tr";
+    // td.cc 내부 <a href="golf_detail_info.php?code=e20&m_id=e20_p01"> 에서 code/m_id 추출 (#144)
+    private static final Pattern DETAIL_LINK = Pattern.compile("code=([^&\"]+)&m_id=([^&\"]+)");
 
     @Override
     public String sourceName() {
@@ -86,9 +90,11 @@ public class AceGolfCollector implements PriceCollector {
             // alias/CourseNameNormalizer 추출값 → REGULAR 순으로 결정)
             MembershipType membershipType = CourseNameNormalizer.extractEmbeddedType(courseName);
 
+            String sourceKey = extractSourceKey(tds.get(0));
+
             result.add(new CollectedPrice(
                     courseName, null, CourseType.GOLF,
-                    membershipType, null, price, SOURCE_NAME));
+                    membershipType, null, price, SOURCE_NAME, sourceKey));
         }
 
         log.info("[{}] 파싱 완료: {}건", SOURCE_NAME, result.size());
@@ -100,5 +106,13 @@ public class AceGolfCollector implements PriceCollector {
         String cleaned = text.replaceAll("[^0-9]", "");
         if (cleaned.isBlank()) throw new CollectException("가격 파싱 실패: " + text);
         return Long.parseLong(cleaned) * 10_000L;
+    }
+
+    // <a href="golf_detail_info.php?code=e20&m_id=e20_p01"> → "e20:e20_p01". 링크 없거나 형식이 다르면 null
+    private String extractSourceKey(Element nameCell) {
+        Element a = nameCell.selectFirst("a[href]");
+        if (a == null) return null;
+        Matcher m = DETAIL_LINK.matcher(a.attr("href"));
+        return m.find() ? m.group(1) + ":" + m.group(2) : null;
     }
 }

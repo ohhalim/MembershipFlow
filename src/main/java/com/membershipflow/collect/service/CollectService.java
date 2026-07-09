@@ -11,9 +11,11 @@ import com.membershipflow.collect.collector.PriceCollector;
 import com.membershipflow.collect.collector.RegionExtractor;
 import com.membershipflow.collect.entity.CollectRun;
 import com.membershipflow.collect.entity.CourseAlias;
+import com.membershipflow.collect.entity.CourseSourceMapping;
 import com.membershipflow.collect.entity.CrawlSource;
 import com.membershipflow.collect.repository.CollectRunRepository;
 import com.membershipflow.collect.repository.CourseAliasRepository;
+import com.membershipflow.collect.repository.CourseSourceMappingRepository;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
 import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
@@ -44,16 +46,17 @@ public class CollectService {
 
     private static final String PARSER_VERSION = "1.0";
 
-    private final CrawlSourceRepository       crawlSourceRepository;
-    private final CourseAliasRepository       courseAliasRepository;
-    private final CollectRunRepository        collectRunRepository;
-    private final MembershipCourseRepository  membershipCourseRepository;
-    private final CourseInfoRepository        courseInfoRepository;
-    private final PriceHistoryRepository      priceHistoryRepository;
-    private final CollectorRegistry           collectorRegistry;
-    private final AlertService                alertService;
-    private final DongaHistoryCollector       dongaHistoryCollector;
-    private final DongaInfoCollector          dongaInfoCollector;
+    private final CrawlSourceRepository            crawlSourceRepository;
+    private final CourseAliasRepository            courseAliasRepository;
+    private final CollectRunRepository             collectRunRepository;
+    private final MembershipCourseRepository       membershipCourseRepository;
+    private final CourseInfoRepository             courseInfoRepository;
+    private final PriceHistoryRepository           priceHistoryRepository;
+    private final CourseSourceMappingRepository    courseSourceMappingRepository;
+    private final CollectorRegistry                collectorRegistry;
+    private final AlertService                     alertService;
+    private final DongaHistoryCollector            dongaHistoryCollector;
+    private final DongaInfoCollector               dongaInfoCollector;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -101,6 +104,9 @@ public class CollectService {
                         .price(cp.price())
                         .collectRun(run)
                         .build());
+                if (cp.sourceKey() != null) {
+                    upsertSourceMapping(course, source, cp.sourceKey());
+                }
                 successCount++;
             } catch (Exception e) {
                 log.warn("[{}] 종목 저장 실패: {} - {}", source.getName(), cp.courseName(), e.getMessage());
@@ -261,6 +267,19 @@ public class CollectService {
                                     .holes(holes)
                                     .build());
                 });
+    }
+
+    // course_source_mapping upsert (#144). uk_course_source(course_id+source_id) 기준
+    private void upsertSourceMapping(MembershipCourse course, CrawlSource source, String sourceKey) {
+        courseSourceMappingRepository.findByCourseAndSource(course, source)
+                .ifPresentOrElse(
+                        existing -> existing.updateSourceKey(sourceKey),
+                        () -> courseSourceMappingRepository.save(
+                                CourseSourceMapping.builder()
+                                        .course(course)
+                                        .source(source)
+                                        .sourceKey(sourceKey)
+                                        .build()));
     }
 
     // findOrRegisterCourse와 동일한 alias → CourseNameNormalizer 경로로 정규명만 추출
