@@ -2,6 +2,7 @@ package com.membershipflow.course.service;
 
 import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
+import com.membershipflow.course.dto.SourceComparisonItem;
 import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
@@ -70,6 +71,15 @@ class CourseServiceTest {
                 .willReturn(Map.of(COURSE_ID, latest));
         given(priceService.getLatestPerSourceRows(anyList()))
                 .willReturn(sourceRows);
+    }
+
+    private MembershipCourse buildCourse(Long id, String name, String region) {
+        MembershipCourse c = MembershipCourse.builder()
+                .name(name).region(region).courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR)
+                .build();
+        ReflectionTestUtils.setField(c, "id", id);
+        return c;
     }
 
     @Test
@@ -172,5 +182,89 @@ class CourseServiceTest {
         CourseListItemResponse item = result.getContent().get(0);
         assertThat(item.latestPrice()).isEqualTo(438_000_000L);
         assertThat(item.changeRate()).isEqualTo(12.5);
+    }
+
+    @Test
+    @DisplayName("소스가 4개인 코스는 min/max/diffAmount/diffRate가 N-way로 계산된다")
+    void getSourceComparison_calculatesMinMaxDiff_forMultiSourceCourse() {
+        // given — 88 코스: 동아 450M / 동부 438M / 시세닷컴 430M / 에이스 460M
+        MembershipCourse course88 = buildCourse(1L, "88", "경기");
+        given(courseRepository.findAll()).willReturn(List.of(course88));
+        given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
+                new Object[]{1L, "동아골프", 450_000_000L},
+                new Object[]{1L, "동부회원권", 438_000_000L},
+                new Object[]{1L, "시세닷컴", 430_000_000L},
+                new Object[]{1L, "에이스회원권", 460_000_000L}));
+
+        // when
+        List<SourceComparisonItem> result = courseService.getSourceComparison(10);
+
+        // then — min 430M / max 460M / diff 30M / diffRate 6.98%
+        assertThat(result).hasSize(1);
+        SourceComparisonItem item = result.get(0);
+        assertThat(item.courseId()).isEqualTo(1L);
+        assertThat(item.name()).isEqualTo("88");
+        assertThat(item.prices()).hasSize(4)
+                .extracting(SourceComparisonItem.SourcePricePoint::sourceName)
+                .containsExactlyInAnyOrder("동아골프", "동부회원권", "시세닷컴", "에이스회원권");
+        assertThat(item.minPrice()).isEqualTo(430_000_000L);
+        assertThat(item.maxPrice()).isEqualTo(460_000_000L);
+        assertThat(item.diffAmount()).isEqualTo(30_000_000L);
+        assertThat(item.diffRate()).isEqualTo(6.98);
+    }
+
+    @Test
+    @DisplayName("소스가 1개뿐인 코스는 비교 불가하므로 결과에서 제외된다")
+    void getSourceComparison_excludesSingleSourceCourse() {
+        // given
+        MembershipCourse lonely = buildCourse(2L, "외톨이CC", "강원");
+        given(courseRepository.findAll()).willReturn(List.of(lonely));
+        given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.<Object[]>of(
+                new Object[]{2L, "동아골프", 100_000_000L}));
+
+        // when
+        List<SourceComparisonItem> result = courseService.getSourceComparison(10);
+
+        // then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("비활성 코스는 비교 대상에서 제외된다")
+    void getSourceComparison_excludesInactiveCourse() {
+        // given
+        MembershipCourse inactive = buildCourse(4L, "폐장CC", "제주");
+        ReflectionTestUtils.setField(inactive, "active", false);
+        given(courseRepository.findAll()).willReturn(List.of(inactive));
+
+        // when
+        List<SourceComparisonItem> result = courseService.getSourceComparison(10);
+
+        // then
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("diffRate 절대값 내림차순으로 정렬하고 limit을 적용한다")
+    void getSourceComparison_sortsByDiffRateDesc_andAppliesLimit() {
+        // given — 88 코스 diffRate 6.98% (430M~460M), Small 코스 diffRate 5.0% (200M~210M)
+        MembershipCourse course88 = buildCourse(1L, "88", "경기");
+        MembershipCourse courseSmall = buildCourse(3L, "Small", "서울");
+        given(courseRepository.findAll()).willReturn(List.of(course88, courseSmall));
+        given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
+                new Object[]{1L, "동아골프", 450_000_000L},
+                new Object[]{1L, "동부회원권", 438_000_000L},
+                new Object[]{1L, "시세닷컴", 430_000_000L},
+                new Object[]{1L, "에이스회원권", 460_000_000L},
+                new Object[]{3L, "동부회원권", 200_000_000L},
+                new Object[]{3L, "시세닷컴", 210_000_000L}));
+
+        // when — limit=1이므로 diffRate가 더 큰 88 코스만 반환
+        List<SourceComparisonItem> result = courseService.getSourceComparison(1);
+
+        // then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).courseId()).isEqualTo(1L);
+        assertThat(result.get(0).diffRate()).isEqualTo(6.98);
     }
 }
