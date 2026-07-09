@@ -107,10 +107,6 @@ public class PriceService {
                 .collect(Collectors.toMap(ph -> ph.getCourse().getId(), ph -> ph));
     }
 
-    public List<Object[]> getLatestByTwoSources(String sourceA, String sourceB) {
-        return priceHistoryRepository.findLatestByTwoSources(sourceA, sourceB);
-    }
-
     // (courseId, sourceName, price) 행 목록 — 목록 거래소별 가격 표시용
     public List<Object[]> getLatestPerSourceRows(List<Long> courseIds) {
         return priceHistoryRepository.findLatestPerSourceByCourseIds(courseIds);
