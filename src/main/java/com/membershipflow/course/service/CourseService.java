@@ -262,33 +262,48 @@ public class CourseService {
         return new MarketSummaryResponse(updatedToday, risers, fallers);
     }
 
+    // 거래소 간 가격 비교: 소스가 2개 이상인 활성 코스만 대상, diffRate 절대값 내림차순 상위 limit개
     public List<SourceComparisonItem> getSourceComparison(int limit) {
-        List<Object[]> rows = priceService.getLatestByTwoSources("동아골프", "동부회원권");
-
-        List<Long> courseIds = rows.stream()
-                .map(r -> ((Number) r[0]).longValue())
+        List<MembershipCourse> activeCourses = courseRepository.findAll().stream()
+                .filter(MembershipCourse::isActive)
                 .toList();
+        if (activeCourses.isEmpty()) return List.of();
 
-        Map<Long, MembershipCourse> courseMap = courseRepository.findAllById(courseIds).stream()
+        List<Long> courseIds = activeCourses.stream().map(MembershipCourse::getId).toList();
+        Map<Long, MembershipCourse> courseMap = activeCourses.stream()
                 .collect(Collectors.toMap(MembershipCourse::getId, c -> c));
 
-        return rows.stream()
-                .map(r -> {
-                    long courseId  = ((Number) r[0]).longValue();
-                    long dongaPrice = ((Number) r[1]).longValue();
-                    long dongbuPrice = ((Number) r[2]).longValue();
-                    long diffAmount  = dongbuPrice - dongaPrice;
-                    double diffRate  = dongaPrice == 0 ? 0
-                            : Math.round((double) diffAmount / dongaPrice * 10000d) / 100d;
+        Map<Long, List<SourceComparisonItem.SourcePricePoint>> pricesByCourse =
+                priceService.getLatestPerSourceRows(courseIds).stream()
+                        .collect(Collectors.groupingBy(
+                                row -> ((Number) row[0]).longValue(),
+                                Collectors.mapping(
+                                        row -> new SourceComparisonItem.SourcePricePoint(
+                                                (String) row[1], ((Number) row[2]).longValue()),
+                                        Collectors.toList())));
 
+        return pricesByCourse.entrySet().stream()
+                .filter(e -> e.getValue().size() >= 2)
+                .map(e -> {
+                    Long courseId = e.getKey();
                     MembershipCourse c = courseMap.get(courseId);
                     if (c == null) return null;
+
+                    List<SourceComparisonItem.SourcePricePoint> prices = e.getValue();
+                    long minPrice = prices.stream()
+                            .mapToLong(SourceComparisonItem.SourcePricePoint::price).min().orElse(0);
+                    long maxPrice = prices.stream()
+                            .mapToLong(SourceComparisonItem.SourcePricePoint::price).max().orElse(0);
+                    long diffAmount = maxPrice - minPrice;
+                    double diffRate = minPrice == 0 ? 0
+                            : Math.round((double) diffAmount / minPrice * 10000d) / 100d;
+
                     return new SourceComparisonItem(
                             courseId, c.getName(), c.getRegion(),
                             c.getCourseType() != null ? c.getCourseType().name() : null,
-                            dongaPrice, dongbuPrice, diffAmount, diffRate);
+                            prices, minPrice, maxPrice, diffAmount, diffRate);
                 })
-                .filter(item -> item != null)
+                .filter(Objects::nonNull)
                 .sorted((a, b) -> Double.compare(Math.abs(b.diffRate()), Math.abs(a.diffRate())))
                 .limit(limit)
                 .toList();
