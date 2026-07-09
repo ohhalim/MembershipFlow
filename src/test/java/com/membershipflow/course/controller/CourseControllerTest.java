@@ -70,7 +70,13 @@ class CourseControllerTest {
                 List.of(new CourseDetailResponse.SourcePrice(
                         "동부회원권", "http://dbm-market.co.kr",
                         438_000_000L, "2026-06-22T07:00", true)),
-                false, null);
+                false, null,
+                new CourseDetailResponse.CourseInfoDto(
+                        "경기도 용인시 처인구 모현읍 1",
+                        "회원권 소개 문단", "코스 소개 문단", "시세 흐름과 향후 전망",
+                        List.of(new CourseDetailResponse.CourseInfoDto.GreenFeeDto(
+                                "정회원", 68_000L, 73_000L)),
+                        "1캐디 4백 - 150,000 (1팀당)", "100,000(1대당)"));
     }
 
     @Test
@@ -115,6 +121,38 @@ class CourseControllerTest {
                 .andExpect(jsonPath("$.sources[0].sourceName").value("동부회원권"))
                 .andExpect(jsonPath("$.sources[0].price").value(438_000_000))
                 .andExpect(jsonPath("$.watchlisted").value(false));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/courses/{id} — 골프장 부가정보(info)가 포함된다")
+    void detail_includesCourseInfo() throws Exception {
+        // given
+        given(courseService.getDetail(1L)).willReturn(sampleDetail);
+
+        // when / then
+        mockMvc.perform(get("/api/v1/courses/1").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.address").value("경기도 용인시 처인구 모현읍 1"))
+                .andExpect(jsonPath("$.info.membershipIntro").value("회원권 소개 문단"))
+                .andExpect(jsonPath("$.info.greenFees[0].grade").value("정회원"))
+                .andExpect(jsonPath("$.info.greenFees[0].weekday").value(68_000))
+                .andExpect(jsonPath("$.info.greenFees[0].weekend").value(73_000))
+                .andExpect(jsonPath("$.info.caddieFee").value("1캐디 4백 - 150,000 (1팀당)"))
+                .andExpect(jsonPath("$.info.cartFee").value("100,000(1대당)"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/courses/{id} — 부가정보가 없으면 info=null로 반환한다")
+    void detail_withoutCourseInfo_returnsNullInfo() throws Exception {
+        // given
+        given(courseService.getDetail(2L)).willReturn(new CourseDetailResponse(
+                2L, "정보없는CC", null, "GOLF", "REGULAR", null,
+                List.of(), false, null, null));
+
+        // when / then
+        mockMvc.perform(get("/api/v1/courses/2").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.info").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

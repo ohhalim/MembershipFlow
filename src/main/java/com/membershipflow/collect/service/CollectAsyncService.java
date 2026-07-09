@@ -21,4 +21,14 @@ public class CollectAsyncService {
             log.error("[동아히스토리] 비동기 수집 실패: {}", e.getMessage(), e);
         }
     }
+
+    @Async
+    public void collectCourseInfoAsync() {
+        try {
+            int saved = collectService.collectCourseInfo();
+            log.info("[동아부가정보] 비동기 수집 완료: {}건", saved);
+        } catch (Exception e) {
+            log.error("[동아부가정보] 비동기 수집 실패: {}", e.getMessage(), e);
+        }
+    }
 }
