@@ -1,9 +1,12 @@
 package com.membershipflow.course.service;
 
+import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
+import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.course.entity.MembershipType;
+import com.membershipflow.course.repository.CourseInfoRepository;
 import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.price.entity.PriceHistory;
 import com.membershipflow.price.service.PriceService;
@@ -23,6 +26,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +37,7 @@ import static org.mockito.BDDMockito.given;
 class CourseServiceTest {
 
     @Mock MembershipCourseRepository courseRepository;
+    @Mock CourseInfoRepository courseInfoRepository;
     @Mock PriceService priceService;
 
     @InjectMocks CourseService courseService;
@@ -65,6 +70,48 @@ class CourseServiceTest {
                 .willReturn(Map.of(COURSE_ID, latest));
         given(priceService.getLatestPerSourceRows(anyList()))
                 .willReturn(sourceRows);
+    }
+
+    @Test
+    @DisplayName("상세 조회 시 CourseInfo가 있으면 greenFees JSON이 역직렬화되어 info로 매핑된다")
+    void getDetail_withCourseInfo_mapsInfoAndDeserializesGreenFees() {
+        // given
+        given(courseRepository.findById(COURSE_ID)).willReturn(Optional.of(course));
+        given(priceService.getLatestBySource(COURSE_ID)).willReturn(List.of());
+        given(courseInfoRepository.findByCourseId(COURSE_ID)).willReturn(Optional.of(
+                CourseInfo.builder()
+                        .courseId(COURSE_ID)
+                        .address("경기도 용인시 기흥구 석성로521번길 169")
+                        .membershipIntro("회원권 소개")
+                        .greenFees("[{\"grade\":\"정회원\",\"weekday\":68000,\"weekend\":73000}]")
+                        .caddieFee("1캐디 4백 - 150,000 (1팀당)")
+                        .build()));
+
+        // when
+        CourseDetailResponse detail = courseService.getDetail(COURSE_ID);
+
+        // then
+        assertThat(detail.info()).isNotNull();
+        assertThat(detail.info().address()).isEqualTo("경기도 용인시 기흥구 석성로521번길 169");
+        assertThat(detail.info().greenFees()).hasSize(1);
+        assertThat(detail.info().greenFees().get(0).grade()).isEqualTo("정회원");
+        assertThat(detail.info().greenFees().get(0).weekday()).isEqualTo(68_000L);
+        assertThat(detail.info().greenFees().get(0).weekend()).isEqualTo(73_000L);
+    }
+
+    @Test
+    @DisplayName("상세 조회 시 CourseInfo가 없으면 info=null이다")
+    void getDetail_withoutCourseInfo_returnsNullInfo() {
+        // given
+        given(courseRepository.findById(COURSE_ID)).willReturn(Optional.of(course));
+        given(priceService.getLatestBySource(COURSE_ID)).willReturn(List.of());
+        given(courseInfoRepository.findByCourseId(COURSE_ID)).willReturn(Optional.empty());
+
+        // when
+        CourseDetailResponse detail = courseService.getDetail(COURSE_ID);
+
+        // then
+        assertThat(detail.info()).isNull();
     }
 
     @Test

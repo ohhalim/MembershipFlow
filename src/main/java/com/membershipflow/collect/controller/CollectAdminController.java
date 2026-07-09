@@ -27,4 +27,10 @@ public class CollectAdminController {
         collectAsyncService.collectHistoryAsync();
         return ResponseEntity.accepted().body("히스토리 수집 시작 (백그라운드 실행 중)");
     }
+
+    @PostMapping("/info")
+    public ResponseEntity<String> triggerCourseInfoCollect() {
+        collectAsyncService.collectCourseInfoAsync();
+        return ResponseEntity.accepted().body("골프장 부가정보 수집 시작 (백그라운드 실행 중)");
+    }
 }

@@ -14,7 +14,8 @@ public record CourseDetailResponse(
         Integer holes,
         List<SourcePrice> sources,
         boolean watchlisted,
-        Long targetPrice
+        Long targetPrice,
+        CourseInfoDto info
 ) {
     public record SourcePrice(
             String sourceName,
@@ -24,11 +25,24 @@ public record CourseDetailResponse(
             boolean isLowest
     ) {}
 
+    // 골프장 부가정보 (#141) — 수집 전이면 null
+    public record CourseInfoDto(
+            String address,
+            String membershipIntro,
+            String courseIntro,
+            String priceOutlook,
+            List<GreenFeeDto> greenFees,
+            String caddieFee,
+            String cartFee
+    ) {
+        public record GreenFeeDto(String grade, Long weekday, Long weekend) {}
+    }
+
     public static CourseDetailResponse of(
             Long id, String name, String region,
             CourseType courseType, MembershipType membershipType, Integer holes,
             List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices,
-            boolean watchlisted, Long targetPrice) {
+            boolean watchlisted, Long targetPrice, CourseInfoDto info) {
 
         Long minPrice = rawPrices.stream()
                 .map(com.membershipflow.price.dto.LatestSourcePriceResponse::price)
@@ -49,6 +63,6 @@ public record CourseDetailResponse(
         return new CourseDetailResponse(id, name, region,
                 courseType != null ? courseType.name() : null,
                 membershipType != null ? membershipType.name() : null,
-                holes, sources, watchlisted, targetPrice);
+                holes, sources, watchlisted, targetPrice, info);
     }
 }

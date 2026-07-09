@@ -17,6 +17,9 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
     Optional<MembershipCourse> findByNameAndCourseTypeAndMembershipType(
             String name, CourseType courseType, MembershipType membershipType);
 
+    // 같은 골프장의 회원권 여러 개(일반/우대/주중 등)를 한 번에 조회 (#141 부가정보 upsert)
+    List<MembershipCourse> findAllByNameAndCourseType(String name, CourseType courseType);
+
     @Query("""
             SELECT c FROM MembershipCourse c
             WHERE (:q IS NULL OR c.name LIKE %:q%)

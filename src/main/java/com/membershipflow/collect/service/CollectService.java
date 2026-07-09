@@ -1,20 +1,25 @@
 package com.membershipflow.collect.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.membershipflow.collect.collector.CollectException;
 import com.membershipflow.collect.collector.CollectedPrice;
 import com.membershipflow.collect.collector.CollectorRegistry;
 import com.membershipflow.collect.collector.CourseNameNormalizer;
 import com.membershipflow.collect.collector.DongaHistoryCollector;
+import com.membershipflow.collect.collector.DongaInfoCollector;
 import com.membershipflow.collect.collector.PriceCollector;
+import com.membershipflow.collect.collector.RegionExtractor;
 import com.membershipflow.collect.entity.CollectRun;
 import com.membershipflow.collect.entity.CourseAlias;
 import com.membershipflow.collect.entity.CrawlSource;
 import com.membershipflow.collect.repository.CollectRunRepository;
 import com.membershipflow.collect.repository.CourseAliasRepository;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
+import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.course.entity.MembershipType;
+import com.membershipflow.course.repository.CourseInfoRepository;
 import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.price.entity.PriceHistory;
 import com.membershipflow.price.repository.PriceHistoryRepository;
@@ -43,10 +48,14 @@ public class CollectService {
     private final CourseAliasRepository       courseAliasRepository;
     private final CollectRunRepository        collectRunRepository;
     private final MembershipCourseRepository  membershipCourseRepository;
+    private final CourseInfoRepository        courseInfoRepository;
     private final PriceHistoryRepository      priceHistoryRepository;
     private final CollectorRegistry           collectorRegistry;
     private final AlertService                alertService;
     private final DongaHistoryCollector       dongaHistoryCollector;
+    private final DongaInfoCollector          dongaInfoCollector;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public void collectAll() {
         List<CrawlSource> sources = crawlSourceRepository.findAllByActiveTrue();
@@ -150,6 +159,70 @@ public class CollectService {
         return toSave.size();
     }
 
+    /**
+     * 동아 상세페이지 골프장 부가정보 수집 (#141).
+     * 코스 매칭은 alias → normalizer 정규화 후 기존 코스 조회만 수행 — 신규 등록 없음.
+     * 같은 골프장의 회원권 여러 개(일반/우대/주중 등)가 정보를 공유하므로
+     * 정규명이 일치하는 모든 코스에 CourseInfo upsert + region(비어있을 때만) 채움.
+     */
+    @Transactional
+    public int collectCourseInfo() {
+        List<DongaInfoCollector.CollectedCourseInfo> infos = dongaInfoCollector.collectAll();
+
+        Map<String, CourseAlias> aliases = loadAliases();
+        int upserted = 0;
+        int unmatched = 0;
+
+        for (DongaInfoCollector.CollectedCourseInfo info : infos) {
+            try {
+                String canonicalName = resolveCanonicalName(info.courseName(), aliases);
+                List<MembershipCourse> courses = membershipCourseRepository
+                        .findAllByNameAndCourseType(canonicalName, CourseType.GOLF);
+                if (courses.isEmpty()) {
+                    log.debug("[동아부가정보] 매칭 코스 없음: {} (정규명: {})", info.courseName(), canonicalName);
+                    unmatched++;
+                    continue;
+                }
+
+                String region = RegionExtractor.extract(info.address());
+                String greenFeesJson = info.greenFees() == null ? null
+                        : objectMapper.writeValueAsString(info.greenFees());
+
+                for (MembershipCourse course : courses) {
+                    // 기존 region이 있으면 덮어쓰지 않음
+                    if (course.getRegion() == null && region != null) {
+                        course.updateRegion(region);
+                    }
+                    upsertCourseInfo(course.getId(), info, greenFeesJson);
+                    upserted++;
+                }
+            } catch (Exception e) {
+                log.warn("[동아부가정보] 저장 실패: {} - {}", info.courseName(), e.getMessage());
+            }
+        }
+
+        log.info("[동아부가정보] 저장 완료: upsert={}건, 미매칭 골프장={}곳", upserted, unmatched);
+        return upserted;
+    }
+
+    private void upsertCourseInfo(Long courseId, DongaInfoCollector.CollectedCourseInfo info,
+                                  String greenFeesJson) {
+        courseInfoRepository.findByCourseId(courseId).ifPresentOrElse(
+                existing -> existing.update(
+                        info.address(), info.membershipIntro(), info.courseIntro(),
+                        info.priceOutlook(), greenFeesJson, info.caddieFee(), info.cartFee()),
+                () -> courseInfoRepository.save(CourseInfo.builder()
+                        .courseId(courseId)
+                        .address(info.address())
+                        .membershipIntro(info.membershipIntro())
+                        .courseIntro(info.courseIntro())
+                        .priceOutlook(info.priceOutlook())
+                        .greenFees(greenFeesJson)
+                        .caddieFee(info.caddieFee())
+                        .cartFee(info.cartFee())
+                        .build()));
+    }
+
     // 원본 코스명을 alias → CourseNameNormalizer 순으로 정규화한 뒤
     // (정규명, courseType, 최종 membershipType)으로 조회, 없으면 자동 등록
     // INSERT IGNORE 대신 findOrCreate 패턴 사용 (단일 인스턴스 MVP 전제)
@@ -188,6 +261,16 @@ public class CollectService {
                                     .holes(holes)
                                     .build());
                 });
+    }
+
+    // findOrRegisterCourse와 동일한 alias → CourseNameNormalizer 경로로 정규명만 추출
+    private String resolveCanonicalName(String rawName, Map<String, CourseAlias> aliases) {
+        String trimmed = rawName == null ? "" : rawName.trim();
+        CourseAlias alias = aliases.get(trimmed);
+        if (alias != null) {
+            return alias.getCanonicalName();
+        }
+        return CourseNameNormalizer.normalize(trimmed).name();
     }
 
     private Map<String, CourseAlias> loadAliases() {
