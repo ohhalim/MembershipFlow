@@ -55,6 +55,7 @@ public class CollectService {
     private final CourseSourceMappingRepository    courseSourceMappingRepository;
     private final CollectorRegistry                collectorRegistry;
     private final AlertService                     alertService;
+    private final AnomalyDetectionService          anomalyDetectionService;
     private final DongaHistoryCollector            dongaHistoryCollector;
     private final DongaInfoCollector               dongaInfoCollector;
 
@@ -68,6 +69,8 @@ public class CollectService {
                             collector -> collectOne(source, collector),
                             () -> log.warn("수집기 없음: {}", source.getName()));
         }
+        // 전체 소스 수집 완료 후 거래소간 가격 이상치 탐지 (#159)
+        anomalyDetectionService.checkPriceOutliers();
     }
 
     @Transactional
@@ -119,6 +122,9 @@ public class CollectService {
         collectRunRepository.save(run);
 
         log.info("[{}] 저장 완료: 성공={}, 실패={}", source.getName(), successCount, failCount);
+
+        // 같은 소스의 직전 수집 대비 성공 건수 급감 탐지 (#159)
+        anomalyDetectionService.checkCollectDrop(source, run);
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

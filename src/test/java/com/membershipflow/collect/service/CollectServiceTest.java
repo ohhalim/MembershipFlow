@@ -55,6 +55,7 @@ class CollectServiceTest {
     @Mock CollectorRegistry           collectorRegistry;
     @Mock PriceCollector              collector;
     @Mock AlertService                alertService;
+    @Mock AnomalyDetectionService     anomalyDetectionService;
     @Mock DongaInfoCollector          dongaInfoCollector;
 
     @InjectMocks CollectService collectService;
