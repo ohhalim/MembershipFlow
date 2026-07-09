@@ -90,10 +90,33 @@ class AceGolfCollectorTest {
         assertThat(first.membershipType()).isNull();
         assertThat(first.holes()).isNull();  // 에이스회원권은 홀수 미제공
         assertThat(first.sourceName()).isEqualTo("에이스회원권");
+        // <a href="golf_detail_info.php?code=e20&m_id=e20_p01"> → "e20:e20_p01" (#144)
+        assertThat(first.sourceKey()).isEqualTo("e20:e20_p01");
 
         CollectedPrice second = result.get(1);
         assertThat(second.courseName()).isEqualTo("가야");
         assertThat(second.price()).isEqualTo(147_000_000L); // 14,700만원
+        assertThat(second.sourceKey()).isEqualTo("l04:l04_p01");
+    }
+
+    @Test
+    @DisplayName("회원권명 셀에 링크가 없으면 sourceKey는 null이다")
+    void parse_noDetailLink_leavesSourceKeyNull() {
+        // given
+        Document doc = Jsoup.parse("""
+                <table class="list">
+                  <tbody>
+                    <tr><td class="cc">링크없음</td><td class="number">10,000</td><td>0</td><td>0.00%</td><td>1,000</td></tr>
+                  </tbody>
+                </table>
+                """);
+
+        // when
+        List<CollectedPrice> result = collector.parse(doc);
+
+        // then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).sourceKey()).isNull();
     }
 
     @Test

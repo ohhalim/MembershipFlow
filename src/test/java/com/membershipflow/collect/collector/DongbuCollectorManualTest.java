@@ -31,7 +31,7 @@ class DongbuCollectorManualTest {
     @Test
     void donga_실제_파싱_확인() {
         // given
-        DongaCollector collector = new DongaCollector();
+        DongaCollector collector = new DongaCollector(new DongaCourseLinkFetcher());
 
         // when
         List<CollectedPrice> prices = collector.collect();
