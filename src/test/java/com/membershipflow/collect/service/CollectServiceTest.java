@@ -8,10 +8,12 @@ import com.membershipflow.collect.collector.PriceCollector;
 import com.membershipflow.collect.entity.CollectRun;
 import com.membershipflow.collect.entity.CollectStatus;
 import com.membershipflow.collect.entity.CourseAlias;
+import com.membershipflow.collect.entity.CourseSourceMapping;
 import com.membershipflow.collect.entity.CrawlSource;
 import com.membershipflow.collect.entity.CrawlType;
 import com.membershipflow.collect.repository.CollectRunRepository;
 import com.membershipflow.collect.repository.CourseAliasRepository;
+import com.membershipflow.collect.repository.CourseSourceMappingRepository;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
 import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
@@ -49,6 +51,7 @@ class CollectServiceTest {
     @Mock MembershipCourseRepository  membershipCourseRepository;
     @Mock CourseInfoRepository        courseInfoRepository;
     @Mock PriceHistoryRepository      priceHistoryRepository;
+    @Mock CourseSourceMappingRepository courseSourceMappingRepository;
     @Mock CollectorRegistry           collectorRegistry;
     @Mock PriceCollector              collector;
     @Mock AlertService                alertService;
@@ -97,6 +100,96 @@ class CollectServiceTest {
         then(priceHistoryRepository).should().saveAll(captor.capture());
         assertThat(captor.getValue()).hasSize(1);
         assertThat(captor.getValue().get(0).getPrice()).isEqualTo(438_000_000L);
+    }
+
+    @Test
+    @DisplayName("sourceKey가 없으면 course_source_mapping을 건드리지 않는다")
+    void collectOne_noSourceKey_doesNotTouchMapping() {
+        // given
+        CollectedPrice cp = new CollectedPrice(
+                "레이크사이드CC", "경기", CourseType.GOLF, MembershipType.REGULAR,
+                18, 438_000_000L, "동부회원권");
+
+        MembershipCourse course = MembershipCourse.builder()
+                .name("레이크사이드").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).holes(18)
+                .build();
+
+        given(collector.collect()).willReturn(List.of(cp));
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "레이크사이드", CourseType.GOLF, MembershipType.REGULAR))
+                .willReturn(Optional.of(course));
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then
+        then(courseSourceMappingRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("sourceKey가 있고 매핑이 없으면 course_source_mapping을 신규 저장한다")
+    void collectOne_withSourceKey_noExistingMapping_savesNewMapping() {
+        // given — 동아골프, source_key="custid:code"
+        CollectedPrice cp = new CollectedPrice(
+                "레이크사이드CC", "경기", CourseType.GOLF, MembershipType.REGULAR,
+                18, 438_000_000L, "동아골프", "10130:1103");
+
+        MembershipCourse course = MembershipCourse.builder()
+                .name("레이크사이드").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).holes(18)
+                .build();
+
+        given(collector.collect()).willReturn(List.of(cp));
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "레이크사이드", CourseType.GOLF, MembershipType.REGULAR))
+                .willReturn(Optional.of(course));
+        given(courseSourceMappingRepository.findByCourseAndSource(course, source))
+                .willReturn(Optional.empty());
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then
+        ArgumentCaptor<CourseSourceMapping> captor = ArgumentCaptor.captor();
+        then(courseSourceMappingRepository).should().save(captor.capture());
+        assertThat(captor.getValue().getSourceKey()).isEqualTo("10130:1103");
+        assertThat(captor.getValue().getCourse()).isEqualTo(course);
+        assertThat(captor.getValue().getSource()).isEqualTo(source);
+    }
+
+    @Test
+    @DisplayName("sourceKey가 있고 매핑이 이미 있으면 기존 매핑의 sourceKey를 갱신한다")
+    void collectOne_withSourceKey_existingMapping_updatesSourceKey() {
+        // given
+        CollectedPrice cp = new CollectedPrice(
+                "레이크사이드CC", "경기", CourseType.GOLF, MembershipType.REGULAR,
+                18, 438_000_000L, "동아골프", "10130:9999");
+
+        MembershipCourse course = MembershipCourse.builder()
+                .name("레이크사이드").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).holes(18)
+                .build();
+        CourseSourceMapping existing = CourseSourceMapping.builder()
+                .course(course).source(source).sourceKey("10130:1103")
+                .build();
+
+        given(collector.collect()).willReturn(List.of(cp));
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "레이크사이드", CourseType.GOLF, MembershipType.REGULAR))
+                .willReturn(Optional.of(course));
+        given(courseSourceMappingRepository.findByCourseAndSource(course, source))
+                .willReturn(Optional.of(existing));
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then — 새로 저장하지 않고 기존 엔티티를 갱신 (dirty checking)
+        then(courseSourceMappingRepository).should(never()).save(any());
+        assertThat(existing.getSourceKey()).isEqualTo("10130:9999");
     }
 
     @Test

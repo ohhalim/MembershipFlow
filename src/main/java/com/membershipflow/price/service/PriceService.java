@@ -28,15 +28,16 @@ public class PriceService {
 
     private final MembershipCourseRepository courseRepository;
     private final PriceHistoryRepository priceHistoryRepository;
+    private final SourceUrlResolver sourceUrlResolver;
 
     public List<LatestSourcePriceResponse> getLatestBySource(Long courseId) {
-        if (!courseRepository.existsById(courseId)) {
-            throw new BusinessException(ErrorCode.COURSE_NOT_FOUND);
-        }
+        MembershipCourse course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
+        // 코스 상세 단건 조회 - 소스 개수가 4개뿐이라 소스별 매핑 조회 N+1은 문제되지 않는다
         return priceHistoryRepository.findLatestBySource(courseId).stream()
                 .map(ph -> new LatestSourcePriceResponse(
                         ph.getSource().getName(),
-                        ph.getSource().getBaseUrl(),
+                        sourceUrlResolver.resolve(course, ph.getSource()),
                         ph.getPrice(),
                         ph.getCollectedAt()))
                 .toList();

@@ -41,4 +41,8 @@ public class CourseSourceMapping {
         this.source    = source;
         this.sourceKey = sourceKey;
     }
+
+    public void updateSourceKey(String sourceKey) {
+        this.sourceKey = sourceKey;
+    }
 }
