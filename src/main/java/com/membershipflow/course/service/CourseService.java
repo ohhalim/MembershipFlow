@@ -1,5 +1,7 @@
 package com.membershipflow.course.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.membershipflow.common.exception.BusinessException;
 import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.course.dto.CourseDetailResponse;
@@ -8,9 +10,11 @@ import com.membershipflow.course.dto.MarketSummaryResponse;
 import com.membershipflow.course.dto.RankingItemResponse;
 import com.membershipflow.course.dto.RankingPageResponse;
 import com.membershipflow.course.dto.SourceComparisonItem;
+import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.course.entity.MembershipType;
+import com.membershipflow.course.repository.CourseInfoRepository;
 import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.price.entity.PriceHistory;
 import com.membershipflow.price.service.PriceService;
@@ -35,7 +39,10 @@ import java.util.stream.Collectors;
 public class CourseService {
 
     private final MembershipCourseRepository courseRepository;
+    private final CourseInfoRepository courseInfoRepository;
     private final PriceService priceService;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Page<CourseListItemResponse> search(String q, CourseType courseType,
                                                 MembershipType membershipType, String region,
@@ -137,7 +144,31 @@ public class CourseService {
                 course.getId(), course.getName(), course.getRegion(),
                 course.getCourseType(), course.getMembershipType(), course.getHoles(),
                 priceService.getLatestBySource(courseId),
-                false, null);
+                false, null,
+                courseInfoRepository.findByCourseId(courseId)
+                        .map(this::toCourseInfoDto)
+                        .orElse(null));
+    }
+
+    private CourseDetailResponse.CourseInfoDto toCourseInfoDto(CourseInfo info) {
+        return new CourseDetailResponse.CourseInfoDto(
+                info.getAddress(),
+                info.getMembershipIntro(),
+                info.getCourseIntro(),
+                info.getPriceOutlook(),
+                deserializeGreenFees(info.getGreenFees()),
+                info.getCaddieFee(),
+                info.getCartFee());
+    }
+
+    // DB에 JSON 문자열로 저장된 그린피를 역직렬화 — 파싱 실패 시 null
+    private List<CourseDetailResponse.CourseInfoDto.GreenFeeDto> deserializeGreenFees(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public RankingPageResponse getRanking(String period, String sort,

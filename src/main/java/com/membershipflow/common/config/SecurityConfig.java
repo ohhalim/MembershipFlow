@@ -64,7 +64,8 @@ public class SecurityConfig {
                                 "/ws/**",
                                 // 백엔드 포트 미노출 + nginx 외부 차단으로 내부 전용 안전
                                 "/admin/collect",
-                                "/admin/collect/history")
+                                "/admin/collect/history",
+                                "/admin/collect/info")
                         .permitAll()
                         // 그 외 admin — ADMIN 권한 필수
                         .requestMatchers("/admin/**").hasRole("ADMIN")

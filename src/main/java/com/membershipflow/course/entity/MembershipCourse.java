@@ -67,4 +67,8 @@ public class MembershipCourse {
     public void updateHoles(Integer holes) {
         this.holes = holes;
     }
+
+    public void updateRegion(String region) {
+        this.region = region;
+    }
 }

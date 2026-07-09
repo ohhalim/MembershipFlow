@@ -3,6 +3,7 @@ package com.membershipflow.collect.service;
 import com.membershipflow.collect.collector.CollectException;
 import com.membershipflow.collect.collector.CollectedPrice;
 import com.membershipflow.collect.collector.CollectorRegistry;
+import com.membershipflow.collect.collector.DongaInfoCollector;
 import com.membershipflow.collect.collector.PriceCollector;
 import com.membershipflow.collect.entity.CollectRun;
 import com.membershipflow.collect.entity.CollectStatus;
@@ -12,9 +13,11 @@ import com.membershipflow.collect.entity.CrawlType;
 import com.membershipflow.collect.repository.CollectRunRepository;
 import com.membershipflow.collect.repository.CourseAliasRepository;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
+import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.course.entity.MembershipType;
+import com.membershipflow.course.repository.CourseInfoRepository;
 import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.price.entity.PriceHistory;
 import com.membershipflow.price.repository.PriceHistoryRepository;
@@ -44,10 +47,12 @@ class CollectServiceTest {
     @Mock CourseAliasRepository       courseAliasRepository;
     @Mock CollectRunRepository        collectRunRepository;
     @Mock MembershipCourseRepository  membershipCourseRepository;
+    @Mock CourseInfoRepository        courseInfoRepository;
     @Mock PriceHistoryRepository      priceHistoryRepository;
     @Mock CollectorRegistry           collectorRegistry;
     @Mock PriceCollector              collector;
     @Mock AlertService                alertService;
+    @Mock DongaInfoCollector          dongaInfoCollector;
 
     @InjectMocks CollectService collectService;
 
@@ -199,6 +204,140 @@ class CollectServiceTest {
         then(collectRunRepository).should(org.mockito.Mockito.times(2)).save(runCaptor.capture());
         CollectRun savedRun = runCaptor.getValue();
         assertThat(savedRun.getStatus()).isEqualTo(CollectStatus.FAIL);
+    }
+
+    private DongaInfoCollector.CollectedCourseInfo sampleInfo(String courseName, String address) {
+        return new DongaInfoCollector.CollectedCourseInfo(
+                courseName, address,
+                "회원권 소개", "코스 소개", "시세 흐름 및 향후 전망",
+                List.of(new DongaInfoCollector.GreenFee("정회원", 68_000L, 73_000L)),
+                "1캐디 4백 - 150,000 (1팀당)", "100,000(1대당)");
+    }
+
+    @Test
+    @DisplayName("부가정보 수집 시 정규명이 일치하는 모든 코스에 CourseInfo가 upsert되고 region이 채워진다")
+    void collectCourseInfo_upsertsAllMatchedCoursesAndFillsRegion() {
+        // given — 가야일반 링크 하나가 가야(REGULAR/PREFERRED) 두 코스에 매칭
+        MembershipCourse regular = MembershipCourse.builder()
+                .name("가야").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).build();
+        MembershipCourse preferred = MembershipCourse.builder()
+                .name("가야").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.PREFERRED).build();
+
+        given(dongaInfoCollector.collectAll())
+                .willReturn(List.of(sampleInfo("가야일반", "경상남도 김해시 삼안로 148")));
+        given(membershipCourseRepository.findAllByNameAndCourseType("가야", CourseType.GOLF))
+                .willReturn(List.of(regular, preferred));
+        given(courseInfoRepository.findByCourseId(any())).willReturn(Optional.empty());
+
+        // when
+        int upserted = collectService.collectCourseInfo();
+
+        // then
+        assertThat(upserted).isEqualTo(2);
+        assertThat(regular.getRegion()).isEqualTo("경남");
+        assertThat(preferred.getRegion()).isEqualTo("경남");
+
+        ArgumentCaptor<CourseInfo> captor = ArgumentCaptor.captor();
+        then(courseInfoRepository).should(org.mockito.Mockito.times(2)).save(captor.capture());
+        CourseInfo saved = captor.getValue();
+        assertThat(saved.getAddress()).isEqualTo("경상남도 김해시 삼안로 148");
+        assertThat(saved.getGreenFees()).contains("\"grade\":\"정회원\"").contains("68000").contains("73000");
+        assertThat(saved.getCaddieFee()).isEqualTo("1캐디 4백 - 150,000 (1팀당)");
+    }
+
+    @Test
+    @DisplayName("기존 region이 있는 코스는 덮어쓰지 않는다")
+    void collectCourseInfo_existingRegion_isPreserved() {
+        // given — 이미 region이 "서울"인 코스
+        MembershipCourse course = MembershipCourse.builder()
+                .name("가야").region("서울").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).build();
+
+        given(dongaInfoCollector.collectAll())
+                .willReturn(List.of(sampleInfo("가야일반", "경상남도 김해시 삼안로 148")));
+        given(membershipCourseRepository.findAllByNameAndCourseType("가야", CourseType.GOLF))
+                .willReturn(List.of(course));
+        given(courseInfoRepository.findByCourseId(any())).willReturn(Optional.empty());
+
+        // when
+        collectService.collectCourseInfo();
+
+        // then
+        assertThat(course.getRegion()).isEqualTo("서울");
+    }
+
+    @Test
+    @DisplayName("이미 CourseInfo가 있으면 새로 만들지 않고 갱신한다")
+    void collectCourseInfo_existingInfo_isUpdatedNotDuplicated() {
+        // given
+        MembershipCourse course = MembershipCourse.builder()
+                .name("가야").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).build();
+        CourseInfo existing = CourseInfo.builder()
+                .courseId(course.getId()).address("옛 주소").build();
+
+        given(dongaInfoCollector.collectAll())
+                .willReturn(List.of(sampleInfo("가야일반", "경상남도 김해시 삼안로 148")));
+        given(membershipCourseRepository.findAllByNameAndCourseType("가야", CourseType.GOLF))
+                .willReturn(List.of(course));
+        given(courseInfoRepository.findByCourseId(any())).willReturn(Optional.of(existing));
+
+        // when
+        int upserted = collectService.collectCourseInfo();
+
+        // then — save 없이 기존 엔티티 필드만 갱신 (dirty checking)
+        assertThat(upserted).isEqualTo(1);
+        then(courseInfoRepository).should(never()).save(any());
+        assertThat(existing.getAddress()).isEqualTo("경상남도 김해시 삼안로 148");
+        assertThat(existing.getMembershipIntro()).isEqualTo("회원권 소개");
+    }
+
+    @Test
+    @DisplayName("매칭되는 코스가 없으면 신규 코스를 등록하지 않고 건너뛴다")
+    void collectCourseInfo_noMatchedCourse_registersNothing() {
+        // given
+        given(dongaInfoCollector.collectAll())
+                .willReturn(List.of(sampleInfo("미등록골프장", "경기도 광주시 어딘가 1")));
+        given(membershipCourseRepository.findAllByNameAndCourseType("미등록골프장", CourseType.GOLF))
+                .willReturn(List.of());
+
+        // when
+        int upserted = collectService.collectCourseInfo();
+
+        // then — 정보 수집이 코스를 만들면 안 됨
+        assertThat(upserted).isZero();
+        then(membershipCourseRepository).should(never()).save(any(MembershipCourse.class));
+        then(courseInfoRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("부가정보 코스 매칭도 alias 경로로 정규화된다")
+    void collectCourseInfo_aliasedName_resolvesToCanonical() {
+        // given — "88(팔팔)" → alias → "88"
+        MembershipCourse course = MembershipCourse.builder()
+                .name("88").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).build();
+
+        given(courseAliasRepository.findAll()).willReturn(List.of(
+                CourseAlias.builder()
+                        .aliasName("88(팔팔)").canonicalName("88")
+                        .membershipType(MembershipType.REGULAR)
+                        .build()));
+        given(dongaInfoCollector.collectAll())
+                .willReturn(List.of(sampleInfo("88(팔팔)", "경기도 용인시 기흥구 석성로521번길 169")));
+        given(membershipCourseRepository.findAllByNameAndCourseType("88", CourseType.GOLF))
+                .willReturn(List.of(course));
+        given(courseInfoRepository.findByCourseId(any())).willReturn(Optional.empty());
+
+        // when
+        int upserted = collectService.collectCourseInfo();
+
+        // then
+        assertThat(upserted).isEqualTo(1);
+        assertThat(course.getRegion()).isEqualTo("경기");
+        then(courseInfoRepository).should().save(any(CourseInfo.class));
     }
 
     @Test

@@ -2,52 +2,33 @@ package com.membershipflow.collect.collector;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.membershipflow.collect.collector.DongaCourseLinkFetcher.CourseLink;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipType;
-import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.security.Security;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class DongaHistoryCollector {
 
-    @PostConstruct
-    void init() {
-        // 동아골프 서버가 512-bit DH 키를 사용하므로 해당 제한만 제거
-        String current = Security.getProperty("jdk.tls.disabledAlgorithms");
-        if (current != null) {
-            String updated = Arrays.stream(current.split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.startsWith("DH keySize"))
-                    .collect(Collectors.joining(", "));
-            Security.setProperty("jdk.tls.disabledAlgorithms", updated);
-            log.info("[동아히스토리] DH keySize 제한 해제 완료");
-        }
-    }
-
-    private static final String LISTING_URL   = "https://www.dongagolf.co.kr/membership/sise/";
     // 상세 페이지 차트가 내부적으로 쓰는 JSON API. type=m(월간) 응답은 약 2일 간격 포인트,
     // previousDay 필드로 과거 월로 페이지네이션 가능
     private static final String CHART_API_URL = "https://www.dongagolf.co.kr/api/chart.php?id=%s&code=%s&type=m&start=%s";
-    private static final Pattern CUSTID_CODE_URL = Pattern.compile("custid=(\\d+)&code=(\\d+)");
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yy/MM/dd");
 
+    private final DongaCourseLinkFetcher linkFetcher;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // 종목당 과거로 조회할 개월 수 (서비스 차트 최대 기간인 1년에 맞춤)
@@ -63,7 +44,7 @@ public class DongaHistoryCollector {
     ) {}
 
     public List<HistoricalPrice> collectAll() {
-        List<CourseLink> links = fetchCourseLinks();
+        List<CourseLink> links = linkFetcher.fetchCourseLinks();
         log.info("[동아히스토리] 종목 {}개 수집 시작", links.size());
 
         List<HistoricalPrice> result = new ArrayList<>();
@@ -82,31 +63,6 @@ public class DongaHistoryCollector {
 
         log.info("[동아히스토리] 완료: 성공={}, 실패={}", success, fail);
         return result;
-    }
-
-    private List<CourseLink> fetchCourseLinks() {
-        try {
-            Document doc = Jsoup.connect(LISTING_URL)
-                    .userAgent("Mozilla/5.0 (compatible; MembershipFlowBot/1.0)")
-                    .timeout(15_000)
-                    .get();
-
-            List<CourseLink> links = new ArrayList<>();
-            // .html()은 &를 &amp;로 인코딩해 regex 미매칭 → Jsoup 선택자 + .attr()로 대체
-            for (var a : doc.select("a[href*=/membership/info]")) {
-                String href = a.attr("href");
-                Matcher m = CUSTID_CODE_URL.matcher(href);
-                if (m.find()) {
-                    String name = a.text().trim();
-                    if (!name.isBlank()) {
-                        links.add(new CourseLink(m.group(1), m.group(2), name));
-                    }
-                }
-            }
-            return links;
-        } catch (IOException e) {
-            throw new CollectException("동아 목록 페이지 요청 실패", e);
-        }
     }
 
     // 월간 차트 API를 previousDay로 과거 페이지네이션하며 monthsBack개월치 수집
@@ -159,6 +115,4 @@ public class DongaHistoryCollector {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record ChartPoint(long price, String date, String name) {}
-
-    private record CourseLink(String custid, String code, String name) {}
 }
