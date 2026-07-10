@@ -20,6 +20,10 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
     // 같은 골프장의 회원권 여러 개(일반/우대/주중 등)를 한 번에 조회 (#141 부가정보 upsert)
     List<MembershipCourse> findAllByNameAndCourseType(String name, CourseType courseType);
 
+    // 활성 코스 전체 조회 (#100) — 여러 서비스에 중복되던 findAll().stream().filter(isActive)를
+    // DB 레벨 필터링으로 대체 (완전한 페이지네이션 리팩터링은 별도 스코프)
+    List<MembershipCourse> findAllByActiveTrue();
+
     @Query("""
             SELECT c FROM MembershipCourse c
             WHERE (:q IS NULL OR c.name LIKE %:q%)
@@ -38,24 +42,22 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
     @Query("SELECT c FROM MembershipCourse c WHERE c.id IN :ids AND c.active = true")
     List<MembershipCourse> findAllByIdIn(@Param("ids") List<Long> ids);
 
+    // (#100) price_history를 매번 JOIN하던 것을 membership_course.latest_price(_at) 비정규화 컬럼으로
+    // 직접 정렬하도록 단순화 — CollectService가 수집 시 최신값을 갱신해 둔다
     @Query(value = """
             SELECT c.id, c.name, c.region, c.course_type, c.membership_type, c.holes,
-                   c.active, c.created_at, c.updated_at
+                   c.active, c.created_at, c.updated_at,
+                   c.latest_price, c.latest_price_source, c.latest_price_at
             FROM membership_course c
-            LEFT JOIN (
-                SELECT ph.course_id, ph.price, ph.collected_at,
-                       ROW_NUMBER() OVER (PARTITION BY ph.course_id ORDER BY ph.collected_at DESC) AS rn
-                FROM price_history ph
-            ) latest ON c.id = latest.course_id AND latest.rn = 1
             WHERE c.active = true
               AND (:q IS NULL OR c.name LIKE %:q%)
               AND (:courseType IS NULL OR c.course_type = :courseType)
               AND (:membershipType IS NULL OR c.membership_type = :membershipType)
               AND (:region IS NULL OR c.region = :region)
             ORDER BY
-                CASE WHEN :sort = 'price_asc'  THEN latest.price END ASC,
-                CASE WHEN :sort = 'price_desc' THEN latest.price END DESC,
-                CASE WHEN :sort = 'latest'     THEN latest.collected_at END DESC,
+                CASE WHEN :sort = 'price_asc'  THEN c.latest_price END ASC,
+                CASE WHEN :sort = 'price_desc' THEN c.latest_price END DESC,
+                CASE WHEN :sort = 'latest'     THEN c.latest_price_at END DESC,
                 c.name ASC
             LIMIT :size OFFSET :offset
             """, nativeQuery = true)

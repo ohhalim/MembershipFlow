@@ -101,12 +101,16 @@ public class CollectService {
                 MembershipCourse course = findOrRegisterCourse(
                         cp.courseName(), cp.region(), cp.courseType(),
                         cp.membershipType(), cp.holes(), aliases);
-                toSave.add(PriceHistory.builder()
+                PriceHistory priceHistory = PriceHistory.builder()
                         .course(course)
                         .source(source)
                         .price(cp.price())
                         .collectRun(run)
-                        .build());
+                        .build();
+                toSave.add(priceHistory);
+                // 가격 비정규화 컬럼 갱신 (#100) — 소스 무관 "가장 최근 수집" 기준,
+                // 더 과거 수집분이면 MembershipCourse#updateLatestPrice가 무시한다
+                course.updateLatestPrice(cp.price(), source.getName(), priceHistory.getCollectedAt());
                 if (cp.sourceKey() != null) {
                     upsertSourceMapping(course, source, cp.sourceKey());
                 }
