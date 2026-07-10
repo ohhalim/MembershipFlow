@@ -195,14 +195,16 @@ class CourseControllerTest {
     void summary_returnsMarketSummary() throws Exception {
         // given
         given(courseService.getSummary())
-                .willReturn(new com.membershipflow.course.dto.MarketSummaryResponse(132, 3, 5));
+                .willReturn(new com.membershipflow.course.dto.MarketSummaryResponse(132, 3, 5, 12, 6.98));
 
         // when / then
         mockMvc.perform(get("/api/v1/courses/summary").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updatedToday").value(132))
                 .andExpect(jsonPath("$.risers").value(3))
-                .andExpect(jsonPath("$.fallers").value(5));
+                .andExpect(jsonPath("$.fallers").value(5))
+                .andExpect(jsonPath("$.comparedCourses").value(12))
+                .andExpect(jsonPath("$.maxSpreadRate").value(6.98));
     }
 
     @Test
