@@ -171,6 +171,16 @@ public class SubscriptionService {
         Subscription sub = subscriptionRepository.findById(subscriptionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
 
+        // 결제 시점 재검증 (#178): 배치 조회~개별 결제 사이에 취소/정지됐거나
+        // 이미 결제되어 nextBillingAt이 미래로 갱신된 구독은 과금하지 않는다
+        boolean billable = sub.getStatus() == SubscriptionStatus.ACTIVE
+                || sub.getStatus() == SubscriptionStatus.PAYMENT_FAILED;
+        if (!billable || sub.getNextBillingAt().isAfter(LocalDateTime.now())) {
+            log.info("정기결제 스킵: subscriptionId={}, status={}, nextBillingAt={}",
+                    subscriptionId, sub.getStatus(), sub.getNextBillingAt());
+            return;
+        }
+
         String rawBillingKey = billingKeyEncryptor.decrypt(sub.getBillingKey());
         String orderId       = "AUTO-" + UUID.randomUUID();
         LocalDateTime now    = LocalDateTime.now();
