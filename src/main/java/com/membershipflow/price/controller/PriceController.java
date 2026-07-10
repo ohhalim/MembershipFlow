@@ -4,7 +4,7 @@ import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import com.membershipflow.price.dto.LatestSourcePriceResponse;
 import com.membershipflow.price.dto.PriceChartResponse;
 import com.membershipflow.price.service.PriceService;
-import com.membershipflow.subscription.entity.SubscriptionStatus;
+import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -31,9 +31,10 @@ public class PriceController {
             @RequestParam(defaultValue = "DAY") String interval,
             @AuthenticationPrincipal OAuth2UserPrincipal principal) {
 
+        // isActive(): 취소해도 nextBillingAt(이미 결제한 기간)까지는 구독자로 취급 (#180)
         boolean isSubscriber = principal != null && subscriptionRepository
                 .findByMemberId(principal.getMemberId())
-                .map(s -> s.getStatus() == SubscriptionStatus.ACTIVE)
+                .map(Subscription::isActive)
                 .orElse(false);
 
         return ResponseEntity.ok(priceService.getChart(courseId, from, to, interval, isSubscriber));
