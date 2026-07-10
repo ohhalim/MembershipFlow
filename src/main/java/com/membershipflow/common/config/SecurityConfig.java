@@ -62,7 +62,11 @@ public class SecurityConfig {
                                 "/api/v1/subscriptions/plans",
                                 "/api/v1/subscriptions/callback",
                                 "/ws/**",
-                                // 백엔드 포트 미노출 + nginx 외부 차단으로 내부 전용 안전
+                                // nginx가 /admin/ 을 프록시하지 않아(deny all, nginx/nginx.conf 참고) 외부에서 도달 불가.
+                                // 실제 트리거는 docker exec로 backend 컨테이너를 내부망에서 직접 호출하며
+                                // Authorization 헤더를 보내지 않으므로, 여기를 hasRole("ADMIN")으로 바꾸면
+                                // 그 트리거가 401로 깨진다. 트리거가 JWT를 붙이도록 바뀌기 전까지는
+                                // nginx 차단(네트워크 계층)에 의존한다 — 이슈 #167 참고.
                                 "/admin/collect",
                                 "/admin/collect/history",
                                 "/admin/collect/info")
