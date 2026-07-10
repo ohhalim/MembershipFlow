@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -83,6 +84,13 @@ public class SubscriptionService {
         Member member           = attempt.getMember();
         SubscriptionPlan plan   = attempt.getPlan();
 
+        // 재구독 확인 (#179): member_id UNIQUE 제약이 있어 신규 INSERT는 기존 row가
+        // 있으면 실패한다. 토스 결제는 롤백이 안 되므로 반드시 결제 호출 전에 확인.
+        Optional<Subscription> existing = subscriptionRepository.findByMemberId(member.getId());
+        if (existing.isPresent() && existing.get().isActive()) {
+            throw new BusinessException(ErrorCode.SUBSCRIPTION_ALREADY_EXISTS);
+        }
+
         // 빌링 키 발급
         TossPaymentsClient.BillingKeyResponse billingKeyResp =
                 tossPaymentsClient.issueBillingKey(customerKey, authKey);
@@ -101,18 +109,28 @@ public class SubscriptionService {
 
         LocalDateTime now           = LocalDateTime.now();
         LocalDateTime nextBillingAt = now.plusMonths(1);
+        String cardNumberMasked = billingKeyResp.card() != null ? billingKeyResp.card().number() : null;
+        String cardCompany      = billingKeyResp.card() != null ? billingKeyResp.card().cardCompany() : null;
 
-        Subscription subscription = Subscription.builder()
-                .member(member)
-                .plan(plan)
-                .billingKey(encryptedBillingKey)
-                .customerKey(customerKey)
-                .cardNumberMasked(billingKeyResp.card() != null ? billingKeyResp.card().number() : null)
-                .cardCompany(billingKeyResp.card() != null ? billingKeyResp.card().cardCompany() : null)
-                .startedAt(now)
-                .nextBillingAt(nextBillingAt)
-                .build();
-        subscriptionRepository.save(subscription);
+        // 기존 row가 있으면(취소 후 만료된 재구독) INSERT 대신 재활성화 (#179)
+        Subscription subscription;
+        if (existing.isPresent()) {
+            subscription = existing.get();
+            subscription.resubscribe(plan, encryptedBillingKey, customerKey,
+                    cardNumberMasked, cardCompany, now, nextBillingAt);
+        } else {
+            subscription = Subscription.builder()
+                    .member(member)
+                    .plan(plan)
+                    .billingKey(encryptedBillingKey)
+                    .customerKey(customerKey)
+                    .cardNumberMasked(cardNumberMasked)
+                    .cardCompany(cardCompany)
+                    .startedAt(now)
+                    .nextBillingAt(nextBillingAt)
+                    .build();
+            subscriptionRepository.save(subscription);
+        }
 
         PaymentHistory history = PaymentHistory.builder()
                 .member(member)
