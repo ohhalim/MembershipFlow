@@ -23,7 +23,7 @@ public class BillingScheduler {
     /** 매일 자정 — 결제일이 도래한 구독 일괄 청구 */
     @Scheduled(cron = "0 0 0 * * *")
     public void processDueBillings() {
-        List<Subscription> dueList = subscriptionRepository.findDueForBillingWithLock(
+        List<Subscription> dueList = subscriptionRepository.findDueForBilling(
                 List.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAYMENT_FAILED),
                 LocalDateTime.now());
 
