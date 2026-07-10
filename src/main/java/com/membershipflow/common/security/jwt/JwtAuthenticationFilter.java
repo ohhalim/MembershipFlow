@@ -5,6 +5,7 @@ import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import com.membershipflow.member.repository.MemberRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -19,7 +20,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Authorization 헤더의 Bearer 토큰을 검증해 SecurityContext에 인증을 설정한다.
+ * Authorization 헤더의 Bearer 토큰(우선) 또는 access_token HttpOnly 쿠키를 검증해
+ * SecurityContext에 인증을 설정한다.
  */
 @Slf4j
 @Component
@@ -59,6 +61,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String bearer = request.getHeader("Authorization");
         if (StringUtils.hasText(bearer) && bearer.startsWith("Bearer ")) {
             return bearer.substring(7);
+        }
+        return resolveTokenFromCookie(request);
+    }
+
+    private String resolveTokenFromCookie(HttpServletRequest request) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+        for (Cookie cookie : request.getCookies()) {
+            if ("access_token".equals(cookie.getName()) && StringUtils.hasText(cookie.getValue())) {
+                return cookie.getValue();
+            }
         }
         return null;
     }

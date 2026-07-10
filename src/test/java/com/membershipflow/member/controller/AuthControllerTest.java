@@ -9,10 +9,14 @@ import com.membershipflow.common.security.oauth.OAuth2AuthenticationSuccessHandl
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.entity.MemberRole;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
+import com.membershipflow.member.entity.RefreshToken;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.member.service.RefreshTokenService;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,9 +39,11 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -158,5 +164,81 @@ class AuthControllerTest {
 
         // then
         result.andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("refresh 성공 시 응답 본문의 액세스 토큰과 함께 access_token 쿠키도 설정된다")
+    void refresh_success_setsAccessTokenCookie() throws Exception {
+        // given
+        Member member = Member.builder()
+                .id(1L).email("test@example.com").name("홍길동").role(MemberRole.USER).build();
+        OAuth2UserPrincipal p = new OAuth2UserPrincipal(member, null);
+        var auth = new UsernamePasswordAuthenticationToken(p, null, p.getAuthorities());
+
+        RefreshToken stored = RefreshToken.builder()
+                .memberId(1L).token("old-refresh")
+                .expiresAt(LocalDateTime.now().plusDays(30))
+                .createdAt(LocalDateTime.now())
+                .build();
+        given(refreshTokenService.findValid("old-refresh")).willReturn(Optional.of(stored));
+        given(memberRepository.findById(1L)).willReturn(Optional.of(member));
+        given(jwtTokenProvider.createAccessToken(member)).willReturn("new-access");
+        given(refreshTokenService.create(1L)).willReturn("new-refresh");
+        given(refreshTokenService.cookieMaxAgeSeconds()).willReturn(2592000);
+        given(jwtTokenProvider.getAccessTokenExpirationMillis()).willReturn(3600000L);
+
+        // when
+        ResultActions result = mockMvc.perform(
+                post("/api/v1/auth/refresh")
+                        .with(authentication(auth))
+                        .cookie(new Cookie("refresh_token", "old-refresh")));
+
+        // then
+        result.andExpect(status().isOk())
+              .andExpect(jsonPath("$.accessToken", is("new-access")))
+              .andExpect(cookie().value("refresh_token", "new-refresh"))
+              .andExpect(cookie().value("access_token", "new-access"))
+              .andExpect(cookie().httpOnly("access_token", true))
+              .andExpect(cookie().path("access_token", "/"))
+              .andExpect(cookie().maxAge("access_token", 3600))
+              .andExpect(cookie().attribute("access_token", "SameSite", "Lax"));
+    }
+
+    @Test
+    @DisplayName("refresh_token 쿠키가 없으면 refresh는 401을 반환한다")
+    void refresh_withoutCookie_returns401() throws Exception {
+        // given
+        OAuth2UserPrincipal p = principal(1L, "test@example.com", "홍길동");
+        var auth = new UsernamePasswordAuthenticationToken(p, null, p.getAuthorities());
+
+        // when
+        ResultActions result = mockMvc.perform(
+                post("/api/v1/auth/refresh").with(authentication(auth)));
+
+        // then
+        result.andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("logout 시 refresh_token과 access_token 쿠키가 모두 삭제된다")
+    void logout_clearsBothCookies() throws Exception {
+        // given
+        OAuth2UserPrincipal p = principal(1L, "test@example.com", "홍길동");
+        var auth = new UsernamePasswordAuthenticationToken(p, null, p.getAuthorities());
+
+        // when
+        ResultActions result = mockMvc.perform(
+                post("/api/v1/auth/logout")
+                        .with(authentication(auth))
+                        .cookie(new Cookie("refresh_token", "some-refresh")));
+
+        // then
+        result.andExpect(status().isNoContent())
+              .andExpect(cookie().maxAge("refresh_token", 0))
+              .andExpect(cookie().value("refresh_token", ""))
+              .andExpect(cookie().maxAge("access_token", 0))
+              .andExpect(cookie().value("access_token", ""))
+              .andExpect(cookie().httpOnly("access_token", true))
+              .andExpect(cookie().path("access_token", "/"));
     }
 }
