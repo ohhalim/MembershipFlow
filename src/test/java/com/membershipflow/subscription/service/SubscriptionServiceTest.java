@@ -1,9 +1,12 @@
 package com.membershipflow.subscription.service;
 
+import com.membershipflow.common.exception.BusinessException;
+import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.common.util.BillingKeyEncryptor;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
+import com.membershipflow.subscription.entity.BillingAttempt;
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.entity.SubscriptionPlan;
 import com.membershipflow.subscription.entity.SubscriptionStatus;
@@ -24,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -121,5 +125,70 @@ class SubscriptionServiceTest {
         then(tossPaymentsClient).should(never())
                 .charge(anyString(), anyString(), anyInt(), anyString(), anyString());
         then(paymentHistoryRepository).should(never()).save(any());
+    }
+
+    // --- handleCallback 재구독 (#179) ---
+
+    private BillingAttempt pendingAttempt(String customerKey) {
+        return BillingAttempt.builder()
+                .member(member).plan(plan).customerKey(customerKey)
+                .build();
+    }
+
+    @Test
+    @DisplayName("취소 후 만료된 구독이 있으면 신규 INSERT 대신 기존 row를 재활성화한다 (#179)")
+    void handleCallback_expiredCancelledSubscription_reactivatesExistingRow() {
+        // given — 지난달 취소되고 이용 기간도 끝난 기존 구독
+        Subscription cancelled = subscriptionDueAt(LocalDateTime.now().minusDays(3));
+        cancelled.cancel();
+
+        given(billingAttemptRepository.findByCustomerKeyAndStatusAndExpiresAtAfter(
+                anyString(), any(), any()))
+                .willReturn(Optional.of(pendingAttempt("new-customer-key")));
+        given(subscriptionRepository.findByMemberId(member.getId()))
+                .willReturn(Optional.of(cancelled));
+        given(tossPaymentsClient.issueBillingKey(anyString(), anyString()))
+                .willReturn(new TossPaymentsClient.BillingKeyResponse(
+                        "new-billing-key", "new-customer-key",
+                        new TossPaymentsClient.BillingKeyResponse.CardInfo("1234-****", "국민")));
+        given(billingKeyEncryptor.encrypt("new-billing-key")).willReturn("enc-new-key");
+        given(plan.getId()).willReturn(1L);
+        given(plan.getPrice()).willReturn(9900);
+        given(plan.getName()).willReturn("프리미엄");
+        given(tossPaymentsClient.charge(anyString(), anyString(), anyInt(), anyString(), anyString()))
+                .willReturn(new TossPaymentsClient.PaymentResponse("pay-key", "2026-07-10", 9900, null));
+
+        // when
+        subscriptionService.handleCallback("new-customer-key", "auth-key");
+
+        // then — 신규 save 없이 기존 row가 ACTIVE로 재활성화
+        then(subscriptionRepository).should(never()).save(any());
+        assertThat(cancelled.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(cancelled.getBillingKey()).isEqualTo("enc-new-key");
+        assertThat(cancelled.getCancelledAt()).isNull();
+        assertThat(cancelled.getFailCount()).isZero();
+        assertThat(cancelled.getNextBillingAt()).isAfter(LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("활성 구독이 있으면 결제 호출 전에 SUBSCRIPTION_ALREADY_EXISTS로 차단한다 (#179)")
+    void handleCallback_activeSubscriptionExists_blocksBeforeCharge() {
+        // given
+        Subscription active = subscriptionDueAt(LocalDateTime.now().plusDays(20));
+
+        given(billingAttemptRepository.findByCustomerKeyAndStatusAndExpiresAtAfter(
+                anyString(), any(), any()))
+                .willReturn(Optional.of(pendingAttempt("dup-customer-key")));
+        given(subscriptionRepository.findByMemberId(member.getId()))
+                .willReturn(Optional.of(active));
+
+        // when / then — 토스 결제/빌링키 발급이 아예 호출되지 않아야 함 (돈 안 나감)
+        assertThatThrownBy(() -> subscriptionService.handleCallback("dup-customer-key", "auth-key"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SUBSCRIPTION_ALREADY_EXISTS);
+        then(tossPaymentsClient).should(never()).issueBillingKey(anyString(), anyString());
+        then(tossPaymentsClient).should(never())
+                .charge(anyString(), anyString(), anyInt(), anyString(), anyString());
     }
 }

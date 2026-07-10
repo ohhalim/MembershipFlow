@@ -87,6 +87,26 @@ public class Subscription {
         this.updatedAt   = LocalDateTime.now();
     }
 
+    /**
+     * 재구독 (#179): member_id UNIQUE 제약 때문에 신규 INSERT 대신
+     * 기존 row를 새 빌링 정보로 재활성화한다.
+     */
+    public void resubscribe(SubscriptionPlan plan, String billingKey, String customerKey,
+                            String cardNumberMasked, String cardCompany,
+                            LocalDateTime startedAt, LocalDateTime nextBillingAt) {
+        this.plan             = plan;
+        this.status           = SubscriptionStatus.ACTIVE;
+        this.billingKey       = billingKey;
+        this.customerKey      = customerKey;
+        this.cardNumberMasked = cardNumberMasked;
+        this.cardCompany      = cardCompany;
+        this.failCount        = 0;
+        this.startedAt        = startedAt;
+        this.nextBillingAt    = nextBillingAt;
+        this.cancelledAt      = null;
+        this.updatedAt        = LocalDateTime.now();
+    }
+
     public void paymentSuccess(LocalDateTime nextBillingAt) {
         this.status        = SubscriptionStatus.ACTIVE;
         this.failCount     = 0;
