@@ -7,6 +7,7 @@ import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.price.repository.PriceHistoryRepository;
+import com.membershipflow.subscription.service.SubscriptionService;
 import com.membershipflow.watchlist.dto.WatchlistAddRequest;
 import com.membershipflow.watchlist.dto.WatchlistResponse;
 import com.membershipflow.watchlist.dto.WatchlistUpdateRequest;
@@ -31,13 +32,16 @@ public class WatchlistService {
     private final MemberRepository          memberRepository;
     private final MembershipCourseRepository courseRepository;
     private final PriceHistoryRepository    priceHistoryRepository;
+    private final SubscriptionService       subscriptionService;
 
     @Transactional
     public WatchlistResponse add(Long memberId, WatchlistAddRequest req) {
         if (watchlistRepository.existsByMemberIdAndCourseId(memberId, req.courseId())) {
             throw new BusinessException(ErrorCode.WATCHLIST_ALREADY_EXISTS);
         }
-        if (watchlistRepository.countByMemberId(memberId) >= FREE_TIER_LIMIT) {
+        // 구독자는 찜 등록 한도 없음 — 비구독자만 FREE_TIER_LIMIT 적용
+        if (!subscriptionService.isSubscriber(memberId)
+                && watchlistRepository.countByMemberId(memberId) >= FREE_TIER_LIMIT) {
             throw new BusinessException(ErrorCode.WATCHLIST_LIMIT_EXCEEDED);
         }
 
