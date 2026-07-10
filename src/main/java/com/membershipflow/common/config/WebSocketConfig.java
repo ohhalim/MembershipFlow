@@ -1,5 +1,6 @@
 package com.membershipflow.common.config;
 
+import com.membershipflow.common.security.jwt.AccessTokenHandshakeInterceptor;
 import com.membershipflow.common.security.jwt.StompAuthChannelInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +16,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
+    private final AccessTokenHandshakeInterceptor accessTokenHandshakeInterceptor;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
@@ -27,6 +29,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns("*")
+                .addInterceptors(accessTokenHandshakeInterceptor)
                 .withSockJS();
     }
 

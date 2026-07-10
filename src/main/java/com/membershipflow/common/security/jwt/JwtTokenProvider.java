@@ -43,6 +43,10 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    public long getAccessTokenExpirationMillis() {
+        return accessTokenExpiration;
+    }
+
     public Long getMemberIdFromToken(String token) {
         return Long.parseLong(parse(token).getSubject());
     }

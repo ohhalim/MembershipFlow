@@ -58,6 +58,7 @@ public class AuthController {
                     String newAccess = jwtTokenProvider.createAccessToken(member);
                     String newRefresh = refreshTokenService.create(member.getId());
                     setRefreshCookie(response, newRefresh);
+                    setAccessCookie(response, newAccess);
                     return ResponseEntity.ok(Map.of("accessToken", newAccess));
                 })
                 .orElseGet(() -> {
@@ -70,6 +71,7 @@ public class AuthController {
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         extractRefreshTokenCookie(request).ifPresent(refreshTokenService::delete);
         clearRefreshCookie(response);
+        clearAccessCookie(response);
         return ResponseEntity.noContent().build();
     }
 
@@ -97,5 +99,26 @@ public class AuthController {
         cookie.setPath("/api/v1/auth");
         cookie.setMaxAge(0);
         response.addCookie(cookie);
+    }
+
+    private void setAccessCookie(HttpServletResponse response, String value) {
+        Cookie cookie = accessCookie(value);
+        cookie.setMaxAge((int) (jwtTokenProvider.getAccessTokenExpirationMillis() / 1000));
+        response.addCookie(cookie);
+    }
+
+    private void clearAccessCookie(HttpServletResponse response) {
+        Cookie cookie = accessCookie("");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+    }
+
+    private Cookie accessCookie(String value) {
+        Cookie cookie = new Cookie("access_token", value);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(cookieSecure);
+        cookie.setPath("/");
+        cookie.setAttribute("SameSite", "Lax");
+        return cookie;
     }
 }
