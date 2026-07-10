@@ -2,6 +2,7 @@ package com.membershipflow.course.service;
 
 import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
+import com.membershipflow.course.dto.MarketSummaryResponse;
 import com.membershipflow.course.dto.SourceComparisonItem;
 import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
@@ -266,5 +267,64 @@ class CourseServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).courseId()).isEqualTo(1L);
         assertThat(result.get(0).diffRate()).isEqualTo(6.98);
+    }
+
+    @Test
+    @DisplayName("getSummary는 소스 2개 이상 종목 수(comparedCourses)와 최대 스프레드율(maxSpreadRate)을 계산한다")
+    void getSummary_calculatesSpreadMetrics() {
+        // given — 88(4소스 430M~460M → 6.98%), Small(2소스 200M/210M → 5.0%), 외톨이(1소스, 제외)
+        MembershipCourse course88 = buildCourse(1L, "88", "경기");
+        MembershipCourse courseSmall = buildCourse(3L, "Small", "서울");
+        MembershipCourse lonely = buildCourse(2L, "외톨이CC", "강원");
+        given(courseRepository.findAll()).willReturn(List.of(course88, courseSmall, lonely));
+        given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
+                new Object[]{1L, "동아골프", 450_000_000L},
+                new Object[]{1L, "동부회원권", 438_000_000L},
+                new Object[]{1L, "시세닷컴", 430_000_000L},
+                new Object[]{1L, "에이스회원권", 460_000_000L},
+                new Object[]{3L, "동부회원권", 200_000_000L},
+                new Object[]{3L, "시세닷컴", 210_000_000L},
+                new Object[]{2L, "동아골프", 100_000_000L}));
+
+        // when
+        MarketSummaryResponse summary = courseService.getSummary();
+
+        // then — 소스 1개인 외톨이는 제외, 최대 스프레드는 88 코스의 6.98%
+        assertThat(summary.comparedCourses()).isEqualTo(2);
+        assertThat(summary.maxSpreadRate()).isEqualTo(6.98);
+    }
+
+    @Test
+    @DisplayName("getSummary는 소스가 1개뿐인 종목을 comparedCourses에서 제외한다")
+    void getSummary_excludesSingleSourceCourse() {
+        // given
+        MembershipCourse lonely = buildCourse(2L, "외톨이CC", "강원");
+        given(courseRepository.findAll()).willReturn(List.of(lonely));
+        given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.<Object[]>of(
+                new Object[]{2L, "동아골프", 100_000_000L}));
+
+        // when
+        MarketSummaryResponse summary = courseService.getSummary();
+
+        // then
+        assertThat(summary.comparedCourses()).isEqualTo(0);
+        assertThat(summary.maxSpreadRate()).isEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("getSummary는 활성 종목이 없으면 모든 지표가 0이다")
+    void getSummary_noCourses_returnsZeros() {
+        // given
+        given(courseRepository.findAll()).willReturn(List.of());
+
+        // when
+        MarketSummaryResponse summary = courseService.getSummary();
+
+        // then
+        assertThat(summary.updatedToday()).isEqualTo(0);
+        assertThat(summary.risers()).isEqualTo(0);
+        assertThat(summary.fallers()).isEqualTo(0);
+        assertThat(summary.comparedCourses()).isEqualTo(0);
+        assertThat(summary.maxSpreadRate()).isEqualTo(0.0);
     }
 }

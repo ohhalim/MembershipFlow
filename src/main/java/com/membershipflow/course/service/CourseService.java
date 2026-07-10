@@ -236,12 +236,12 @@ public class CourseService {
         return new RankingPageResponse(content, page, size, totalElements, toIndex < totalElements);
     }
 
-    // 시장 요약: 오늘 갱신 종목 수 + 1일 기준 상승/하락 종목 수
+    // 시장 요약: 오늘 갱신 종목 수 + 1일 기준 상승/하락 종목 수 + 거래소 스프레드 지표
     public MarketSummaryResponse getSummary() {
         List<MembershipCourse> all = courseRepository.findAll().stream()
                 .filter(MembershipCourse::isActive)
                 .toList();
-        if (all.isEmpty()) return new MarketSummaryResponse(0, 0, 0);
+        if (all.isEmpty()) return new MarketSummaryResponse(0, 0, 0, 0, 0.0);
 
         long updatedToday = priceService.countCoursesUpdatedSince(
                 java.time.LocalDate.now().atStartOfDay());
@@ -259,7 +259,29 @@ public class CourseService {
             if (diff > 0) risers++;
             else if (diff < 0) fallers++;
         }
-        return new MarketSummaryResponse(updatedToday, risers, fallers);
+
+        // 거래소 스프레드: 소스 2개 이상인 활성 종목 수 + 최대 가격차율(%)
+        // getSourceComparison과 동일하게 코스별 소스별 가격을 그룹핑해 재사용
+        Map<Long, List<Long>> pricesByCourse = priceService.getLatestPerSourceRows(ids).stream()
+                .collect(Collectors.groupingBy(
+                        row -> ((Number) row[0]).longValue(),
+                        Collectors.mapping(
+                                row -> ((Number) row[2]).longValue(),
+                                Collectors.toList())));
+
+        int comparedCourses = 0;
+        double maxSpreadRate = 0.0;
+        for (List<Long> prices : pricesByCourse.values()) {
+            if (prices.size() < 2) continue;
+            comparedCourses++;
+            long minPrice = prices.stream().mapToLong(Long::longValue).min().orElse(0);
+            long maxPrice = prices.stream().mapToLong(Long::longValue).max().orElse(0);
+            if (minPrice <= 0) continue;
+            double spreadRate = Math.round((double) (maxPrice - minPrice) / minPrice * 10000d) / 100d;
+            if (spreadRate > maxSpreadRate) maxSpreadRate = spreadRate;
+        }
+
+        return new MarketSummaryResponse(updatedToday, risers, fallers, comparedCourses, maxSpreadRate);
     }
 
     // 거래소 간 가격 비교: 소스가 2개 이상인 활성 코스만 대상, diffRate 절대값 내림차순 상위 limit개
