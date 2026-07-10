@@ -162,7 +162,7 @@ class AnomalyDetectionServiceTest {
         // 시세닷컴 편차 = (1.2억-11.7억)/11.7억 ≈ -89.7% → 이상치
         // 나머지 3개는 median 대비 3% 이내로 정상
         MembershipCourse hwasan = buildCourse(10L, "화산");
-        given(membershipCourseRepository.findAll()).willReturn(List.of(hwasan));
+        given(membershipCourseRepository.findAllByActiveTrue()).willReturn(List.of(hwasan));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
                 new Object[]{10L, "시세닷컴", 120_000_000L},
                 new Object[]{10L, "동부회원권", 1_160_000_000L},
@@ -189,7 +189,7 @@ class AnomalyDetectionServiceTest {
     void checkPriceOutliers_withinRange_noAnomaly() {
         // given — 동아 450M / 동부 438M / 에이스 460M (median 450M, 모두 3% 이내)
         MembershipCourse course = buildCourse(11L, "정상장");
-        given(membershipCourseRepository.findAll()).willReturn(List.of(course));
+        given(membershipCourseRepository.findAllByActiveTrue()).willReturn(List.of(course));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
                 new Object[]{11L, "동아골프", 450_000_000L},
                 new Object[]{11L, "동부회원권", 438_000_000L},
@@ -207,7 +207,7 @@ class AnomalyDetectionServiceTest {
     void checkPriceOutliers_onlyTwoSources_isExcluded() {
         // given — 2개 소스는 10배 차이가 나도 검사 대상이 아니다
         MembershipCourse course = buildCourse(12L, "듀오장");
-        given(membershipCourseRepository.findAll()).willReturn(List.of(course));
+        given(membershipCourseRepository.findAllByActiveTrue()).willReturn(List.of(course));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
                 new Object[]{12L, "동아골프", 100_000_000L},
                 new Object[]{12L, "시세닷컴", 900_000_000L}));
@@ -226,7 +226,7 @@ class AnomalyDetectionServiceTest {
         // given — 정렬: 100M,110M,120M,1000M → median=(110M+120M)/2=115M
         // D(1000M)만 +769% 이탈로 이상치, 나머지 3개는 ±13% 이내로 정상
         MembershipCourse course = buildCourse(13L, "짝수장");
-        given(membershipCourseRepository.findAll()).willReturn(List.of(course));
+        given(membershipCourseRepository.findAllByActiveTrue()).willReturn(List.of(course));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
                 new Object[]{13L, "A", 100_000_000L},
                 new Object[]{13L, "B", 110_000_000L},
@@ -248,7 +248,7 @@ class AnomalyDetectionServiceTest {
     @Test
     @DisplayName("활성 코스가 없으면 아무 것도 조회하지 않고 조용히 넘어간다")
     void checkPriceOutliers_noActiveCourses_doesNothing() {
-        given(membershipCourseRepository.findAll()).willReturn(List.of());
+        given(membershipCourseRepository.findAllByActiveTrue()).willReturn(List.of());
 
         anomalyDetectionService.checkPriceOutliers();
 

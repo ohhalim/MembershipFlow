@@ -104,6 +104,68 @@ class CollectServiceTest {
     }
 
     @Test
+    @DisplayName("수집 시 코스의 latest_price가 갱신된다 (#100)")
+    void collectOne_success_updatesCourseLatestPrice() {
+        // given — 아직 latest_price가 없는 신규 코스
+        CollectedPrice cp = new CollectedPrice(
+                "레이크사이드CC", "경기", CourseType.GOLF, MembershipType.REGULAR,
+                18, 438_000_000L, "동부회원권");
+
+        MembershipCourse course = MembershipCourse.builder()
+                .name("레이크사이드").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).holes(18)
+                .build();
+
+        given(collector.collect()).willReturn(List.of(cp));
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "레이크사이드", CourseType.GOLF, MembershipType.REGULAR))
+                .willReturn(Optional.of(course));
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then — 저장된 PriceHistory의 collectedAt/price로 코스의 latest_price가 채워진다
+        ArgumentCaptor<List<PriceHistory>> captor = ArgumentCaptor.captor();
+        then(priceHistoryRepository).should().saveAll(captor.capture());
+        PriceHistory saved = captor.getValue().get(0);
+
+        assertThat(course.getLatestPrice()).isEqualTo(438_000_000L);
+        assertThat(course.getLatestPriceSource()).isEqualTo("동부회원권");
+        assertThat(course.getLatestPriceAt()).isEqualTo(saved.getCollectedAt());
+    }
+
+    @Test
+    @DisplayName("코스에 이미 더 최근에 수집된 latest_price가 있으면 이번 수집으로 덮어쓰지 않는다")
+    void collectOne_courseAlreadyHasNewerLatestPrice_doesNotOverwrite() {
+        // given — 코스에 미래 시점(아직 도래하지 않은) collectedAt 기준 최신가가 이미 있다고 가정
+        CollectedPrice cp = new CollectedPrice(
+                "레이크사이드CC", "경기", CourseType.GOLF, MembershipType.REGULAR,
+                18, 438_000_000L, "동부회원권");
+
+        MembershipCourse course = MembershipCourse.builder()
+                .name("레이크사이드").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR).holes(18)
+                .build();
+        java.time.LocalDateTime future = java.time.LocalDateTime.now().plusDays(1);
+        course.updateLatestPrice(999_000_000L, "동아골프", future);
+
+        given(collector.collect()).willReturn(List.of(cp));
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "레이크사이드", CourseType.GOLF, MembershipType.REGULAR))
+                .willReturn(Optional.of(course));
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then — 이번 수집(now())은 future보다 과거이므로 무시된다
+        assertThat(course.getLatestPrice()).isEqualTo(999_000_000L);
+        assertThat(course.getLatestPriceSource()).isEqualTo("동아골프");
+        assertThat(course.getLatestPriceAt()).isEqualTo(future);
+    }
+
+    @Test
     @DisplayName("sourceKey가 없으면 course_source_mapping을 건드리지 않는다")
     void collectOne_noSourceKey_doesNotTouchMapping() {
         // given

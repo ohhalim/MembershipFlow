@@ -82,7 +82,14 @@ public class CourseService {
         long total = courseRepository.countSearch(q, courseTypeStr, membershipTypeStr, region);
 
         List<Long> ids = paged.stream().map(MembershipCourse::getId).toList();
-        Map<Long, PriceHistory> latestMap = ids.isEmpty() ? Map.of() : priceService.getLatestPriceBatch(ids);
+        // (#100) price_history 재조회 없이 searchWithPriceSort가 이미 가져온 비정규화 컬럼을 그대로 사용
+        Map<Long, PriceHistory> latestMap = paged.stream()
+                .filter(c -> c.getLatestPrice() != null)
+                .collect(Collectors.toMap(MembershipCourse::getId,
+                        c -> PriceHistory.builder()
+                                .price(c.getLatestPrice())
+                                .collectedAt(c.getLatestPriceAt())
+                                .build()));
         Map<Long, PriceHistory> baseMap   = ids.isEmpty() ? Map.of() : priceService.get7dBasePriceBatch(ids);
         Map<Long, List<CourseListItemResponse.SourcePriceItem>> sourcePriceMap = getSourcePriceMap(ids);
 
@@ -174,12 +181,10 @@ public class CourseService {
     public RankingPageResponse getRanking(String period, String sort,
                                           CourseType courseType, int page, int size) {
         List<MembershipCourse> all = courseType != null
-                ? courseRepository.findAll().stream()
-                        .filter(c -> c.getCourseType() == courseType && c.isActive())
+                ? courseRepository.findAllByActiveTrue().stream()
+                        .filter(c -> c.getCourseType() == courseType)
                         .toList()
-                : courseRepository.findAll().stream()
-                        .filter(MembershipCourse::isActive)
-                        .toList();
+                : courseRepository.findAllByActiveTrue();
 
         if (all.isEmpty()) return new RankingPageResponse(List.of(), page, size, 0, false);
 
@@ -238,9 +243,7 @@ public class CourseService {
 
     // 시장 요약: 오늘 갱신 종목 수 + 1일 기준 상승/하락 종목 수 + 거래소 스프레드 지표
     public MarketSummaryResponse getSummary() {
-        List<MembershipCourse> all = courseRepository.findAll().stream()
-                .filter(MembershipCourse::isActive)
-                .toList();
+        List<MembershipCourse> all = courseRepository.findAllByActiveTrue();
         if (all.isEmpty()) return new MarketSummaryResponse(0, 0, 0, 0, 0.0);
 
         long updatedToday = priceService.countCoursesUpdatedSince(
@@ -286,9 +289,7 @@ public class CourseService {
 
     // 거래소 간 가격 비교: 소스가 2개 이상인 활성 코스만 대상, diffRate 절대값 내림차순 상위 limit개
     public List<SourceComparisonItem> getSourceComparison(int limit) {
-        List<MembershipCourse> activeCourses = courseRepository.findAll().stream()
-                .filter(MembershipCourse::isActive)
-                .toList();
+        List<MembershipCourse> activeCourses = courseRepository.findAllByActiveTrue();
         if (activeCourses.isEmpty()) return List.of();
 
         List<Long> courseIds = activeCourses.stream().map(MembershipCourse::getId).toList();
