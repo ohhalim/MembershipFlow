@@ -5,6 +5,7 @@ import com.membershipflow.member.entity.MemberRole;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import com.membershipflow.member.repository.MemberRepository;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -124,6 +125,59 @@ class JwtAuthenticationFilterTest {
     void headerWithoutBearerPrefix_noAuth() throws Exception {
         // given
         request.addHeader("Authorization", "Basic abc123");
+
+        // when
+        filter.doFilter(request, response, chain);
+
+        // then
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        then(jwtTokenProvider).shouldHaveNoInteractions();
+        then(memberRepository).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("Authorization 헤더가 없어도 access_token 쿠키가 유효하면 인증이 설정된다")
+    void validCookieToken_setsAuthentication() throws Exception {
+        // given
+        request.setCookies(new Cookie("access_token", "cookie-token"));
+        given(jwtTokenProvider.validateToken("cookie-token")).willReturn(true);
+        given(jwtTokenProvider.getMemberIdFromToken("cookie-token")).willReturn(1L);
+        given(memberRepository.findById(1L)).willReturn(Optional.of(member(1L)));
+
+        // when
+        filter.doFilter(request, response, chain);
+
+        // then
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(auth).isNotNull();
+        assertThat(((OAuth2UserPrincipal) auth.getPrincipal()).getMemberId()).isEqualTo(1L);
+        then(chain).should().doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("Authorization 헤더와 access_token 쿠키가 모두 있으면 헤더가 우선한다")
+    void headerTakesPrecedenceOverCookie() throws Exception {
+        // given
+        request.addHeader("Authorization", "Bearer header-token");
+        request.setCookies(new Cookie("access_token", "cookie-token"));
+        given(jwtTokenProvider.validateToken("header-token")).willReturn(true);
+        given(jwtTokenProvider.getMemberIdFromToken("header-token")).willReturn(1L);
+        given(memberRepository.findById(1L)).willReturn(Optional.of(member(1L)));
+
+        // when
+        filter.doFilter(request, response, chain);
+
+        // then
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        then(jwtTokenProvider).should().validateToken("header-token");
+        then(jwtTokenProvider).should(never()).validateToken("cookie-token");
+    }
+
+    @Test
+    @DisplayName("다른 이름의 쿠키만 있으면 인증 없이 체인이 계속된다")
+    void otherCookieOnly_noAuth() throws Exception {
+        // given
+        request.setCookies(new Cookie("refresh_token", "some-refresh"));
 
         // when
         filter.doFilter(request, response, chain);

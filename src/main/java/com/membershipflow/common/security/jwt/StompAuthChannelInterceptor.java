@@ -1,6 +1,7 @@
 package com.membershipflow.common.security.jwt;
 
 import java.security.Principal;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
@@ -14,7 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * STOMP CONNECT 프레임의 Authorization 헤더에서 JWT를 검증해 세션 Principal을 설정한다.
+ * STOMP CONNECT 프레임의 Authorization 헤더(우선) 또는 핸드셰이크 시 저장된 세션 속성의
+ * 액세스 토큰({@link AccessTokenHandshakeInterceptor})에서 JWT를 검증해 세션 Principal을 설정한다.
  *
  * <p>Principal.getName()이 memberId 문자열을 반환하도록 만들어야
  * {@code SimpMessagingTemplate.convertAndSendToUser(memberId.toString(), ...)}가
@@ -54,6 +56,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         String bearer = accessor.getFirstNativeHeader("Authorization");
         if (StringUtils.hasText(bearer) && bearer.startsWith("Bearer ")) {
             return bearer.substring(7);
+        }
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes != null
+                && sessionAttributes.get(AccessTokenHandshakeInterceptor.ACCESS_TOKEN_ATTR)
+                        instanceof String cookieToken
+                && StringUtils.hasText(cookieToken)) {
+            return cookieToken;
         }
         return null;
     }
