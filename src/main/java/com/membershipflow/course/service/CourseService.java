@@ -147,14 +147,45 @@ public class CourseService {
         MembershipCourse course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COURSE_NOT_FOUND));
 
+        List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices =
+                priceService.getLatestBySource(courseId);
+
+        Long latestPrice  = resolveDetailPrice(rawPrices, course.getLatestPrice());
+        String updatedAt  = resolveDetailUpdatedAt(rawPrices, latestPrice, course);
+        PriceHistory base = priceService.get7dBasePriceBatch(List.of(courseId)).get(courseId);
+        Double changeRate = latestPrice != null
+                ? calcChangeRate(PriceHistory.builder().price(latestPrice).build(), base)
+                : null;
+
         return CourseDetailResponse.of(
                 course.getId(), course.getName(), course.getRegion(),
                 course.getCourseType(), course.getMembershipType(), course.getHoles(),
-                priceService.getLatestBySource(courseId),
+                rawPrices, latestPrice, updatedAt, changeRate,
                 false, null,
                 courseInfoRepository.findByCourseId(courseId)
                         .map(this::toCourseInfoDto)
                         .orElse(null));
+    }
+
+    // 상세 대표 가격 (#168): 목록(resolveListPrice)과 동일한 규칙 — 거래소별 최신가 중 최저가.
+    // 거래소별 가격이 없으면 비정규화 컬럼(course.latestPrice, TD-9)으로 폴백
+    private Long resolveDetailPrice(List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices,
+                                     Long fallbackPrice) {
+        return rawPrices.stream()
+                .map(com.membershipflow.price.dto.LatestSourcePriceResponse::price)
+                .filter(Objects::nonNull)
+                .min(Long::compareTo)
+                .orElse(fallbackPrice);
+    }
+
+    // 상세 updatedAt (#168): 위에서 선택된 최저가 소스의 수집 시각, 없으면 비정규화 컬럼(latestPriceAt) 폴백
+    private String resolveDetailUpdatedAt(List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices,
+                                           Long latestPrice, MembershipCourse course) {
+        return rawPrices.stream()
+                .filter(p -> latestPrice != null && latestPrice.equals(p.price()))
+                .map(p -> p.collectedAt() != null ? p.collectedAt().toString() : null)
+                .findFirst()
+                .orElse(course.getLatestPriceAt() != null ? course.getLatestPriceAt().toString() : null);
     }
 
     private CourseDetailResponse.CourseInfoDto toCourseInfoDto(CourseInfo info) {

@@ -67,6 +67,7 @@ class CourseControllerTest {
         sampleDetail = new CourseDetailResponse(
                 1L, "레이크사이드CC", "경기",
                 "GOLF", "REGULAR", 18,
+                438_000_000L, "2026-06-22T07:00", 2.5,
                 List.of(new CourseDetailResponse.SourcePrice(
                         "동부회원권", "http://dbm-market.co.kr",
                         438_000_000L, "2026-06-22T07:00", true)),
@@ -118,6 +119,9 @@ class CourseControllerTest {
         mockMvc.perform(get("/api/v1/courses/1").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.latestPrice").value(438_000_000))
+                .andExpect(jsonPath("$.updatedAt").value("2026-06-22T07:00"))
+                .andExpect(jsonPath("$.changeRate").value(2.5))
                 .andExpect(jsonPath("$.sources[0].sourceName").value("동부회원권"))
                 .andExpect(jsonPath("$.sources[0].price").value(438_000_000))
                 .andExpect(jsonPath("$.watchlisted").value(false));
@@ -147,6 +151,7 @@ class CourseControllerTest {
         // given
         given(courseService.getDetail(2L)).willReturn(new CourseDetailResponse(
                 2L, "정보없는CC", null, "GOLF", "REGULAR", null,
+                null, null, null,
                 List.of(), false, null, null));
 
         // when / then
