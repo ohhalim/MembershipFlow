@@ -3,6 +3,7 @@ package com.membershipflow.collect.service;
 import com.membershipflow.collect.collector.CollectException;
 import com.membershipflow.collect.collector.CollectedPrice;
 import com.membershipflow.collect.collector.CollectorRegistry;
+import com.membershipflow.collect.collector.DongaHistoryCollector;
 import com.membershipflow.collect.collector.DongaInfoCollector;
 import com.membershipflow.collect.collector.PriceCollector;
 import com.membershipflow.collect.entity.CollectRun;
@@ -29,9 +30,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,15 +59,33 @@ class CollectServiceTest {
     @Mock PriceCollector              collector;
     @Mock AlertService                alertService;
     @Mock AnomalyDetectionService     anomalyDetectionService;
+    @Mock DongaHistoryCollector       dongaHistoryCollector;
     @Mock DongaInfoCollector          dongaInfoCollector;
 
-    @InjectMocks CollectService collectService;
+    CollectPersistenceService persistenceService;
+    CollectService collectService;
 
     CrawlSource source;
     CollectRun  run;
 
     @BeforeEach
     void setUp() {
+        persistenceService = new CollectPersistenceService(
+                courseAliasRepository,
+                collectRunRepository,
+                membershipCourseRepository,
+                courseInfoRepository,
+                priceHistoryRepository,
+                courseSourceMappingRepository);
+        collectService = new CollectService(
+                crawlSourceRepository,
+                collectorRegistry,
+                alertService,
+                anomalyDetectionService,
+                dongaHistoryCollector,
+                dongaInfoCollector,
+                persistenceService);
+
         source = CrawlSource.builder()
                 .name("동부회원권").baseUrl("http://dbm-market.co.kr")
                 .crawlType(CrawlType.JSOUP).active(true)
@@ -101,6 +122,11 @@ class CollectServiceTest {
         then(priceHistoryRepository).should().saveAll(captor.capture());
         assertThat(captor.getValue()).hasSize(1);
         assertThat(captor.getValue().get(0).getPrice()).isEqualTo(438_000_000L);
+
+        InOrder order = inOrder(collector, priceHistoryRepository, alertService);
+        order.verify(collector).collect();
+        order.verify(priceHistoryRepository).saveAll(any());
+        order.verify(alertService).checkAndNotify();
     }
 
     @Test
@@ -360,6 +386,23 @@ class CollectServiceTest {
         then(collectRunRepository).should(org.mockito.Mockito.times(2)).save(runCaptor.capture());
         CollectRun savedRun = runCaptor.getValue();
         assertThat(savedRun.getStatus()).isEqualTo(CollectStatus.FAIL);
+        then(alertService).should(never()).checkAndNotify();
+    }
+
+    @Test
+    @DisplayName("수집 결과 저장이 실패하면 collect_run을 FAIL로 기록하고 알림을 호출하지 않는다")
+    void collectOne_persistenceThrows_savesFailRunWithoutAlert() {
+        // given
+        given(collector.collect()).willReturn(List.of());
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(priceHistoryRepository.saveAll(any())).willThrow(new RuntimeException("DB 저장 실패"));
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then
+        assertThat(run.getStatus()).isEqualTo(CollectStatus.FAIL);
+        then(alertService).should(never()).checkAndNotify();
     }
 
     private DongaInfoCollector.CollectedCourseInfo sampleInfo(String courseName, String address) {
@@ -502,7 +545,10 @@ class CollectServiceTest {
         // given
         given(crawlSourceRepository.findAllByActiveTrue()).willReturn(List.of(source));
         given(collectorRegistry.find("동부회원권")).willReturn(Optional.of(collector));
-        given(collector.collect()).willReturn(List.of());
+        given(collector.collect()).willAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return List.of();
+        });
         given(collectRunRepository.save(any())).willReturn(run);
 
         // when
@@ -510,5 +556,6 @@ class CollectServiceTest {
 
         // then
         then(collector).should().collect();
+        then(alertService).should().checkAndNotify();
     }
 }
