@@ -131,6 +131,96 @@ class CourseServiceTest {
     }
 
     @Test
+    @DisplayName("상세의 latestPrice는 거래소별 최신가 중 최저가다 (#168, 목록과 동일 규칙)")
+    void getDetail_latestPrice_isMinOfSourcePrices() {
+        // given — 동아 450,000,000 / 동부 438,000,000
+        given(courseRepository.findById(COURSE_ID)).willReturn(Optional.of(course));
+        given(priceService.getLatestBySource(COURSE_ID)).willReturn(List.of(
+                new com.membershipflow.price.dto.LatestSourcePriceResponse(
+                        "동아골프", "http://donga.com", 450_000_000L,
+                        LocalDateTime.of(2026, 7, 7, 7, 0)),
+                new com.membershipflow.price.dto.LatestSourcePriceResponse(
+                        "동부회원권", "http://dbm-market.co.kr", 438_000_000L,
+                        LocalDateTime.of(2026, 7, 6, 9, 0))));
+        given(courseInfoRepository.findByCourseId(COURSE_ID)).willReturn(Optional.empty());
+
+        // when
+        CourseDetailResponse detail = courseService.getDetail(COURSE_ID);
+
+        // then — 최신 수집가(450M)가 아니라 거래소 최저가(438M)가 latestPrice, updatedAt도 최저가 소스 기준
+        assertThat(detail.latestPrice()).isEqualTo(438_000_000L);
+        assertThat(detail.updatedAt()).isEqualTo("2026-07-06T09:00");
+    }
+
+    @Test
+    @DisplayName("상세에서 거래소별 가격이 없으면 비정규화 컬럼(course.latestPrice)으로 폴백한다 (#168)")
+    void getDetail_noSourcePrices_fallsBackToCourseLatestPrice() {
+        // given
+        course.updateLatestPrice(420_000_000L, "동부회원권", LocalDateTime.of(2026, 7, 5, 8, 0));
+        given(courseRepository.findById(COURSE_ID)).willReturn(Optional.of(course));
+        given(priceService.getLatestBySource(COURSE_ID)).willReturn(List.of());
+        given(courseInfoRepository.findByCourseId(COURSE_ID)).willReturn(Optional.empty());
+
+        // when
+        CourseDetailResponse detail = courseService.getDetail(COURSE_ID);
+
+        // then
+        assertThat(detail.latestPrice()).isEqualTo(420_000_000L);
+        assertThat(detail.updatedAt()).isEqualTo("2026-07-05T08:00");
+    }
+
+    @Test
+    @DisplayName("상세의 changeRate는 latestPrice와 7일 기준가를 비교한 값이다 (#168)")
+    void getDetail_changeRate_comparesLatestPriceWithBasePrice() {
+        // given — 거래소 최저가 438,000,000 vs 7일 전 기준가 400,000,000 → +9.5%
+        given(courseRepository.findById(COURSE_ID)).willReturn(Optional.of(course));
+        given(priceService.getLatestBySource(COURSE_ID)).willReturn(List.of(
+                new com.membershipflow.price.dto.LatestSourcePriceResponse(
+                        "동부회원권", "http://dbm-market.co.kr", 438_000_000L,
+                        LocalDateTime.of(2026, 7, 7, 7, 0))));
+        given(courseInfoRepository.findByCourseId(COURSE_ID)).willReturn(Optional.empty());
+        PriceHistory base = PriceHistory.builder()
+                .price(400_000_000L)
+                .collectedAt(LocalDateTime.of(2026, 6, 30, 7, 0))
+                .build();
+        given(priceService.get7dBasePriceBatch(List.of(COURSE_ID)))
+                .willReturn(Map.of(COURSE_ID, base));
+
+        // when
+        CourseDetailResponse detail = courseService.getDetail(COURSE_ID);
+
+        // then
+        assertThat(detail.latestPrice()).isEqualTo(438_000_000L);
+        assertThat(detail.changeRate()).isEqualTo(9.5);
+    }
+
+    @Test
+    @DisplayName("같은 종목이면 목록의 대표 가격과 상세의 latestPrice가 같다 (#168 일관성 요구사항)")
+    void getDetail_latestPrice_matchesListRepresentativePrice() {
+        // given — 목록/상세 모두 동아 450M, 동부 438M 중 최저가(438M)를 대표 가격으로 사용해야 한다
+        stubSearch(List.of(
+                new Object[]{COURSE_ID, "동아골프", 450_000_000L},
+                new Object[]{COURSE_ID, "동부회원권", 438_000_000L}));
+        given(courseRepository.findById(COURSE_ID)).willReturn(Optional.of(course));
+        given(priceService.getLatestBySource(COURSE_ID)).willReturn(List.of(
+                new com.membershipflow.price.dto.LatestSourcePriceResponse(
+                        "동아골프", "http://donga.com", 450_000_000L,
+                        LocalDateTime.of(2026, 7, 7, 7, 0)),
+                new com.membershipflow.price.dto.LatestSourcePriceResponse(
+                        "동부회원권", "http://dbm-market.co.kr", 438_000_000L,
+                        LocalDateTime.of(2026, 7, 6, 9, 0))));
+        given(courseInfoRepository.findByCourseId(COURSE_ID)).willReturn(Optional.empty());
+
+        // when
+        CourseListItemResponse listItem = courseService.search(null, null, null, null, null, pageable)
+                .getContent().get(0);
+        CourseDetailResponse detail = courseService.getDetail(COURSE_ID);
+
+        // then
+        assertThat(detail.latestPrice()).isEqualTo(listItem.latestPrice());
+    }
+
+    @Test
     @DisplayName("대표 가격은 거래소별 최신가 중 최저가다 (매수자 관점)")
     void search_listPrice_isMinOfSourcePrices() {
         // given — 동아 450,000,000 / 동부 438,000,000

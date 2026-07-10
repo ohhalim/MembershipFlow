@@ -12,6 +12,9 @@ public record CourseDetailResponse(
         String category,
         String membershipType,
         Integer holes,
+        Long latestPrice,
+        String updatedAt,
+        Double changeRate,
         List<SourcePrice> sources,
         boolean watchlisted,
         Long targetPrice,
@@ -42,6 +45,7 @@ public record CourseDetailResponse(
             Long id, String name, String region,
             CourseType courseType, MembershipType membershipType, Integer holes,
             List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices,
+            Long latestPrice, String updatedAt, Double changeRate,
             boolean watchlisted, Long targetPrice, CourseInfoDto info) {
 
         Long minPrice = rawPrices.stream()
@@ -63,6 +67,6 @@ public record CourseDetailResponse(
         return new CourseDetailResponse(id, name, region,
                 courseType != null ? courseType.name() : null,
                 membershipType != null ? membershipType.name() : null,
-                holes, sources, watchlisted, targetPrice, info);
+                holes, latestPrice, updatedAt, changeRate, sources, watchlisted, targetPrice, info);
     }
 }
