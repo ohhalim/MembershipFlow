@@ -45,6 +45,17 @@ public class MembershipCourse {
     @Column(nullable = false)
     private boolean active;
 
+    // 가격 비정규화 컬럼 (#100): 정렬/랭킹/요약 등에서 price_history 전체 JOIN 없이 사용.
+    // 소스 무관 "가장 최근에 수집된" 가격 기준 — PriceHistoryRepository#findLatestByCourseIds와 동일 기준
+    @Column(name = "latest_price")
+    private Long latestPrice;
+
+    @Column(name = "latest_price_source", length = 50)
+    private String latestPriceSource;
+
+    @Column(name = "latest_price_at")
+    private LocalDateTime latestPriceAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -70,5 +81,15 @@ public class MembershipCourse {
 
     public void updateRegion(String region) {
         this.region = region;
+    }
+
+    // 소스 무관 "가장 최근 수집" 기준으로만 갱신 — 더 과거 collectedAt이면 무시 (여러 소스가 뒤섞여 들어와도 안전)
+    public void updateLatestPrice(Long price, String source, LocalDateTime collectedAt) {
+        if (this.latestPriceAt != null && !collectedAt.isAfter(this.latestPriceAt)) {
+            return;
+        }
+        this.latestPrice       = price;
+        this.latestPriceSource = source;
+        this.latestPriceAt     = collectedAt;
     }
 }

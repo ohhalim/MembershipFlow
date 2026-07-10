@@ -77,9 +77,7 @@ public class AnomalyDetectionService {
     /** 전체 소스 수집 완료 후 코스별 거래소간 가격 이상치를 탐지한다. */
     @Transactional(readOnly = true)
     public void checkPriceOutliers() {
-        List<MembershipCourse> activeCourses = membershipCourseRepository.findAll().stream()
-                .filter(MembershipCourse::isActive)
-                .toList();
+        List<MembershipCourse> activeCourses = membershipCourseRepository.findAllByActiveTrue();
         if (activeCourses.isEmpty()) return;
 
         List<Long> courseIds = activeCourses.stream().map(MembershipCourse::getId).toList();

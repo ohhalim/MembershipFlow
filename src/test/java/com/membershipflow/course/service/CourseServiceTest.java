@@ -32,8 +32,13 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class CourseServiceTest {
@@ -186,11 +191,55 @@ class CourseServiceTest {
     }
 
     @Test
+    @DisplayName("price_asc/price_desc/latest 정렬은 price_history 재조회 없이 비정규화 컬럼으로 대표가/갱신시각을 채운다 (#100)")
+    void searchWithPriceSort_usesDenormalizedColumns_withoutExtraPriceHistoryQuery() {
+        // given — searchWithPriceSort 네이티브 쿼리가 이미 latest_price(_at)까지 채워서 반환한다고 가정
+        course.updateLatestPrice(438_000_000L, "동부회원권", LocalDateTime.of(2026, 7, 7, 7, 0));
+        given(courseRepository.searchWithPriceSort(
+                any(), any(), any(), any(), eq("price_asc"), anyInt(), anyLong()))
+                .willReturn(List.of(course));
+        given(courseRepository.countSearch(any(), any(), any(), any())).willReturn(1L);
+        given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of());
+        given(priceService.get7dBasePriceBatch(anyList())).willReturn(Map.of());
+
+        // when
+        Page<CourseListItemResponse> result =
+                courseService.search(null, null, null, null, "price_asc", pageable);
+
+        // then — 비정규화 컬럼에서 바로 채워지고, price_history 배치 재조회(getLatestPriceBatch)는 호출되지 않는다
+        CourseListItemResponse item = result.getContent().get(0);
+        assertThat(item.latestPrice()).isEqualTo(438_000_000L);
+        assertThat(item.updatedAt()).isEqualTo("2026-07-07T07:00");
+        then(priceService).should(never()).getLatestPriceBatch(anyList());
+    }
+
+    @Test
+    @DisplayName("price_asc 정렬 대상 코스에 latest_price가 없으면 대표가/갱신시각이 null이다")
+    void searchWithPriceSort_noLatestPrice_returnsNulls() {
+        // given
+        given(courseRepository.searchWithPriceSort(
+                any(), any(), any(), any(), eq("price_asc"), anyInt(), anyLong()))
+                .willReturn(List.of(course));
+        given(courseRepository.countSearch(any(), any(), any(), any())).willReturn(1L);
+        given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of());
+        given(priceService.get7dBasePriceBatch(anyList())).willReturn(Map.of());
+
+        // when
+        Page<CourseListItemResponse> result =
+                courseService.search(null, null, null, null, "price_asc", pageable);
+
+        // then
+        CourseListItemResponse item = result.getContent().get(0);
+        assertThat(item.latestPrice()).isNull();
+        assertThat(item.updatedAt()).isNull();
+    }
+
+    @Test
     @DisplayName("소스가 4개인 코스는 min/max/diffAmount/diffRate가 N-way로 계산된다")
     void getSourceComparison_calculatesMinMaxDiff_forMultiSourceCourse() {
         // given — 88 코스: 동아 450M / 동부 438M / 시세닷컴 430M / 에이스 460M
         MembershipCourse course88 = buildCourse(1L, "88", "경기");
-        given(courseRepository.findAll()).willReturn(List.of(course88));
+        given(courseRepository.findAllByActiveTrue()).willReturn(List.of(course88));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
                 new Object[]{1L, "동아골프", 450_000_000L},
                 new Object[]{1L, "동부회원권", 438_000_000L},
@@ -219,7 +268,7 @@ class CourseServiceTest {
     void getSourceComparison_excludesSingleSourceCourse() {
         // given
         MembershipCourse lonely = buildCourse(2L, "외톨이CC", "강원");
-        given(courseRepository.findAll()).willReturn(List.of(lonely));
+        given(courseRepository.findAllByActiveTrue()).willReturn(List.of(lonely));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.<Object[]>of(
                 new Object[]{2L, "동아골프", 100_000_000L}));
 
@@ -231,12 +280,10 @@ class CourseServiceTest {
     }
 
     @Test
-    @DisplayName("비활성 코스는 비교 대상에서 제외된다")
+    @DisplayName("비활성 코스는 findAllByActiveTrue()로 DB 레벨에서 이미 제외되어 비교 대상에 없다 (#100)")
     void getSourceComparison_excludesInactiveCourse() {
-        // given
-        MembershipCourse inactive = buildCourse(4L, "폐장CC", "제주");
-        ReflectionTestUtils.setField(inactive, "active", false);
-        given(courseRepository.findAll()).willReturn(List.of(inactive));
+        // given — 비활성 코스는 findAllByActiveTrue()가 애초에 반환하지 않는다
+        given(courseRepository.findAllByActiveTrue()).willReturn(List.of());
 
         // when
         List<SourceComparisonItem> result = courseService.getSourceComparison(10);
@@ -251,7 +298,7 @@ class CourseServiceTest {
         // given — 88 코스 diffRate 6.98% (430M~460M), Small 코스 diffRate 5.0% (200M~210M)
         MembershipCourse course88 = buildCourse(1L, "88", "경기");
         MembershipCourse courseSmall = buildCourse(3L, "Small", "서울");
-        given(courseRepository.findAll()).willReturn(List.of(course88, courseSmall));
+        given(courseRepository.findAllByActiveTrue()).willReturn(List.of(course88, courseSmall));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
                 new Object[]{1L, "동아골프", 450_000_000L},
                 new Object[]{1L, "동부회원권", 438_000_000L},
@@ -276,7 +323,7 @@ class CourseServiceTest {
         MembershipCourse course88 = buildCourse(1L, "88", "경기");
         MembershipCourse courseSmall = buildCourse(3L, "Small", "서울");
         MembershipCourse lonely = buildCourse(2L, "외톨이CC", "강원");
-        given(courseRepository.findAll()).willReturn(List.of(course88, courseSmall, lonely));
+        given(courseRepository.findAllByActiveTrue()).willReturn(List.of(course88, courseSmall, lonely));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.of(
                 new Object[]{1L, "동아골프", 450_000_000L},
                 new Object[]{1L, "동부회원권", 438_000_000L},
@@ -299,7 +346,7 @@ class CourseServiceTest {
     void getSummary_excludesSingleSourceCourse() {
         // given
         MembershipCourse lonely = buildCourse(2L, "외톨이CC", "강원");
-        given(courseRepository.findAll()).willReturn(List.of(lonely));
+        given(courseRepository.findAllByActiveTrue()).willReturn(List.of(lonely));
         given(priceService.getLatestPerSourceRows(anyList())).willReturn(List.<Object[]>of(
                 new Object[]{2L, "동아골프", 100_000_000L}));
 
@@ -315,7 +362,7 @@ class CourseServiceTest {
     @DisplayName("getSummary는 활성 종목이 없으면 모든 지표가 0이다")
     void getSummary_noCourses_returnsZeros() {
         // given
-        given(courseRepository.findAll()).willReturn(List.of());
+        given(courseRepository.findAllByActiveTrue()).willReturn(List.of());
 
         // when
         MarketSummaryResponse summary = courseService.getSummary();
