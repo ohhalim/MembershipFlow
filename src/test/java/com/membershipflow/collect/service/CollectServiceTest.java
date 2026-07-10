@@ -389,6 +389,22 @@ class CollectServiceTest {
         then(alertService).should(never()).checkAndNotify();
     }
 
+    @Test
+    @DisplayName("수집 결과 저장이 실패하면 collect_run을 FAIL로 기록하고 알림을 호출하지 않는다")
+    void collectOne_persistenceThrows_savesFailRunWithoutAlert() {
+        // given
+        given(collector.collect()).willReturn(List.of());
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(priceHistoryRepository.saveAll(any())).willThrow(new RuntimeException("DB 저장 실패"));
+
+        // when
+        collectService.collectOne(source, collector);
+
+        // then
+        assertThat(run.getStatus()).isEqualTo(CollectStatus.FAIL);
+        then(alertService).should(never()).checkAndNotify();
+    }
+
     private DongaInfoCollector.CollectedCourseInfo sampleInfo(String courseName, String address) {
         return new DongaInfoCollector.CollectedCourseInfo(
                 courseName, address,
