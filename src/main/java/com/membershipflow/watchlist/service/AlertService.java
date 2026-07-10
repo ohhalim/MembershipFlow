@@ -2,6 +2,7 @@ package com.membershipflow.watchlist.service;
 
 import com.membershipflow.price.entity.PriceHistory;
 import com.membershipflow.price.repository.PriceHistoryRepository;
+import com.membershipflow.subscription.service.SubscriptionService;
 import com.membershipflow.watchlist.dto.AlertResponse;
 import com.membershipflow.watchlist.entity.AlertLog;
 import com.membershipflow.watchlist.entity.Watchlist;
@@ -27,14 +28,17 @@ public class AlertService {
     private final AlertLogRepository     alertLogRepository;
     private final PriceHistoryRepository priceHistoryRepository;
     private final SimpMessagingTemplate  messagingTemplate;
+    private final SubscriptionService    subscriptionService;
 
     /**
      * 수집 완료 후 호출 — 목표가 이하 종목에 대해 WebSocket 알림 발송.
-     * 24시간 내 동일 watchlist에 중복 발송하지 않는다.
+     * 활성 구독자에게만 발송하며(#174), 24시간 내 동일 watchlist에 중복 발송하지 않는다.
      */
     @Transactional
     public void checkAndNotify() {
-        List<Watchlist> targets = watchlistRepository.findAllAlertEnabled();
+        List<Watchlist> targets = watchlistRepository.findAllAlertEnabled().stream()
+                .filter(w -> subscriptionService.isSubscriber(w.getMember().getId()))
+                .toList();
         if (targets.isEmpty()) return;
 
         List<Long> courseIds = targets.stream()
