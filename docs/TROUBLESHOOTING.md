@@ -561,3 +561,61 @@ return WatchlistResponse.of(watchlist, latestPrice);
 
 ### 교훈
 단일 리소스 업데이트 API는 list API와 동일한 수준의 응답 완성도를 제공해야 한다. `list()`에서는 latestPrice를 채우면서 `update()`에서는 null을 반환하는 불일치는 프론트에서 예기치 않은 UI 버그를 유발할 수 있다.
+
+---
+
+## 18. Grafana 크래시루프 인시던트 — datasource uid 충돌과 git add 조용한 실패 (2026-07-11)
+
+관측성 기능(#188) 배포가 Grafana 크래시루프를 유발했고, 핫픽스가 두 번 연속 실패한 뒤에야 진짜 원인이 밝혀진 복합 인시던트. 서비스(API/프론트)는 전 과정에서 정상이었고 Grafana(관측 도구)만 다운됐다.
+
+### 타임라인
+
+| 시각(KST) | 이벤트 |
+|---|---|
+| 17:00경 | #188 (Discord 에러 알림 + 배치 하트비트 + Grafana 알림 룰) PR #189→#190 배포 |
+| 17:05 | Grafana 크래시루프 발견 — `Datasource provisioning error: data source not found` |
+| 17:10 | 1차 핫픽스(#191, PR #192→#193): alerting 프로비저닝 3개 파일 삭제 + `uid: prometheus` 되돌리기 **의도**로 커밋 → 배포. **그러나 Grafana 여전히 크래시루프** |
+| 17:20 | 서버 SSH 조사: `/opt/membershipflow/grafana/provisioning/`에 삭제했던 alerting/*.yaml이 그대로 남아있고 prometheus.yml에도 uid가 그대로 → "CD의 scp가 삭제/변경을 반영 못한다"고 **진단(부분적으로만 맞음)** |
+| 17:25 | 서버 파일 직접 수정(rm + 덮어쓰기) + 컨테이너 재시작 → **Grafana 복구** |
+| 17:30 | 재발 방지로 #194 (CD가 provisioning 디렉터리를 배포 전 `rm -rf` 하는 클린싱크) PR #195→#196 배포 |
+| 17:40 | **Grafana 다시 크래시루프** — 클린싱크가 정상 작동하며 git의 (여전히 깨진) prometheus.yml을 서버에 정확히 동기화해버림 |
+| 17:45 | git 이력 전수 조사로 진짜 원인 발견 (아래) → 서버 재패치로 복구, #197로 정식 수정 |
+
+### 근본 원인 1 — Grafana datasource `uid` 충돌 (최초 장애)
+
+`grafana/provisioning/datasources/prometheus.yml`에 alerting 룰이 참조할 안정적 uid를 주려고 `uid: prometheus`를 추가했는데, 기존 배포에서 이미 같은 `name: Prometheus` datasource가 **자동 생성 uid**(`PBFA97CFB590B2093`)로 `grafana_data` 볼륨의 SQLite DB에 영속되어 있었다. Grafana 프로비저닝은 name으로 기존 row를 찾은 뒤 uid를 바꾸려다 `data source not found`로 실패하고, provisioning 모듈이 죽으면 Grafana 전체가 기동 실패한다.
+
+```
+logger=provisioning level=error msg="Failed to provision data sources" error="Datasource provisioning error: data source not found"
+```
+
+### 근본 원인 2 — `git add` 다중 경로 중 하나가 없어서 전체가 조용히 실패 (핫픽스 실패)
+
+1차 핫픽스에서 이렇게 실행했다:
+
+```bash
+git rm -r grafana/provisioning/alerting        # 먼저 삭제 (스테이징됨)
+# ... prometheus.yml, docker-compose.yml 수정 ...
+git add grafana/provisioning/datasources/prometheus.yml grafana/provisioning/alerting docker-compose.yml
+# → fatal: pathspec 'grafana/provisioning/alerting' did not match any files
+```
+
+`grafana/provisioning/alerting`은 이미 삭제되어 존재하지 않는 경로라 pathspec 에러가 났고, **git add는 경로 중 하나라도 실패하면 나머지 경로도 전부 스테이징하지 않는다**. 결과적으로 커밋에는 (먼저 스테이징돼 있던) alerting 삭제만 들어가고 정작 핵심인 `uid: prometheus` 제거는 빠졌다. 커밋 출력이 `3 files changed, 97 deletions(-)`로 **삽입이 0**이었던 게 명백한 이상 신호였는데 놓쳤다.
+
+이후 로컬 워킹트리에는 수정본이 (커밋 안 된 채로) 남아 있어서 로컬에서 파일을 열어보면 "고쳐진 것처럼" 보였고, origin/main에는 깨진 내용이 계속 남아 있었다. 이것이 "서버에 옛 파일이 남아있다"는 1차 진단(scp 미반영)과 겹치면서 혼란을 키웠다 — 실제로는 **scp 문제(진짜지만 부차적)와 커밋 누락(주원인)이 동시에 존재**했다.
+
+### 해결
+
+1. (임시) 서버 파일 직접 패치 + `docker restart` — 두 차례
+2. #194: CD "Prepare Grafana directories" 단계에 `sudo rm -rf /opt/membershipflow/grafana/provisioning` 추가 — scp 오버레이 문제 해소, 매 배포 클린싱크
+3. #197: `uid: prometheus` 제거 + docker-compose.yml의 잔여 `GF_ENABLE_ENVIRONMENT_VARIABLE_EXPANSION`/grafana측 웹훅 env 제거를 **`git diff --cached`로 스테이징 내용을 눈으로 확인한 뒤** 커밋
+
+Discord 에러 로그 알림(백엔드 Logback)과 배치 하트비트 메트릭은 Grafana와 무관하게 정상 동작하므로 유지됐다. Grafana 알림 룰(26시간 미갱신 감지)만 이번에 빠졌고, 재도전 시에는 **살아있는 Grafana에서 실제 datasource uid를 조회해 그 값을 rules.yaml에 사용**해야 한다 (`docker run --rm -v membershipflow_grafana_data:/data alpine sh -c 'apk add sqlite; sqlite3 /data/grafana.db "select uid,name from data_source;"'` → `PBFA97CFB590B2093`).
+
+### 교훈
+
+1. **이미 상태가 영속된 시스템에 선언적 설정을 추가할 때는 기존 상태부터 조회하라.** Grafana처럼 provisioning 파일과 내부 DB가 이원화된 시스템에서, DB에 이미 존재하는 리소스에 새 식별자(uid)를 부여하는 것은 "생성"이 아니라 "충돌"이다.
+2. **`git add`에 여러 경로를 넘길 때 하나라도 없으면 전체가 실패한다.** 삭제(`git rm`)와 수정(`git add`)을 섞은 커밋에서는 경로를 개별로 add하고, 커밋 전 `git diff --cached --stat`으로 의도한 파일이 전부 스테이징됐는지 확인할 것. 커밋 출력의 insertions/deletions 수가 의도와 다르면 즉시 멈추고 조사.
+3. **핫픽스가 효과 없으면 "고친 코드가 실제로 배포 대상에 존재하는지"부터 검증하라.** 로컬 파일 확인은 증거가 아니다 — `git show origin/main:<path>`로 원격의 실제 내용을 봐야 한다. 이번에 1차 핫픽스 후 이걸 먼저 했다면 2차 장애는 없었다.
+4. **배포 파이프라인의 "성공"은 파일 동기화의 성공을 의미하지 않는다.** scp 오버레이는 삭제를 반영하지 않으므로 설정 디렉터리는 클린싱크(rm -rf 후 복사)로 운용한다 (#194).
+5. **관측 도구의 장애가 서비스 장애로 오인되지 않게 분리해서 판단하라.** 이번 인시던트 내내 실서비스는 정상이었다. 반대로, 사용자가 브라우저에서 본 일시적 502/WebSocket 실패는 배포 재시작 순간의 정상적인 순단이었다.
