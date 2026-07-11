@@ -24,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -83,8 +84,10 @@ class AlertServiceTest {
     void checkAndNotify_nonSubscriber_targetReached_doesNotNotify() {
         // given
         Watchlist watchlist = watchlistOf(NON_SUBSCRIBER_MEMBER_ID, 400_000_000L);
+        ReflectionTestUtils.setField(watchlist, "id", 101L);
         given(watchlistRepository.findAllAlertEnabled()).willReturn(List.of(watchlist));
-        given(subscriptionService.isSubscriber(NON_SUBSCRIBER_MEMBER_ID)).willReturn(false);
+        given(subscriptionService.getSubscriberMemberIds(List.of(NON_SUBSCRIBER_MEMBER_ID)))
+                .willReturn(Set.of());
 
         // when
         alertService.checkAndNotify();
@@ -101,17 +104,53 @@ class AlertServiceTest {
     void checkAndNotify_subscriber_targetReached_notifies() {
         // given
         Watchlist watchlist = watchlistOf(SUBSCRIBER_MEMBER_ID, 400_000_000L);
+        ReflectionTestUtils.setField(watchlist, "id", 101L);
         given(watchlistRepository.findAllAlertEnabled()).willReturn(List.of(watchlist));
-        given(subscriptionService.isSubscriber(SUBSCRIBER_MEMBER_ID)).willReturn(true);
+        given(subscriptionService.getSubscriberMemberIds(List.of(SUBSCRIBER_MEMBER_ID)))
+                .willReturn(Set.of(SUBSCRIBER_MEMBER_ID));
         given(priceHistoryRepository.findLatestByCourseIds(List.of(COURSE_ID)))
                 .willReturn(List.of(priceHistoryOf(380_000_000L)));
-        given(alertLogRepository.existsByWatchlistIdAndSentAtAfter(any(), any())).willReturn(false);
+        given(alertLogRepository.findWatchlistIdsSentAfter(eq(List.of(101L)), any()))
+                .willReturn(List.of());
         given(alertLogRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
 
         // when
         alertService.checkAndNotify();
 
         // then
+        then(alertLogRepository).should().save(any());
+        then(messagingTemplate).should()
+                .convertAndSendToUser(eq(String.valueOf(SUBSCRIBER_MEMBER_ID)), any(), any());
+    }
+
+    @Test
+    @DisplayName("여러 관심종목의 구독 여부와 중복 알림 이력을 각각 한 번에 조회한다")
+    void checkAndNotify_multipleTargets_usesBatchQueries() {
+        // given
+        Watchlist recentlyNotified = watchlistOf(SUBSCRIBER_MEMBER_ID, 400_000_000L);
+        Watchlist notificationTarget = watchlistOf(SUBSCRIBER_MEMBER_ID, 400_000_000L);
+        ReflectionTestUtils.setField(recentlyNotified, "id", 101L);
+        ReflectionTestUtils.setField(notificationTarget, "id", 102L);
+
+        given(watchlistRepository.findAllAlertEnabled())
+                .willReturn(List.of(recentlyNotified, notificationTarget));
+        given(subscriptionService.getSubscriberMemberIds(List.of(SUBSCRIBER_MEMBER_ID)))
+                .willReturn(Set.of(SUBSCRIBER_MEMBER_ID));
+        given(priceHistoryRepository.findLatestByCourseIds(List.of(COURSE_ID)))
+                .willReturn(List.of(priceHistoryOf(380_000_000L)));
+        given(alertLogRepository.findWatchlistIdsSentAfter(
+                eq(List.of(101L, 102L)), any()))
+                .willReturn(List.of(101L));
+        given(alertLogRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        // when
+        alertService.checkAndNotify();
+
+        // then
+        then(subscriptionService).should()
+                .getSubscriberMemberIds(List.of(SUBSCRIBER_MEMBER_ID));
+        then(alertLogRepository).should()
+                .findWatchlistIdsSentAfter(eq(List.of(101L, 102L)), any());
         then(alertLogRepository).should().save(any());
         then(messagingTemplate).should()
                 .convertAndSendToUser(eq(String.valueOf(SUBSCRIBER_MEMBER_ID)), any(), any());

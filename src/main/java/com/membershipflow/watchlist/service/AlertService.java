@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -36,8 +37,17 @@ public class AlertService {
      */
     @Transactional
     public void checkAndNotify() {
-        List<Watchlist> targets = watchlistRepository.findAllAlertEnabled().stream()
-                .filter(w -> subscriptionService.isSubscriber(w.getMember().getId()))
+        List<Watchlist> alertEnabled = watchlistRepository.findAllAlertEnabled();
+        if (alertEnabled.isEmpty()) return;
+
+        List<Long> memberIds = alertEnabled.stream()
+                .map(w -> w.getMember().getId())
+                .distinct()
+                .toList();
+        Set<Long> subscriberMemberIds = subscriptionService.getSubscriberMemberIds(memberIds);
+
+        List<Watchlist> targets = alertEnabled.stream()
+                .filter(w -> subscriberMemberIds.contains(w.getMember().getId()))
                 .toList();
         if (targets.isEmpty()) return;
 
@@ -55,12 +65,17 @@ public class AlertService {
                         (a, b) -> a.getPrice() <= b.getPrice() ? a : b));
 
         LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
+        List<Long> watchlistIds = targets.stream()
+                .map(Watchlist::getId)
+                .toList();
+        Set<Long> recentlyNotifiedWatchlistIds = Set.copyOf(
+                alertLogRepository.findWatchlistIdsSentAfter(watchlistIds, cutoff));
 
         for (Watchlist watchlist : targets) {
             PriceHistory triggerPh = lowestPhByCourse.get(watchlist.getCourse().getId());
             if (triggerPh == null) continue;
             if (triggerPh.getPrice() > watchlist.getTargetPrice()) continue;
-            if (alertLogRepository.existsByWatchlistIdAndSentAtAfter(watchlist.getId(), cutoff)) continue;
+            if (recentlyNotifiedWatchlistIds.contains(watchlist.getId())) continue;
 
             AlertLog alertLog = alertLogRepository.save(
                     AlertLog.builder()

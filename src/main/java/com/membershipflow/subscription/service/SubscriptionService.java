@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -179,6 +180,18 @@ public class SubscriptionService {
         return subscriptionRepository.findByMemberId(memberId)
                 .map(Subscription::isActive)
                 .orElse(false);
+    }
+
+    /** 여러 회원의 구독 여부를 배치 작업에서 한 번에 확인 */
+    @Transactional(readOnly = true)
+    public Set<Long> getSubscriberMemberIds(List<Long> memberIds) {
+        if (memberIds.isEmpty()) return Set.of();
+
+        return Set.copyOf(subscriptionRepository.findSubscriberMemberIds(
+                memberIds,
+                SubscriptionStatus.ACTIVE,
+                SubscriptionStatus.CANCELLED,
+                LocalDateTime.now()));
     }
 
     /**
