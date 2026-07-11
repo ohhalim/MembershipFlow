@@ -1,0 +1,14 @@
+apiVersion: 1
+
+# #188: 배치 하트비트 알림 수신 채널. 값이 없으면(로컬 개발) Grafana가
+# 빈 URL로 전송을 시도해 실패 로그만 남기고 서비스에는 영향 없다.
+contactPoints:
+  - orgId: 1
+    name: discord-alerts
+    receivers:
+      - uid: discord-error-webhook
+        type: discord
+        settings:
+          url: ${DISCORD_ERROR_WEBHOOK_URL}
+          use_discord_username: false
+        disableResolveMessage: false
