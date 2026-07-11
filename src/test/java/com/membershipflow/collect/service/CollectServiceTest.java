@@ -64,6 +64,7 @@ class CollectServiceTest {
 
     CollectPersistenceService persistenceService;
     CollectService collectService;
+    io.micrometer.core.instrument.simple.SimpleMeterRegistry meterRegistry;
 
     CrawlSource source;
     CollectRun  run;
@@ -77,6 +78,7 @@ class CollectServiceTest {
                 courseInfoRepository,
                 priceHistoryRepository,
                 courseSourceMappingRepository);
+        meterRegistry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
         collectService = new CollectService(
                 crawlSourceRepository,
                 collectorRegistry,
@@ -84,7 +86,9 @@ class CollectServiceTest {
                 anomalyDetectionService,
                 dongaHistoryCollector,
                 dongaInfoCollector,
-                persistenceService);
+                persistenceService,
+                meterRegistry);
+        collectService.registerMetrics();
 
         source = CrawlSource.builder()
                 .name("동부회원권").baseUrl("http://dbm-market.co.kr")
@@ -557,5 +561,24 @@ class CollectServiceTest {
         // then
         then(collector).should().collect();
         then(alertService).should().checkAndNotify();
+    }
+
+    @Test
+    @DisplayName("collectAll() 완료 시 하트비트 게이지가 현재 시각으로 갱신된다 (#188)")
+    void collectAll_completes_updatesHeartbeatGauge() {
+        // given
+        given(crawlSourceRepository.findAllByActiveTrue()).willReturn(List.of(source));
+        given(collectorRegistry.find("동부회원권")).willReturn(Optional.of(collector));
+        given(collector.collect()).willReturn(List.of());
+        given(collectRunRepository.save(any())).willReturn(run);
+
+        long before = java.time.Instant.now().getEpochSecond();
+
+        // when
+        collectService.collectAll();
+
+        // then
+        double gaugeValue = meterRegistry.get("collect_last_run_timestamp_seconds").gauge().value();
+        assertThat(gaugeValue).isGreaterThanOrEqualTo(before);
     }
 }
