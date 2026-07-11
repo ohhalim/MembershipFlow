@@ -51,6 +51,7 @@ services:
       - TOSS_CLIENT_KEY=${TOSS_CLIENT_KEY}
       - TOSS_SECRET_KEY=${TOSS_SECRET_KEY}
       - BILLING_ENCRYPTION_KEY=${BILLING_ENCRYPTION_KEY}
+      - DISCORD_ERROR_WEBHOOK_URL=${DISCORD_ERROR_WEBHOOK_URL:-}
     depends_on:
       mysql:
         condition: service_healthy
@@ -97,6 +98,9 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      # #188: alerting provisioning YAML에서 ${DISCORD_ERROR_WEBHOOK_URL} 치환 허용
+      - GF_ENABLE_ENVIRONMENT_VARIABLE_EXPANSION=true
+      - DISCORD_ERROR_WEBHOOK_URL=${DISCORD_ERROR_WEBHOOK_URL:-}
     depends_on:
       - prometheus
     restart: unless-stopped

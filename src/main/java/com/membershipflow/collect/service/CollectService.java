@@ -10,7 +10,12 @@ import com.membershipflow.collect.entity.CollectRun;
 import com.membershipflow.collect.entity.CrawlSource;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
 import com.membershipflow.watchlist.service.AlertService;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
+import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +32,18 @@ public class CollectService {
     private final DongaHistoryCollector dongaHistoryCollector;
     private final DongaInfoCollector dongaInfoCollector;
     private final CollectPersistenceService persistenceService;
+    private final MeterRegistry meterRegistry;
+
+    // 배치 하트비트 (#188): collectAll()이 끝까지 실행 완료된 시각(epoch seconds).
+    // Grafana에서 이 값이 오래되면(스케줄러가 안 돌았거나 도중에 죽었으면) 알림
+    private final AtomicLong collectLastRunTimestamp = new AtomicLong(0);
+
+    @PostConstruct
+    void registerMetrics() {
+        Gauge.builder("collect_last_run_timestamp_seconds", collectLastRunTimestamp, AtomicLong::get)
+                .description("마지막으로 collectAll()이 끝까지 실행 완료된 시각(epoch seconds)")
+                .register(meterRegistry);
+    }
 
     public void collectAll() {
         List<CrawlSource> sources = crawlSourceRepository.findAllByActiveTrue();
@@ -38,6 +55,7 @@ public class CollectService {
         }
         // 전체 소스 수집 완료 후 거래소간 가격 이상치 탐지 (#159)
         anomalyDetectionService.checkPriceOutliers();
+        collectLastRunTimestamp.set(Instant.now().getEpochSecond());
     }
 
     public void collectOne(CrawlSource source, PriceCollector collector) {

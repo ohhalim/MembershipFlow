@@ -61,6 +61,11 @@ toss:
   secret-key: ${TOSS_SECRET_KEY:test_sk_dummy}
   api-base-url: https://api.tosspayments.com
 
+# 에러 알림 (#188). 비어있으면 DiscordLogbackAppender가 no-op으로 동작
+discord:
+  webhook:
+    error-url: ${DISCORD_ERROR_WEBHOOK_URL:}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
