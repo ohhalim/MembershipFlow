@@ -7,12 +7,25 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
 
     Optional<Subscription> findByMemberId(Long memberId);
+
+    @Query("""
+            SELECT s.member.id FROM Subscription s
+            WHERE s.member.id IN :memberIds
+              AND (s.status = :activeStatus
+                   OR (s.status = :cancelledStatus AND s.nextBillingAt > :now))
+            """)
+    List<Long> findSubscriberMemberIds(
+            @Param("memberIds") Collection<Long> memberIds,
+            @Param("activeStatus") SubscriptionStatus activeStatus,
+            @Param("cancelledStatus") SubscriptionStatus cancelledStatus,
+            @Param("now") LocalDateTime now);
 
     // 비관적 락 없음 (#178): 트랜잭션 밖(스케줄러)에서 락 쿼리를 실행하면
     // TransactionRequiredException으로 배치 자체가 죽고, 트랜잭션을 걸어도 조회 직후

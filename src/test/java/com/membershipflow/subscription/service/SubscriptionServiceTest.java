@@ -24,13 +24,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
@@ -125,6 +128,30 @@ class SubscriptionServiceTest {
         then(tossPaymentsClient).should(never())
                 .charge(anyString(), anyString(), anyInt(), anyString(), anyString());
         then(paymentHistoryRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("여러 회원의 활성 구독 여부를 한 번에 조회한다")
+    void getSubscriberMemberIds_returnsBatchQueryResult() {
+        // given
+        List<Long> memberIds = List.of(10L, 20L);
+        given(subscriptionRepository.findSubscriberMemberIds(
+                eq(memberIds),
+                eq(SubscriptionStatus.ACTIVE),
+                eq(SubscriptionStatus.CANCELLED),
+                any(LocalDateTime.class)))
+                .willReturn(List.of(10L));
+
+        // when
+        Set<Long> result = subscriptionService.getSubscriberMemberIds(memberIds);
+
+        // then
+        assertThat(result).containsExactly(10L);
+        then(subscriptionRepository).should().findSubscriberMemberIds(
+                eq(memberIds),
+                eq(SubscriptionStatus.ACTIVE),
+                eq(SubscriptionStatus.CANCELLED),
+                any(LocalDateTime.class));
     }
 
     // --- handleCallback 재구독 (#179) ---
