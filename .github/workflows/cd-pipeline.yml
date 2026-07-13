@@ -89,6 +89,16 @@ jobs:
           source: docker-compose.yml
           target: /opt/membershipflow/
 
+      - name: Copy Prometheus configuration to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "prometheus/"
+          target: /opt/membershipflow/
+          strip_components: 0
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -98,7 +108,13 @@ jobs:
           script: |
             cd /opt/membershipflow
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker run --rm --entrypoint /bin/promtool \
+              -v "$PWD/prometheus:/etc/prometheus:ro" \
+              prom/prometheus:latest \
+              check config /etc/prometheus/prometheus.yml
             docker compose pull backend
             docker compose up -d --no-deps backend
+            docker compose up -d node-exporter
+            docker compose up -d --no-deps --force-recreate prometheus
             docker compose restart nginx grafana
             docker image prune -f
