@@ -44,7 +44,6 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         cookie.setMaxAge(refreshTokenService.cookieMaxAgeSeconds());
         response.addCookie(cookie);
 
-        // HttpOnly 쿠키 기반 인증 지원 (fe#49/fe#50): 프론트 전환 전까지 ?token= 쿼리와 병행 발급
         Cookie accessCookie = new Cookie("access_token", accessToken);
         accessCookie.setHttpOnly(true);
         accessCookie.setSecure(cookieSecure);
@@ -55,7 +54,6 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
         String targetUrl = UriComponentsBuilder.fromUriString(redirectUri)
                 .queryParam("success", "true")
-                .queryParam("token", accessToken)
                 .build()
                 .toUriString();
 
