@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -25,6 +26,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class SubscriptionService {
+
+    private static final DateTimeFormatter BILLING_CYCLE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final MemberRepository              memberRepository;
     private final SubscriptionPlanRepository    planRepository;
@@ -199,7 +203,7 @@ public class SubscriptionService {
      */
     @Transactional
     public void processBilling(Long subscriptionId) {
-        Subscription sub = subscriptionRepository.findById(subscriptionId)
+        Subscription sub = subscriptionRepository.findByIdForUpdate(subscriptionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
 
         // 결제 시점 재검증 (#178): 배치 조회~개별 결제 사이에 취소/정지됐거나
@@ -213,7 +217,7 @@ public class SubscriptionService {
         }
 
         String rawBillingKey = billingKeyEncryptor.decrypt(sub.getBillingKey());
-        String orderId       = "AUTO-" + UUID.randomUUID();
+        String orderId       = recurringOrderId(sub);
         LocalDateTime now    = LocalDateTime.now();
 
         try {
@@ -225,20 +229,20 @@ public class SubscriptionService {
                             orderId,
                             sub.getPlan().getName() + " 구독 정기결제");
 
-            sub.paymentSuccess(now.plusMonths(1));
-
-            PaymentHistory history = PaymentHistory.builder()
-                    .member(sub.getMember())
-                    .subscription(sub)
-                    .tossOrderId(orderId)
-                    .tossPaymentKey(resp.paymentKey())
-                    .amount(sub.getPlan().getPrice())
-                    .status(PaymentStatus.SUCCESS)
-                    .billedAt(now)
-                    .build();
-            paymentHistoryRepository.save(history);
+            recordSuccessfulBilling(sub, orderId, resp, now);
 
         } catch (BusinessException e) {
+            Optional<TossPaymentsClient.PaymentResponse> approved =
+                    tossPaymentsClient.findPaymentByOrderId(orderId)
+                            .filter(resp -> resp.paymentKey() != null
+                                    && resp.totalAmount() == sub.getPlan().getPrice());
+            if (approved.isPresent()) {
+                recordSuccessfulBilling(sub, orderId, approved.get(), now);
+                log.info("정기결제 승인 결과 복구: subscriptionId={}, orderId={}",
+                        subscriptionId, orderId);
+                return;
+            }
+
             String reason = e.getMessage();
             sub.paymentFailed(reason);
 
@@ -254,6 +258,27 @@ public class SubscriptionService {
             paymentHistoryRepository.save(history);
             log.warn("정기결제 실패: subscriptionId={}, reason={}", subscriptionId, reason);
         }
+    }
+
+    private String recurringOrderId(Subscription sub) {
+        return "AUTO-" + sub.getId() + "-"
+                + BILLING_CYCLE_FORMAT.format(sub.getNextBillingAt()) + "-"
+                + sub.getFailCount();
+    }
+
+    private void recordSuccessfulBilling(Subscription sub, String orderId,
+                                         TossPaymentsClient.PaymentResponse response,
+                                         LocalDateTime billedAt) {
+        sub.paymentSuccess(billedAt.plusMonths(1));
+        paymentHistoryRepository.save(PaymentHistory.builder()
+                .member(sub.getMember())
+                .subscription(sub)
+                .tossOrderId(orderId)
+                .tossPaymentKey(response.paymentKey())
+                .amount(sub.getPlan().getPrice())
+                .status(PaymentStatus.SUCCESS)
+                .billedAt(billedAt)
+                .build());
     }
 
     private Member findMember(Long memberId) {

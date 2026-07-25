@@ -8,9 +8,11 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -62,6 +64,22 @@ public class TossPaymentsClient {
         } catch (RestClientException e) {
             log.error("자동결제 실패: billingKey=***, orderId={}", orderId, e);
             throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
+        }
+    }
+
+    /** 주문번호로 Toss 승인 결과를 조회한다. 404는 승인 내역 없음으로 처리한다. */
+    public Optional<PaymentResponse> findPaymentByOrderId(String orderId) {
+        try {
+            return Optional.ofNullable(restClient.get()
+                    .uri("/v1/payments/orders/{orderId}", orderId)
+                    .header("Authorization", basicAuth())
+                    .retrieve()
+                    .body(PaymentResponse.class));
+        } catch (HttpClientErrorException.NotFound e) {
+            return Optional.empty();
+        } catch (RestClientException e) {
+            log.error("결제 승인 상태 조회 실패: orderId={}", orderId, e);
+            throw new BusinessException(ErrorCode.PAYMENT_STATUS_CHECK_FAILED);
         }
     }
 

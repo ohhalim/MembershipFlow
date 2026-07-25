@@ -23,6 +23,7 @@ public enum ErrorCode {
     SUBSCRIPTION_REQUIRED(HttpStatus.FORBIDDEN,         "SUBSCRIPTION_REQUIRED",        "구독이 필요한 기능입니다."),
     BILLING_KEY_ISSUE_FAILED(HttpStatus.BAD_GATEWAY,    "BILLING_KEY_ISSUE_FAILED",     "빌링 키 발급에 실패했습니다."),
     PAYMENT_FAILED_ERROR(HttpStatus.PAYMENT_REQUIRED,   "PAYMENT_FAILED",               "결제에 실패했습니다."),
+    PAYMENT_STATUS_CHECK_FAILED(HttpStatus.BAD_GATEWAY, "PAYMENT_STATUS_CHECK_FAILED",  "결제 승인 상태 확인에 실패했습니다."),
 
     INVALID_PRICE_RANGE(HttpStatus.BAD_REQUEST,    "INVALID_PRICE_RANGE",    "유효하지 않은 가격 범위입니다."),
     INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST,      "INVALID_DATE_RANGE",     "유효하지 않은 날짜 범위입니다."),
