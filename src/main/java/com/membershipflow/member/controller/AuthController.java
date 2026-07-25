@@ -1,6 +1,10 @@
 package com.membershipflow.member.controller;
 
 import com.membershipflow.common.security.jwt.JwtTokenProvider;
+import com.membershipflow.common.exception.BusinessException;
+import com.membershipflow.common.exception.ErrorCode;
+import com.membershipflow.member.dto.MemberMeResponse;
+import com.membershipflow.member.dto.TokenRefreshResponse;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.member.service.RefreshTokenService;
@@ -8,7 +12,6 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,40 +35,45 @@ public class AuthController {
     private boolean cookieSecure;
 
     @GetMapping("/me")
-    public ResponseEntity<Map<String, Object>> me(
+    public ResponseEntity<MemberMeResponse> me(
             @AuthenticationPrincipal OAuth2UserPrincipal principal) {
         if (principal == null) {
-            return ResponseEntity.status(401).build();
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
-        return ResponseEntity.ok(Map.of(
-                "id", principal.getMemberId(),
-                "email", principal.getEmail(),
-                "name", principal.getDisplayName() == null ? "" : principal.getDisplayName()));
+        return ResponseEntity.ok(new MemberMeResponse(
+                principal.getMemberId(),
+                principal.getEmail(),
+                principal.getDisplayName() == null ? "" : principal.getDisplayName()));
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, String>> refresh(
+    public ResponseEntity<TokenRefreshResponse> refresh(
             HttpServletRequest request, HttpServletResponse response) {
         String token = extractRefreshTokenCookie(request).orElse(null);
         if (token == null) {
-            return ResponseEntity.status(401).build();
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        return refreshTokenService.rotate(token)
+        TokenRefreshResponse result = refreshTokenService.rotate(token)
                 .flatMap(rotated -> memberRepository.findById(rotated.memberId())
-                        .map(member -> Map.entry(rotated, member)))
+                        .map(member -> new RotationMember(rotated, member)))
                 .map(rotation -> {
-                    var rotated = rotation.getKey();
-                    var member = rotation.getValue();
-                    String newAccess = jwtTokenProvider.createAccessToken(member);
-                    setRefreshCookie(response, rotated.token());
+                    String newAccess = jwtTokenProvider.createAccessToken(rotation.member());
+                    setRefreshCookie(response, rotation.rotated().token());
                     setAccessCookie(response, newAccess);
-                    return ResponseEntity.ok(Map.of("accessToken", newAccess));
+                    return new TokenRefreshResponse(newAccess);
                 })
-                .orElseGet(() -> {
-                    clearRefreshCookie(response);
-                    return ResponseEntity.status(401).build();
-                });
+                .orElse(null);
+        if (result == null) {
+            clearRefreshCookie(response);
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    private record RotationMember(
+            RefreshTokenService.RotatedToken rotated,
+            com.membershipflow.member.entity.Member member) {
     }
 
     @PostMapping("/logout")
