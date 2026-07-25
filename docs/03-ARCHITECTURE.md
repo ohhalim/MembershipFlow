@@ -42,7 +42,8 @@
 [Google OAuth2]────────▶ CustomOAuth2UserService
                                │ JWT 발급
                                ▼
-                         /auth/callback?token=... ─────────▶ Frontend callback
+                         /auth/callback?success=true ──────▶ Frontend callback
+                                  + HttpOnly token cookies
 ```
 
 ---

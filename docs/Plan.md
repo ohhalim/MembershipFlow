@@ -509,7 +509,8 @@ CANCELLED 회원이 재구독하면 INSERT 시 unique 충돌 → MVP에서는 **
 - `GET /api/v1/auth/me`
 
 완료 기준:
-- 구글 로그인 후 `?token=` 쿼리 파라미터로 JWT 전달 ✅
+- 구글 로그인 후 HttpOnly 쿠키로 access/refresh token 발급 ✅
+- 성공 리다이렉트에는 `?success=true`만 전달 ✅
 - JWT로 `/api/v1/auth/me` 조회 가능 ✅
 
 ---
