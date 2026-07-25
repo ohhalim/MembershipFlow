@@ -30,7 +30,7 @@ services:
   backend:
     image: ghcr.io/ohhalim/membershipflow-backend:latest
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
       interval: 10s
       timeout: 5s
       retries: 5
