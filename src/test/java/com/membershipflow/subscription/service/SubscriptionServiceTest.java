@@ -63,6 +63,31 @@ class SubscriptionServiceTest {
         plan = mock(SubscriptionPlan.class);
     }
 
+    @Test
+    @DisplayName("플랜 목록은 활성 플랜만 ID 순으로 조회한다")
+    void getPlans_returnsActivePlansOnly() {
+        given(planRepository.findAllByActiveTrueOrderById()).willReturn(List.of(plan));
+
+        assertThat(subscriptionService.getPlans()).hasSize(1);
+
+        then(planRepository).should().findAllByActiveTrueOrderById();
+        then(planRepository).should(never()).findAll();
+    }
+
+    @Test
+    @DisplayName("비활성 또는 존재하지 않는 플랜은 결제 준비를 차단한다")
+    void prepare_inactivePlan_throwsBeforeAttemptCreation() {
+        given(memberRepository.findById(member.getId())).willReturn(Optional.of(member));
+        given(planRepository.findByIdAndActiveTrue(99L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> subscriptionService.prepare(member.getId(), 99L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SUBSCRIPTION_NOT_FOUND);
+
+        then(billingAttemptRepository).should(never()).save(any());
+    }
+
     private Subscription subscriptionDueAt(LocalDateTime nextBillingAt) {
         Subscription sub = Subscription.builder()
                 .member(member).plan(plan)
