@@ -99,6 +99,22 @@ jobs:
           target: /opt/membershipflow/
           strip_components: 0
 
+      - name: Guard optional Discord alert provisioning
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /opt/membershipflow
+            if ! grep -Eq '^DISCORD_ERROR_WEBHOOK_URL=.+$' .env; then
+              rm -f \
+                grafana/provisioning/alerting/contactpoints.yaml \
+                grafana/provisioning/alerting/notification-policies.yaml \
+                grafana/provisioning/alerting/rules.yaml
+              echo "Discord webhook not configured; batch heartbeat alert provisioning skipped"
+            fi
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
