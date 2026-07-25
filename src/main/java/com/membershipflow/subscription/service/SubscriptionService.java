@@ -40,7 +40,7 @@ public class SubscriptionService {
     /** 플랜 목록 조회 */
     @Transactional(readOnly = true)
     public List<SubscriptionPlanResponse> getPlans() {
-        return planRepository.findAll().stream()
+        return planRepository.findAllByActiveTrueOrderById().stream()
                 .map(SubscriptionPlanResponse::from)
                 .toList();
     }
@@ -51,7 +51,7 @@ public class SubscriptionService {
     @Transactional
     public BillingPrepareResponse prepare(Long memberId, Long planId) {
         Member member = findMember(memberId);
-        SubscriptionPlan plan = planRepository.findById(planId)
+        SubscriptionPlan plan = planRepository.findByIdAndActiveTrue(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
 
         // 이미 활성 구독이면 신규 등록 불가
