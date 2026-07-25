@@ -49,14 +49,33 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
                    c.active, c.created_at, c.updated_at,
                    c.latest_price, c.latest_price_source, c.latest_price_at
             FROM membership_course c
+            LEFT JOIN (
+                SELECT latest.course_id, MIN(latest.price) AS representative_price
+                FROM (
+                    SELECT ph.course_id, ph.source_id, ph.price,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY ph.course_id, ph.source_id
+                               ORDER BY ph.collected_at DESC, ph.id DESC
+                           ) AS rn
+                    FROM price_history ph
+                    JOIN membership_course filtered ON filtered.id = ph.course_id
+                    WHERE filtered.active = true
+                      AND (:q IS NULL OR filtered.name LIKE %:q%)
+                      AND (:courseType IS NULL OR filtered.course_type = :courseType)
+                      AND (:membershipType IS NULL OR filtered.membership_type = :membershipType)
+                      AND (:region IS NULL OR filtered.region = :region)
+                ) latest
+                WHERE latest.rn = 1
+                GROUP BY latest.course_id
+            ) rp ON rp.course_id = c.id
             WHERE c.active = true
               AND (:q IS NULL OR c.name LIKE %:q%)
               AND (:courseType IS NULL OR c.course_type = :courseType)
               AND (:membershipType IS NULL OR c.membership_type = :membershipType)
               AND (:region IS NULL OR c.region = :region)
             ORDER BY
-                CASE WHEN :sort = 'price_asc'  THEN c.latest_price END ASC,
-                CASE WHEN :sort = 'price_desc' THEN c.latest_price END DESC,
+                CASE WHEN :sort = 'price_asc'  THEN rp.representative_price END ASC,
+                CASE WHEN :sort = 'price_desc' THEN rp.representative_price END DESC,
                 CASE WHEN :sort = 'latest'     THEN c.latest_price_at END DESC,
                 c.name ASC
             LIMIT :size OFFSET :offset
