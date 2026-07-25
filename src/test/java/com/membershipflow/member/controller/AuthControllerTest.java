@@ -180,10 +180,10 @@ class AuthControllerTest {
                 .expiresAt(LocalDateTime.now().plusDays(30))
                 .createdAt(LocalDateTime.now())
                 .build();
-        given(refreshTokenService.findValid("old-refresh")).willReturn(Optional.of(stored));
+        given(refreshTokenService.rotate("old-refresh"))
+                .willReturn(Optional.of(new RefreshTokenService.RotatedToken(1L, "new-refresh")));
         given(memberRepository.findById(1L)).willReturn(Optional.of(member));
         given(jwtTokenProvider.createAccessToken(member)).willReturn("new-access");
-        given(refreshTokenService.create(1L)).willReturn("new-refresh");
         given(refreshTokenService.cookieMaxAgeSeconds()).willReturn(2592000);
         given(jwtTokenProvider.getAccessTokenExpirationMillis()).willReturn(3600000L);
 

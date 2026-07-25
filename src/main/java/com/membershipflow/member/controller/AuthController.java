@@ -51,13 +51,14 @@ public class AuthController {
             return ResponseEntity.status(401).build();
         }
 
-        return refreshTokenService.findValid(token)
-                .flatMap(rt -> memberRepository.findById(rt.getMemberId()))
-                .map(member -> {
-                    refreshTokenService.delete(token);
+        return refreshTokenService.rotate(token)
+                .flatMap(rotated -> memberRepository.findById(rotated.memberId())
+                        .map(member -> Map.entry(rotated, member)))
+                .map(rotation -> {
+                    var rotated = rotation.getKey();
+                    var member = rotation.getValue();
                     String newAccess = jwtTokenProvider.createAccessToken(member);
-                    String newRefresh = refreshTokenService.create(member.getId());
-                    setRefreshCookie(response, newRefresh);
+                    setRefreshCookie(response, rotated.token());
                     setAccessCookie(response, newAccess);
                     return ResponseEntity.ok(Map.of("accessToken", newAccess));
                 })
