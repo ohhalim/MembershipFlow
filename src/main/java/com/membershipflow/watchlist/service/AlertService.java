@@ -57,7 +57,8 @@ public class AlertService {
                 .toList();
 
         // 과목별 최신가 맵 (source별 최신가 중 최저가 PriceHistory 선택)
-        Map<Long, PriceHistory> lowestPhByCourse = priceHistoryRepository.findLatestByCourseIds(courseIds)
+        Map<Long, PriceHistory> lowestPhByCourse = priceHistoryRepository
+                .findLatestPerSourceEntitiesByCourseIds(courseIds)
                 .stream()
                 .collect(Collectors.toMap(
                         ph -> ph.getCourse().getId(),
