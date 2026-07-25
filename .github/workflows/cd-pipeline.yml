@@ -117,4 +117,12 @@ jobs:
             docker compose up -d node-exporter
             docker compose up -d --no-deps --force-recreate prometheus
             docker compose restart nginx grafana
+            grafana_container=$(docker compose ps -q grafana)
+            test -n "${grafana_container}"
+            for check in 1 2 3; do
+              sleep 10
+              grafana_status=$(docker inspect --format '{{.State.Status}} {{.State.Restarting}}' "${grafana_container}")
+              echo "Grafana poll ${check}: ${grafana_status}"
+              test "${grafana_status}" = "running false"
+            done
             docker image prune -f
