@@ -103,4 +103,88 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
             @Param("courseType") String courseType,
             @Param("membershipType") String membershipType,
             @Param("region") String region);
+
+    @Query(value = """
+            SELECT ranked.course_id, ranked.name, ranked.region,
+                   ranked.course_type, ranked.membership_type,
+                   ranked.current_price, ranked.base_price,
+                   ranked.change_rate, ranked.change_amount
+            FROM (
+                SELECT c.id AS course_id, c.name, c.region,
+                       c.course_type, c.membership_type,
+                       c.latest_price AS current_price,
+                       base.price AS base_price,
+                       ROUND((c.latest_price - base.price) * 100.0 / base.price, 2) AS change_rate,
+                       c.latest_price - base.price AS change_amount
+                FROM membership_course c
+                JOIN (
+                    SELECT candidate.course_id, candidate.price
+                    FROM (
+                        SELECT ph.course_id, ph.price,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY ph.course_id
+                                   ORDER BY ABS(TIMESTAMPDIFF(SECOND, ph.collected_at, :baseTime)),
+                                            ph.id DESC
+                               ) AS rn
+                        FROM price_history ph
+                        WHERE ph.collected_at BETWEEN :searchFrom AND :searchTo
+                    ) candidate
+                    WHERE candidate.rn = 1
+                ) base ON base.course_id = c.id
+                WHERE c.active = true
+                  AND c.latest_price IS NOT NULL
+                  AND base.price <> 0
+                  AND (:courseType IS NULL OR c.course_type = :courseType)
+            ) ranked
+            WHERE ((:sort = 'LOSS' AND ranked.change_rate < 0)
+                OR (:sort <> 'LOSS' AND ranked.change_rate > 0))
+            ORDER BY
+                CASE WHEN :sort = 'LOSS' THEN ranked.change_rate END ASC,
+                CASE WHEN :sort <> 'LOSS' THEN ranked.change_rate END DESC,
+                ranked.course_id ASC
+            LIMIT :size OFFSET :offset
+            """, nativeQuery = true)
+    List<Object[]> findRankingPage(
+            @Param("baseTime") java.time.LocalDateTime baseTime,
+            @Param("searchFrom") java.time.LocalDateTime searchFrom,
+            @Param("searchTo") java.time.LocalDateTime searchTo,
+            @Param("courseType") String courseType,
+            @Param("sort") String sort,
+            @Param("size") int size,
+            @Param("offset") long offset);
+
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM (
+                SELECT c.id,
+                       ROUND((c.latest_price - base.price) * 100.0 / base.price, 2) AS change_rate
+                FROM membership_course c
+                JOIN (
+                    SELECT candidate.course_id, candidate.price
+                    FROM (
+                        SELECT ph.course_id, ph.price,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY ph.course_id
+                                   ORDER BY ABS(TIMESTAMPDIFF(SECOND, ph.collected_at, :baseTime)),
+                                            ph.id DESC
+                               ) AS rn
+                        FROM price_history ph
+                        WHERE ph.collected_at BETWEEN :searchFrom AND :searchTo
+                    ) candidate
+                    WHERE candidate.rn = 1
+                ) base ON base.course_id = c.id
+                WHERE c.active = true
+                  AND c.latest_price IS NOT NULL
+                  AND base.price <> 0
+                  AND (:courseType IS NULL OR c.course_type = :courseType)
+            ) ranked
+            WHERE ((:sort = 'LOSS' AND ranked.change_rate < 0)
+                OR (:sort <> 'LOSS' AND ranked.change_rate > 0))
+            """, nativeQuery = true)
+    long countRanking(
+            @Param("baseTime") java.time.LocalDateTime baseTime,
+            @Param("searchFrom") java.time.LocalDateTime searchFrom,
+            @Param("searchTo") java.time.LocalDateTime searchTo,
+            @Param("courseType") String courseType,
+            @Param("sort") String sort);
 }
