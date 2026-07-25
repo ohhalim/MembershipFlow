@@ -7,6 +7,8 @@ import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
 import com.membershipflow.subscription.entity.BillingAttempt;
+import com.membershipflow.subscription.entity.PaymentHistory;
+import com.membershipflow.subscription.entity.PaymentStatus;
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.entity.SubscriptionPlan;
 import com.membershipflow.subscription.entity.SubscriptionStatus;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -104,7 +107,7 @@ class SubscriptionServiceTest {
     void processBilling_dueActiveSubscription_charges() {
         // given
         Subscription sub = subscriptionDueAt(LocalDateTime.now().minusHours(1));
-        given(subscriptionRepository.findById(SUBSCRIPTION_ID)).willReturn(Optional.of(sub));
+        given(subscriptionRepository.findByIdForUpdate(SUBSCRIPTION_ID)).willReturn(Optional.of(sub));
         given(billingKeyEncryptor.decrypt("enc-key")).willReturn("raw-key");
         given(plan.getPrice()).willReturn(9900);
         given(plan.getName()).willReturn("프리미엄");
@@ -123,12 +126,74 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    @DisplayName("승인 응답 유실 후 주문 조회에서 결제를 확인하면 추가 과금 없이 성공 처리한다")
+    void processBilling_chargeResponseLost_recoversApprovedPayment() {
+        Subscription sub = subscriptionDueAt(
+                LocalDateTime.of(2026, 7, 25, 0, 0));
+        given(subscriptionRepository.findByIdForUpdate(SUBSCRIPTION_ID))
+                .willReturn(Optional.of(sub));
+        given(billingKeyEncryptor.decrypt("enc-key")).willReturn("raw-key");
+        given(plan.getPrice()).willReturn(9900);
+        given(plan.getName()).willReturn("프리미엄");
+        given(tossPaymentsClient.charge(
+                anyString(), anyString(), anyInt(), anyString(), anyString()))
+                .willThrow(new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR));
+        given(tossPaymentsClient.findPaymentByOrderId("AUTO-1-20260725000000-0"))
+                .willReturn(Optional.of(new TossPaymentsClient.PaymentResponse(
+                        "recovered-payment-key", "2026-07-25", 9900, null)));
+
+        subscriptionService.processBilling(SUBSCRIPTION_ID);
+
+        ArgumentCaptor<PaymentHistory> historyCaptor =
+                ArgumentCaptor.forClass(PaymentHistory.class);
+        then(paymentHistoryRepository).should().save(historyCaptor.capture());
+        assertThat(historyCaptor.getValue().getTossOrderId())
+                .isEqualTo("AUTO-1-20260725000000-0");
+        assertThat(historyCaptor.getValue().getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(historyCaptor.getValue().getTossPaymentKey())
+                .isEqualTo("recovered-payment-key");
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(sub.getNextBillingAt()).isAfter(LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("승인 내역이 없는 결제 실패는 다음 재시도에서 새 주문번호를 사용한다")
+    void processBilling_confirmedFailure_nextRetryUsesNextAttemptOrderId() {
+        Subscription sub = subscriptionDueAt(
+                LocalDateTime.of(2026, 7, 25, 0, 0));
+        given(subscriptionRepository.findByIdForUpdate(SUBSCRIPTION_ID))
+                .willReturn(Optional.of(sub));
+        given(billingKeyEncryptor.decrypt("enc-key")).willReturn("raw-key");
+        given(plan.getPrice()).willReturn(9900);
+        given(plan.getName()).willReturn("프리미엄");
+        given(tossPaymentsClient.charge(
+                anyString(), anyString(), anyInt(), anyString(), anyString()))
+                .willThrow(new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR));
+        given(tossPaymentsClient.findPaymentByOrderId(anyString()))
+                .willReturn(Optional.empty());
+
+        subscriptionService.processBilling(SUBSCRIPTION_ID);
+        subscriptionService.processBilling(SUBSCRIPTION_ID);
+
+        ArgumentCaptor<PaymentHistory> historyCaptor =
+                ArgumentCaptor.forClass(PaymentHistory.class);
+        then(paymentHistoryRepository).should(org.mockito.Mockito.times(2))
+                .save(historyCaptor.capture());
+        assertThat(historyCaptor.getAllValues())
+                .extracting(PaymentHistory::getTossOrderId)
+                .containsExactly(
+                        "AUTO-1-20260725000000-0",
+                        "AUTO-1-20260725000000-1");
+        assertThat(sub.getFailCount()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("취소된 구독은 결제일이 지났어도 과금하지 않는다 (#178 재검증 가드)")
     void processBilling_cancelledSubscription_skipsCharge() {
         // given — 배치 조회 이후 사용자가 취소한 상황
         Subscription sub = subscriptionDueAt(LocalDateTime.now().minusHours(1));
         sub.cancel();
-        given(subscriptionRepository.findById(SUBSCRIPTION_ID)).willReturn(Optional.of(sub));
+        given(subscriptionRepository.findByIdForUpdate(SUBSCRIPTION_ID)).willReturn(Optional.of(sub));
 
         // when
         subscriptionService.processBilling(SUBSCRIPTION_ID);
@@ -144,7 +209,7 @@ class SubscriptionServiceTest {
     void processBilling_alreadyBilled_skipsCharge() {
         // given — 같은 배치에서 중복 호출됐거나 이미 갱신된 상황
         Subscription sub = subscriptionDueAt(LocalDateTime.now().plusDays(20));
-        given(subscriptionRepository.findById(SUBSCRIPTION_ID)).willReturn(Optional.of(sub));
+        given(subscriptionRepository.findByIdForUpdate(SUBSCRIPTION_ID)).willReturn(Optional.of(sub));
 
         // when
         subscriptionService.processBilling(SUBSCRIPTION_ID);
