@@ -49,6 +49,9 @@ watchlist 조작은 JWT에서 추출한 현재 `memberId` 기준으로 처리한
 
 ### 공통 에러 응답
 
+모든 컨트롤러 오류 응답과 Spring Security 401 응답은 아래 `ErrorResponse` 스키마를 사용한다.
+Swagger UI는 `/swagger-ui.html`, OpenAPI JSON은 `/v3/api-docs`에서 확인한다.
+
 ```json
 {
   "code": "COURSE_NOT_FOUND",
