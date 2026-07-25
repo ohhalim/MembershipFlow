@@ -26,8 +26,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -211,65 +209,39 @@ public class CourseService {
 
     public RankingPageResponse getRanking(String period, String sort,
                                           CourseType courseType, int page, int size) {
-        List<MembershipCourse> all = courseType != null
-                ? courseRepository.findAllByActiveTrue().stream()
-                        .filter(c -> c.getCourseType() == courseType)
-                        .toList()
-                : courseRepository.findAllByActiveTrue();
-
-        if (all.isEmpty()) return new RankingPageResponse(List.of(), page, size, 0, false);
-
-        List<Long> ids = all.stream().map(MembershipCourse::getId).toList();
         LocalDateTime baseTime = LocalDateTime.now().minus(parsePeriod(period));
+        long periodDays = java.time.temporal.ChronoUnit.DAYS.between(baseTime, LocalDateTime.now());
+        long windowDays = Math.max(7, periodDays);
+        LocalDateTime searchFrom = baseTime.minusDays(windowDays);
+        LocalDateTime searchTo = baseTime.plusDays(windowDays);
+        String courseTypeName = courseType != null ? courseType.name() : null;
+        String normalizedSort = "LOSS".equalsIgnoreCase(sort) ? "LOSS" : "GAIN";
+        long offset = (long) page * size;
 
-        Map<Long, PriceHistory> currentMap = priceService.getCurrentPriceBatch(ids);
-        Map<Long, PriceHistory> baseMap    = priceService.getBasePriceBatch(ids, baseTime);
-        Map<Long, MembershipCourse> courseMap = all.stream()
-                .collect(Collectors.toMap(MembershipCourse::getId, c -> c));
+        List<Object[]> rows = courseRepository.findRankingPage(
+                baseTime, searchFrom, searchTo, courseTypeName, normalizedSort, size, offset);
+        long totalElements = courseRepository.countRanking(
+                baseTime, searchFrom, searchTo, courseTypeName, normalizedSort);
 
-        List<RankingItemResponse> ranked = new ArrayList<>();
-        for (Long id : ids) {
-            PriceHistory current = currentMap.get(id);
-            PriceHistory base    = baseMap.get(id);
-            if (current == null || base == null || base.getPrice() == 0) continue;
+        List<RankingItemResponse> content = java.util.stream.IntStream.range(0, rows.size())
+                .mapToObj(index -> toRankingItem(rows.get(index), offset + index + 1))
+                .toList();
+        return new RankingPageResponse(
+                content, page, size, totalElements, offset + content.size() < totalElements);
+    }
 
-            long currentPrice = current.getPrice();
-            long basePrice    = base.getPrice();
-            long changeAmount = currentPrice - basePrice;
-            double changeRate = Math.round((double) changeAmount / basePrice * 10000d) / 100d;
-
-            MembershipCourse c = courseMap.get(id);
-            ranked.add(new RankingItemResponse(
-                    0, id, c.getName(), c.getRegion(),
-                    c.getCourseType(), c.getMembershipType(),
-                    currentPrice, basePrice, changeRate, changeAmount));
-        }
-
-        // 실제 변동이 있는 항목만 포함 (0.0% 제외)
-        boolean isLoss = "LOSS".equalsIgnoreCase(sort);
-        ranked = ranked.stream()
-                .filter(r -> isLoss ? r.changeRate() < 0 : r.changeRate() > 0)
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        // GAIN: 상승률 내림차순, LOSS: 하락률 오름차순
-        ranked.sort(isLoss
-                ? (a, b) -> Double.compare(a.changeRate(), b.changeRate())
-                : (a, b) -> Double.compare(b.changeRate(), a.changeRate()));
-
-        // rank 번호 부여 + 페이지 슬라이싱
-        long totalElements = ranked.size();
-        int fromIndex = page * size;
-        if (fromIndex >= totalElements) return new RankingPageResponse(List.of(), page, size, totalElements, false);
-
-        int toIndex = (int) Math.min(fromIndex + size, totalElements);
-        List<RankingItemResponse> content = new ArrayList<>();
-        for (int i = fromIndex; i < toIndex; i++) {
-            RankingItemResponse r = ranked.get(i);
-            content.add(new RankingItemResponse(i + 1, r.courseId(), r.name(), r.region(),
-                    r.courseType(), r.membershipType(), r.currentPrice(), r.basePrice(),
-                    r.changeRate(), r.changeAmount()));
-        }
-        return new RankingPageResponse(content, page, size, totalElements, toIndex < totalElements);
+    private RankingItemResponse toRankingItem(Object[] row, long rank) {
+        return new RankingItemResponse(
+                Math.toIntExact(rank),
+                ((Number) row[0]).longValue(),
+                (String) row[1],
+                (String) row[2],
+                CourseType.valueOf((String) row[3]),
+                MembershipType.valueOf((String) row[4]),
+                ((Number) row[5]).longValue(),
+                ((Number) row[6]).longValue(),
+                ((Number) row[7]).doubleValue(),
+                ((Number) row[8]).longValue());
     }
 
     // 시장 요약: 오늘 갱신 종목 수 + 1일 기준 상승/하락 종목 수 + 거래소 스프레드 지표

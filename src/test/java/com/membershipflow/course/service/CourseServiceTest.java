@@ -3,6 +3,7 @@ package com.membershipflow.course.service;
 import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
 import com.membershipflow.course.dto.MarketSummaryResponse;
+import com.membershipflow.course.dto.RankingPageResponse;
 import com.membershipflow.course.dto.SourceComparisonItem;
 import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -322,6 +324,51 @@ class CourseServiceTest {
         CourseListItemResponse item = result.getContent().get(0);
         assertThat(item.latestPrice()).isNull();
         assertThat(item.updatedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("랭킹은 DB에서 정렬·페이지 처리된 행을 응답으로 변환한다")
+    void getRanking_usesDatabasePagination() {
+        given(courseRepository.findRankingPage(
+                any(), any(), any(), org.mockito.ArgumentMatchers.isNull(),
+                eq("GAIN"), eq(2), eq(0L)))
+                .willReturn(List.<Object[]>of(
+                        new Object[]{1L, "88", "경기", "GOLF", "REGULAR",
+                                450_000_000L, 400_000_000L, new BigDecimal("12.50"), 50_000_000L},
+                        new Object[]{2L, "남서울", "경기", "GOLF", "REGULAR",
+                                210_000_000L, 200_000_000L, new BigDecimal("5.00"), 10_000_000L}));
+        given(courseRepository.countRanking(
+                any(), any(), any(), org.mockito.ArgumentMatchers.isNull(), eq("GAIN")))
+                .willReturn(3L);
+
+        RankingPageResponse result = courseService.getRanking("7D", "GAIN", null, 0, 2);
+
+        assertThat(result.content()).hasSize(2);
+        assertThat(result.content().get(0).rank()).isEqualTo(1);
+        assertThat(result.content().get(0).changeRate()).isEqualTo(12.5);
+        assertThat(result.totalElements()).isEqualTo(3);
+        assertThat(result.hasNext()).isTrue();
+        then(courseRepository).should(never()).findAllByActiveTrue();
+        then(priceService).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("두 번째 랭킹 페이지의 순위는 DB offset 다음 번호부터 시작한다")
+    void getRanking_secondPage_assignsOffsetRank() {
+        given(courseRepository.findRankingPage(
+                any(), any(), any(), eq("GOLF"), eq("LOSS"), eq(2), eq(2L)))
+                .willReturn(List.<Object[]>of(
+                        new Object[]{3L, "가평", "경기", "GOLF", "REGULAR",
+                                180_000_000L, 200_000_000L, new BigDecimal("-10.00"), -20_000_000L}));
+        given(courseRepository.countRanking(
+                any(), any(), any(), eq("GOLF"), eq("LOSS")))
+                .willReturn(3L);
+
+        RankingPageResponse result = courseService.getRanking("1M", "LOSS", CourseType.GOLF, 1, 2);
+
+        assertThat(result.content()).singleElement()
+                .satisfies(item -> assertThat(item.rank()).isEqualTo(3));
+        assertThat(result.hasNext()).isFalse();
     }
 
     @Test
