@@ -1,5 +1,7 @@
 package com.membershipflow.course.controller;
 
+import com.membershipflow.common.exception.BusinessException;
+import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.course.dto.CourseDetailResponse;
 import com.membershipflow.course.dto.CourseListItemResponse;
 import com.membershipflow.course.dto.MarketSummaryResponse;
@@ -35,6 +37,8 @@ public class CourseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
+        requireNonNegative(page);
+        requirePositive(size);
         int clampedSize = Math.min(size, 100);
         PageRequest pageable = PageRequest.of(page, clampedSize, Sort.by("name").ascending());
         return ResponseEntity.ok(courseService.search(q, courseType, membershipType, region, sort, pageable));
@@ -49,6 +53,8 @@ public class CourseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
+        requireNonNegative(page);
+        requirePositive(size);
         int clampedSize = Math.min(size, 50);
         return ResponseEntity.ok(courseService.getRanking(period, sort, courseType, page, clampedSize));
     }
@@ -63,6 +69,7 @@ public class CourseController {
     @GetMapping("/source-comparison")
     public ResponseEntity<List<SourceComparisonItem>> sourceComparison(
             @RequestParam(defaultValue = "10") int limit) {
+        requirePositive(limit);
         int clampedLimit = Math.min(limit, 50);
         return ResponseEntity.ok(courseService.getSourceComparison(clampedLimit));
     }
@@ -70,5 +77,17 @@ public class CourseController {
     @GetMapping("/{courseId}")
     public ResponseEntity<CourseDetailResponse> detail(@PathVariable Long courseId) {
         return ResponseEntity.ok(courseService.getDetail(courseId));
+    }
+
+    private void requireNonNegative(int value) {
+        if (value < 0) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
+    }
+
+    private void requirePositive(int value) {
+        if (value < 1) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST);
+        }
     }
 }
