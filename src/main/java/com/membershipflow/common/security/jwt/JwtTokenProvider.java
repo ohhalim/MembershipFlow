@@ -1,6 +1,7 @@
 package com.membershipflow.common.security.jwt;
 
 import com.membershipflow.member.entity.Member;
+import com.membershipflow.member.entity.MemberRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -49,6 +50,15 @@ public class JwtTokenProvider {
 
     public Long getMemberIdFromToken(String token) {
         return Long.parseLong(parse(token).getSubject());
+    }
+
+    public JwtPrincipalClaims getPrincipalClaims(String token) {
+        Claims claims = parse(token);
+        return new JwtPrincipalClaims(
+                Long.parseLong(claims.getSubject()),
+                claims.get("email", String.class),
+                claims.get("name", String.class),
+                MemberRole.valueOf(claims.get("role", String.class)));
     }
 
     public boolean validateToken(String token) {

@@ -22,6 +22,15 @@ public class OAuth2UserPrincipal implements OAuth2User {
         this.attributes = attributes;
     }
 
+    public OAuth2UserPrincipal(Long memberId, String email, String name, MemberRole role) {
+        this(Member.builder()
+                .id(memberId)
+                .email(email)
+                .name(name)
+                .role(role)
+                .build(), Map.of());
+    }
+
     @Override
     public Map<String, Object> getAttributes() {
         return attributes;

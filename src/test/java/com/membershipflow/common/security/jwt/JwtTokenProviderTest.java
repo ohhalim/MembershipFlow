@@ -42,6 +42,19 @@ class JwtTokenProviderTest {
     }
 
     @Test
+    @DisplayName("인증 principal 구성에 필요한 클레임을 토큰에서 복원한다")
+    void roundtrip_principalClaimsPreserved() {
+        String token = provider.createAccessToken(member(42L));
+
+        JwtPrincipalClaims claims = provider.getPrincipalClaims(token);
+
+        assertThat(claims.memberId()).isEqualTo(42L);
+        assertThat(claims.email()).isEqualTo("test@example.com");
+        assertThat(claims.name()).isEqualTo("테스터");
+        assertThat(claims.role()).isEqualTo(MemberRole.USER);
+    }
+
+    @Test
     @DisplayName("유효한 토큰은 validateToken이 true를 반환한다")
     void validateToken_valid_returnsTrue() {
         // given
