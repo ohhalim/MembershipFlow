@@ -39,6 +39,25 @@ public class RefreshTokenService {
                 .filter(rt -> !rt.isExpired());
     }
 
+    /** 기존 토큰을 한 번만 소비하고 같은 트랜잭션에서 신규 토큰으로 교체한다. */
+    public Optional<RotatedToken> rotate(String token) {
+        return refreshTokenRepository.findByTokenForUpdate(token)
+                .filter(rt -> !rt.isExpired())
+                .map(rt -> {
+                    Long memberId = rt.getMemberId();
+                    refreshTokenRepository.deleteByMemberId(memberId);
+                    String newToken = UUID.randomUUID().toString();
+                    refreshTokenRepository.save(RefreshToken.builder()
+                            .memberId(memberId)
+                            .token(newToken)
+                            .expiresAt(LocalDateTime.now().plus(
+                                    refreshTokenExpirationMs, ChronoUnit.MILLIS))
+                            .createdAt(LocalDateTime.now())
+                            .build());
+                    return new RotatedToken(memberId, newToken);
+                });
+    }
+
     public void delete(String token) {
         refreshTokenRepository.deleteByToken(token);
     }
@@ -50,4 +69,6 @@ public class RefreshTokenService {
     public int cookieMaxAgeSeconds() {
         return (int) (refreshTokenExpirationMs / 1000);
     }
+
+    public record RotatedToken(Long memberId, String token) {}
 }
