@@ -113,6 +113,8 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_ENABLE_ENVIRONMENT_VARIABLE_EXPANSION=true
+      - DISCORD_ERROR_WEBHOOK_URL=${DISCORD_ERROR_WEBHOOK_URL:-}
     depends_on:
       - prometheus
     restart: unless-stopped
