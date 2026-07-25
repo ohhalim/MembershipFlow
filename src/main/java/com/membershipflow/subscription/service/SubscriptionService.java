@@ -37,6 +37,7 @@ public class SubscriptionService {
     private final PaymentHistoryRepository      paymentHistoryRepository;
     private final TossPaymentsClient            tossPaymentsClient;
     private final BillingKeyEncryptor           billingKeyEncryptor;
+    private final InitialPaymentStateService    initialPaymentStateService;
 
     @Value("${toss.client-key}")
     private String tossClientKey;
@@ -77,78 +78,58 @@ public class SubscriptionService {
     /**
      * 카드 등록 콜백: authKey + customerKey → 빌링 키 발급 → 최초 결제 → Subscription 저장
      */
-    @Transactional
     public SubscriptionResponse handleCallback(String customerKey, String authKey) {
-        BillingAttempt attempt = billingAttemptRepository
-                .findByCustomerKeyAndStatusAndExpiresAtAfter(
-                        customerKey, BillingAttemptStatus.PENDING, LocalDateTime.now())
-                .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
-
-        attempt.complete();
-
-        Member member           = attempt.getMember();
-        SubscriptionPlan plan   = attempt.getPlan();
-
-        // 재구독 확인 (#179): member_id UNIQUE 제약이 있어 신규 INSERT는 기존 row가
-        // 있으면 실패한다. 토스 결제는 롤백이 안 되므로 반드시 결제 호출 전에 확인.
-        Optional<Subscription> existing = subscriptionRepository.findByMemberId(member.getId());
-        if (existing.isPresent() && existing.get().isActive()) {
-            throw new BusinessException(ErrorCode.SUBSCRIPTION_ALREADY_EXISTS);
+        InitialPaymentStateService.InitialPaymentContext context =
+                initialPaymentStateService.load(customerKey);
+        if (context.completed()) {
+            return initialPaymentStateService.getCompletedSubscription(context.memberId());
         }
 
-        // 빌링 키 발급
-        TossPaymentsClient.BillingKeyResponse billingKeyResp =
-                tossPaymentsClient.issueBillingKey(customerKey, authKey);
+        if (context.encryptedBillingKey() == null) {
+            TossPaymentsClient.BillingKeyResponse billingKeyResponse =
+                    tossPaymentsClient.issueBillingKey(customerKey, authKey);
+            if (billingKeyResponse == null
+                    || billingKeyResponse.billingKey() == null
+                    || !customerKey.equals(billingKeyResponse.customerKey())) {
+                throw new BusinessException(ErrorCode.BILLING_KEY_ISSUE_FAILED);
+            }
 
-        String encryptedBillingKey = billingKeyEncryptor.encrypt(billingKeyResp.billingKey());
-
-        // 최초 결제
-        String orderId  = "ORDER-" + UUID.randomUUID();
-        TossPaymentsClient.PaymentResponse paymentResp =
-                tossPaymentsClient.charge(
-                        billingKeyResp.billingKey(),
-                        customerKey,
-                        plan.getPrice(),
-                        orderId,
-                        plan.getName() + " 구독 결제");
-
-        LocalDateTime now           = LocalDateTime.now();
-        LocalDateTime nextBillingAt = now.plusMonths(1);
-        String cardNumberMasked = billingKeyResp.card() != null ? billingKeyResp.card().number() : null;
-        String cardCompany      = billingKeyResp.card() != null ? billingKeyResp.card().cardCompany() : null;
-
-        // 기존 row가 있으면(취소 후 만료된 재구독) INSERT 대신 재활성화 (#179)
-        Subscription subscription;
-        if (existing.isPresent()) {
-            subscription = existing.get();
-            subscription.resubscribe(plan, encryptedBillingKey, customerKey,
-                    cardNumberMasked, cardCompany, now, nextBillingAt);
-        } else {
-            subscription = Subscription.builder()
-                    .member(member)
-                    .plan(plan)
-                    .billingKey(encryptedBillingKey)
-                    .customerKey(customerKey)
-                    .cardNumberMasked(cardNumberMasked)
-                    .cardCompany(cardCompany)
-                    .startedAt(now)
-                    .nextBillingAt(nextBillingAt)
-                    .build();
-            subscriptionRepository.save(subscription);
+            String cardNumber = billingKeyResponse.card() != null
+                    ? billingKeyResponse.card().number() : null;
+            String cardCompany = billingKeyResponse.card() != null
+                    ? billingKeyResponse.card().cardCompany() : null;
+            context = initialPaymentStateService.storeBillingKey(
+                    customerKey,
+                    billingKeyEncryptor.encrypt(billingKeyResponse.billingKey()),
+                    "ORDER-" + customerKey,
+                    cardNumber,
+                    cardCompany);
         }
 
-        PaymentHistory history = PaymentHistory.builder()
-                .member(member)
-                .subscription(subscription)
-                .tossOrderId(orderId)
-                .tossPaymentKey(paymentResp.paymentKey())
-                .amount(plan.getPrice())
-                .status(PaymentStatus.SUCCESS)
-                .billedAt(now)
-                .build();
-        paymentHistoryRepository.save(history);
+        InitialPaymentStateService.InitialPaymentContext paymentContext = context;
+        String rawBillingKey = billingKeyEncryptor.decrypt(paymentContext.encryptedBillingKey());
+        TossPaymentsClient.PaymentResponse paymentResponse;
+        try {
+            paymentResponse = tossPaymentsClient.charge(
+                    rawBillingKey,
+                    customerKey,
+                    paymentContext.amount(),
+                    paymentContext.orderId(),
+                    paymentContext.planName() + " 구독 결제");
+        } catch (BusinessException chargeFailure) {
+            paymentResponse = tossPaymentsClient.findPaymentByOrderId(paymentContext.orderId())
+                    .filter(response -> response.paymentKey() != null
+                            && response.totalAmount() == paymentContext.amount())
+                    .orElseThrow(() -> chargeFailure);
+        }
 
-        return SubscriptionResponse.from(subscription);
+        if (paymentResponse == null
+                || paymentResponse.paymentKey() == null
+                || paymentResponse.totalAmount() != paymentContext.amount()) {
+            throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
+        }
+
+        return initialPaymentStateService.complete(customerKey, paymentResponse);
     }
 
     /** 내 구독 조회 — 구독 없으면 null 반환 (404 아님) */

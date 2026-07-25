@@ -40,6 +40,18 @@ public class BillingAttempt {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "billing_key", length = 500)
+    private String billingKey;
+
+    @Column(name = "order_id", unique = true, length = 64)
+    private String orderId;
+
+    @Column(name = "card_number_masked", length = 50)
+    private String cardNumberMasked;
+
+    @Column(name = "card_company", length = 50)
+    private String cardCompany;
+
     @Builder
     public BillingAttempt(Member member, SubscriptionPlan plan, String customerKey) {
         this.member      = member;
@@ -52,4 +64,13 @@ public class BillingAttempt {
 
     public void complete() { this.status = BillingAttemptStatus.COMPLETED; }
     public void fail()     { this.status = BillingAttemptStatus.FAILED; }
+
+    public void storeBillingKey(String billingKey, String orderId,
+                                String cardNumberMasked, String cardCompany) {
+        if (this.billingKey != null) return;
+        this.billingKey = billingKey;
+        this.orderId = orderId;
+        this.cardNumberMasked = cardNumberMasked;
+        this.cardCompany = cardCompany;
+    }
 }

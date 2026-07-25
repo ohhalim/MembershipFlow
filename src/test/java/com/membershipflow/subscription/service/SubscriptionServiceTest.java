@@ -6,7 +6,6 @@ import com.membershipflow.common.util.BillingKeyEncryptor;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
-import com.membershipflow.subscription.entity.BillingAttempt;
 import com.membershipflow.subscription.entity.PaymentHistory;
 import com.membershipflow.subscription.entity.PaymentStatus;
 import com.membershipflow.subscription.entity.Subscription;
@@ -54,6 +53,7 @@ class SubscriptionServiceTest {
     @Mock PaymentHistoryRepository   paymentHistoryRepository;
     @Mock TossPaymentsClient         tossPaymentsClient;
     @Mock BillingKeyEncryptor        billingKeyEncryptor;
+    @Mock InitialPaymentStateService initialPaymentStateService;
 
     @InjectMocks SubscriptionService subscriptionService;
 
@@ -244,60 +244,84 @@ class SubscriptionServiceTest {
                 any(LocalDateTime.class));
     }
 
-    // --- handleCallback 재구독 (#179) ---
-
-    private BillingAttempt pendingAttempt(String customerKey) {
-        return BillingAttempt.builder()
-                .member(member).plan(plan).customerKey(customerKey)
-                .build();
-    }
-
     @Test
-    @DisplayName("취소 후 만료된 구독이 있으면 신규 INSERT 대신 기존 row를 재활성화한다 (#179)")
-    void handleCallback_expiredCancelledSubscription_reactivatesExistingRow() {
-        // given — 지난달 취소되고 이용 기간도 끝난 기존 구독
-        Subscription cancelled = subscriptionDueAt(LocalDateTime.now().minusDays(3));
-        cancelled.cancel();
-
-        given(billingAttemptRepository.findByCustomerKeyAndStatusAndExpiresAtAfter(
-                anyString(), any(), any()))
-                .willReturn(Optional.of(pendingAttempt("new-customer-key")));
-        given(subscriptionRepository.findByMemberId(member.getId()))
-                .willReturn(Optional.of(cancelled));
+    @DisplayName("최초 결제 전에 빌링키와 고정 주문번호를 저장한다")
+    void handleCallback_newAttempt_persistsBillingKeyBeforeCharge() {
+        var initial = new InitialPaymentStateService.InitialPaymentContext(
+                "new-customer-key", member.getId(), "프리미엄", 9900,
+                null, null, false);
+        var stored = new InitialPaymentStateService.InitialPaymentContext(
+                "new-customer-key", member.getId(), "프리미엄", 9900,
+                "enc-new-key", "ORDER-new-customer-key", false);
+        given(initialPaymentStateService.load("new-customer-key")).willReturn(initial);
         given(tossPaymentsClient.issueBillingKey(anyString(), anyString()))
                 .willReturn(new TossPaymentsClient.BillingKeyResponse(
                         "new-billing-key", "new-customer-key",
                         new TossPaymentsClient.BillingKeyResponse.CardInfo("1234-****", "국민")));
         given(billingKeyEncryptor.encrypt("new-billing-key")).willReturn("enc-new-key");
-        given(plan.getId()).willReturn(1L);
-        given(plan.getPrice()).willReturn(9900);
-        given(plan.getName()).willReturn("프리미엄");
+        given(initialPaymentStateService.storeBillingKey(
+                "new-customer-key", "enc-new-key", "ORDER-new-customer-key",
+                "1234-****", "국민"))
+                .willReturn(stored);
+        given(billingKeyEncryptor.decrypt("enc-new-key")).willReturn("new-billing-key");
         given(tossPaymentsClient.charge(anyString(), anyString(), anyInt(), anyString(), anyString()))
                 .willReturn(new TossPaymentsClient.PaymentResponse("pay-key", "2026-07-10", 9900, null));
 
-        // when
         subscriptionService.handleCallback("new-customer-key", "auth-key");
 
-        // then — 신규 save 없이 기존 row가 ACTIVE로 재활성화
-        then(subscriptionRepository).should(never()).save(any());
-        assertThat(cancelled.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
-        assertThat(cancelled.getBillingKey()).isEqualTo("enc-new-key");
-        assertThat(cancelled.getCancelledAt()).isNull();
-        assertThat(cancelled.getFailCount()).isZero();
-        assertThat(cancelled.getNextBillingAt()).isAfter(LocalDateTime.now());
+        then(initialPaymentStateService).should().storeBillingKey(
+                "new-customer-key", "enc-new-key", "ORDER-new-customer-key",
+                "1234-****", "국민");
+        then(tossPaymentsClient).should().charge(
+                "new-billing-key", "new-customer-key", 9900,
+                "ORDER-new-customer-key", "프리미엄 구독 결제");
+        then(initialPaymentStateService).should().complete(
+                eq("new-customer-key"), any(TossPaymentsClient.PaymentResponse.class));
+    }
+
+    @Test
+    @DisplayName("최초 결제 승인 응답 유실 시 고정 주문번호 조회로 성공을 복구한다")
+    void handleCallback_chargeResponseLost_recoversByOrderId() {
+        var stored = new InitialPaymentStateService.InitialPaymentContext(
+                "customer-key", member.getId(), "프리미엄", 9900,
+                "encrypted-key", "ORDER-customer-key", false);
+        given(initialPaymentStateService.load("customer-key")).willReturn(stored);
+        given(billingKeyEncryptor.decrypt("encrypted-key")).willReturn("raw-key");
+        given(tossPaymentsClient.charge(
+                "raw-key", "customer-key", 9900,
+                "ORDER-customer-key", "프리미엄 구독 결제"))
+                .willThrow(new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR));
+        var recovered = new TossPaymentsClient.PaymentResponse(
+                "payment-key", "2026-07-25", 9900, null);
+        given(tossPaymentsClient.findPaymentByOrderId("ORDER-customer-key"))
+                .willReturn(Optional.of(recovered));
+
+        subscriptionService.handleCallback("customer-key", "auth-key");
+
+        then(tossPaymentsClient).should(never()).issueBillingKey(anyString(), anyString());
+        then(initialPaymentStateService).should().complete("customer-key", recovered);
+    }
+
+    @Test
+    @DisplayName("이미 완료된 최초 결제 콜백은 외부 결제를 다시 호출하지 않는다")
+    void handleCallback_completedAttempt_returnsStoredSubscription() {
+        var completed = new InitialPaymentStateService.InitialPaymentContext(
+                "customer-key", member.getId(), "프리미엄", 9900,
+                "encrypted-key", "ORDER-customer-key", true);
+        given(initialPaymentStateService.load("customer-key")).willReturn(completed);
+
+        subscriptionService.handleCallback("customer-key", "auth-key");
+
+        then(initialPaymentStateService).should()
+                .getCompletedSubscription(member.getId());
+        then(tossPaymentsClient).shouldHaveNoInteractions();
     }
 
     @Test
     @DisplayName("활성 구독이 있으면 결제 호출 전에 SUBSCRIPTION_ALREADY_EXISTS로 차단한다 (#179)")
     void handleCallback_activeSubscriptionExists_blocksBeforeCharge() {
-        // given
-        Subscription active = subscriptionDueAt(LocalDateTime.now().plusDays(20));
-
-        given(billingAttemptRepository.findByCustomerKeyAndStatusAndExpiresAtAfter(
-                anyString(), any(), any()))
-                .willReturn(Optional.of(pendingAttempt("dup-customer-key")));
-        given(subscriptionRepository.findByMemberId(member.getId()))
-                .willReturn(Optional.of(active));
+        given(initialPaymentStateService.load("dup-customer-key"))
+                .willThrow(new BusinessException(ErrorCode.SUBSCRIPTION_ALREADY_EXISTS));
 
         // when / then — 토스 결제/빌링키 발급이 아예 호출되지 않아야 함 (돈 안 나감)
         assertThatThrownBy(() -> subscriptionService.handleCallback("dup-customer-key", "auth-key"))
