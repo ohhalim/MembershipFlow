@@ -1,8 +1,6 @@
 package com.membershipflow.common.security.jwt;
 
-import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
-import com.membershipflow.member.repository.MemberRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -29,7 +27,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final MemberRepository memberRepository;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -38,17 +35,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String token = resolveToken(request);
             if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
-                Long memberId = jwtTokenProvider.getMemberIdFromToken(token);
-                Member member = memberRepository.findById(memberId).orElse(null);
-                if (member != null) {
-                    OAuth2UserPrincipal principal = new OAuth2UserPrincipal(member, null);
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(
-                                    principal, null, principal.getAuthorities());
-                    authentication.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                }
+                JwtPrincipalClaims claims = jwtTokenProvider.getPrincipalClaims(token);
+                OAuth2UserPrincipal principal = new OAuth2UserPrincipal(
+                        claims.memberId(), claims.email(), claims.name(), claims.role());
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(
+                                principal, null, principal.getAuthorities());
+                authentication.setDetails(
+                        new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception e) {
             log.error("Failed to set authentication from JWT", e);
