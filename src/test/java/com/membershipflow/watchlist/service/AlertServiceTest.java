@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -184,8 +186,34 @@ class AlertServiceTest {
 
         alertService.checkAndNotify();
 
-        then(alertLogRepository).should().save(any());
+        ArgumentCaptor<com.membershipflow.watchlist.entity.AlertLog> captor =
+                ArgumentCaptor.forClass(com.membershipflow.watchlist.entity.AlertLog.class);
+        then(alertLogRepository).should().save(captor.capture());
+        assertThat(captor.getValue().getTriggeredPrice()).isEqualTo(438_000_000L);
+        assertThat(captor.getValue().getSource()).isSameAs(anotherSource);
         then(messagingTemplate).should()
                 .convertAndSendToUser(eq(String.valueOf(SUBSCRIBER_MEMBER_ID)), any(), any());
+    }
+
+    @Test
+    @DisplayName("모든 거래소 최신가가 목표가를 초과하면 알림을 발송하지 않는다")
+    void checkAndNotify_allSourcePricesAboveTarget_doesNotNotify() {
+        Watchlist watchlist = watchlistOf(SUBSCRIBER_MEMBER_ID, 440_000_000L);
+        ReflectionTestUtils.setField(watchlist, "id", 101L);
+        given(watchlistRepository.findAllAlertEnabled()).willReturn(List.of(watchlist));
+        given(subscriptionService.getSubscriberMemberIds(List.of(SUBSCRIBER_MEMBER_ID)))
+                .willReturn(Set.of(SUBSCRIBER_MEMBER_ID));
+        given(priceHistoryRepository.findLatestPerSourceEntitiesByCourseIds(List.of(COURSE_ID)))
+                .willReturn(List.of(
+                        priceHistoryOf(source, 450_000_000L),
+                        priceHistoryOf(anotherSource, 445_000_000L)));
+        given(alertLogRepository.findWatchlistIdsSentAfter(eq(List.of(101L)), any()))
+                .willReturn(List.of());
+
+        alertService.checkAndNotify();
+
+        then(alertLogRepository).should(never()).save(any());
+        then(messagingTemplate).should(never())
+                .convertAndSendToUser(any(), any(), any());
     }
 }
