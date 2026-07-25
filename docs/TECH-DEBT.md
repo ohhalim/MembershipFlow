@@ -47,19 +47,19 @@
 - **상태**: ⬜ 미착수
 
 ### TD-6. OAuth 토큰 URL 쿼리 노출 (FE/BE)
-- **위치**: `auth/callback/page.tsx:13` — `searchParams.get('token')`
+- **기존 위치**: `auth/callback/page.tsx`의 token 쿼리 처리, 백엔드 OAuth 성공 리다이렉트
 - **문제**: 토큰이 브라우저 히스토리·액세스 로그·Referer에 노출
-- **해결**: 백엔드 OAuth 성공 핸들러에서 HttpOnly 쿠키 발급. 프론트는 토큰 미취급
-- **상태**: ⬜ 미착수
+- **해결**: 백엔드 HttpOnly 쿠키 발급, 프런트 토큰 미취급, 성공 리다이렉트 `success=true`만 유지
+- **상태**: ✅ 완료 (BE #185, #210 / FE #49, #50)
 
 ---
 
 ## 🟡 보안 / 구조
 
 ### TD-7. AccessToken localStorage 저장 (XSS)
-- **위치**: `lib/auth.ts:10`
-- **해결**: HttpOnly 쿠키 전환 (TD-6과 연계). RefreshToken은 이미 쿠키 사용 중
-- **상태**: ⬜ 미착수
+- **기존 위치**: `lib/auth.ts`의 localStorage 토큰 저장
+- **해결**: access/refresh token HttpOnly 쿠키 전환, 기존 localStorage 토큰 정리
+- **상태**: ✅ 완료 (BE #185 / FE #49, #50)
 
 ### TD-8. SEO 전무
 - **위치**: `app/layout.tsx` — `lang="en"`(한국어 사이트), openGraph/metadataBase/sitemap/robots 전부 없음, 전 페이지 CSR
