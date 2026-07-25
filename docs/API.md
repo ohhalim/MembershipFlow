@@ -49,6 +49,9 @@ watchlist 조작은 JWT에서 추출한 현재 `memberId` 기준으로 처리한
 
 ### 공통 에러 응답
 
+모든 컨트롤러 오류 응답과 Spring Security 401 응답은 아래 `ErrorResponse` 스키마를 사용한다.
+Swagger UI는 `/swagger-ui.html`, OpenAPI JSON은 `/v3/api-docs`에서 확인한다.
+
 ```json
 {
   "code": "COURSE_NOT_FOUND",
@@ -195,8 +198,12 @@ Spring Security 내부 처리. 로그인 성공 후 프런트엔드 콜백 URL�
 
 성공 시:
 ```text
-{OAUTH2_REDIRECT_URI}?success=true&token={accessToken}
+{OAUTH2_REDIRECT_URI}?success=true
 ```
+
+- `access_token`: HttpOnly 쿠키, Path=`/`
+- `refresh_token`: HttpOnly 쿠키, Path=`/api/v1/auth`
+- 프런트엔드는 토큰 값을 읽거나 저장하지 않고 성공 여부만 확인한다.
 
 실패 시:
 ```text

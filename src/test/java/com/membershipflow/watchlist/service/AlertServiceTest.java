@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -49,6 +51,7 @@ class AlertServiceTest {
 
     MembershipCourse course;
     CrawlSource source;
+    CrawlSource anotherSource;
 
     @BeforeEach
     void setUp() {
@@ -62,6 +65,10 @@ class AlertServiceTest {
                 .name("동부회원권").baseUrl("http://dbm-market.co.kr")
                 .crawlType(CrawlType.JSOUP).active(true)
                 .build();
+        anotherSource = CrawlSource.builder()
+                .name("동아골프").baseUrl("https://example.com")
+                .crawlType(CrawlType.JSOUP).active(true)
+                .build();
     }
 
     private Watchlist watchlistOf(long memberId, long targetPrice) {
@@ -73,8 +80,12 @@ class AlertServiceTest {
     }
 
     private PriceHistory priceHistoryOf(long price) {
+        return priceHistoryOf(source, price);
+    }
+
+    private PriceHistory priceHistoryOf(CrawlSource crawlSource, long price) {
         return PriceHistory.builder()
-                .course(course).source(source)
+                .course(course).source(crawlSource)
                 .price(price).collectedAt(LocalDateTime.now())
                 .build();
     }
@@ -93,7 +104,8 @@ class AlertServiceTest {
         alertService.checkAndNotify();
 
         // then
-        then(priceHistoryRepository).should(never()).findLatestByCourseIds(any());
+        then(priceHistoryRepository).should(never())
+                .findLatestPerSourceEntitiesByCourseIds(any());
         then(alertLogRepository).should(never()).save(any());
         then(messagingTemplate).should(never())
                 .convertAndSendToUser(any(), any(), any());
@@ -108,7 +120,7 @@ class AlertServiceTest {
         given(watchlistRepository.findAllAlertEnabled()).willReturn(List.of(watchlist));
         given(subscriptionService.getSubscriberMemberIds(List.of(SUBSCRIBER_MEMBER_ID)))
                 .willReturn(Set.of(SUBSCRIBER_MEMBER_ID));
-        given(priceHistoryRepository.findLatestByCourseIds(List.of(COURSE_ID)))
+        given(priceHistoryRepository.findLatestPerSourceEntitiesByCourseIds(List.of(COURSE_ID)))
                 .willReturn(List.of(priceHistoryOf(380_000_000L)));
         given(alertLogRepository.findWatchlistIdsSentAfter(eq(List.of(101L)), any()))
                 .willReturn(List.of());
@@ -136,7 +148,7 @@ class AlertServiceTest {
                 .willReturn(List.of(recentlyNotified, notificationTarget));
         given(subscriptionService.getSubscriberMemberIds(List.of(SUBSCRIBER_MEMBER_ID)))
                 .willReturn(Set.of(SUBSCRIBER_MEMBER_ID));
-        given(priceHistoryRepository.findLatestByCourseIds(List.of(COURSE_ID)))
+        given(priceHistoryRepository.findLatestPerSourceEntitiesByCourseIds(List.of(COURSE_ID)))
                 .willReturn(List.of(priceHistoryOf(380_000_000L)));
         given(alertLogRepository.findWatchlistIdsSentAfter(
                 eq(List.of(101L, 102L)), any()))
@@ -154,5 +166,54 @@ class AlertServiceTest {
         then(alertLogRepository).should().save(any());
         then(messagingTemplate).should()
                 .convertAndSendToUser(eq(String.valueOf(SUBSCRIBER_MEMBER_ID)), any(), any());
+    }
+
+    @Test
+    @DisplayName("최근 수집 거래소 가격이 높아도 다른 거래소 최신가가 목표가 이하면 알림을 발송한다")
+    void checkAndNotify_otherSourceLowestPriceReached_notifies() {
+        Watchlist watchlist = watchlistOf(SUBSCRIBER_MEMBER_ID, 440_000_000L);
+        ReflectionTestUtils.setField(watchlist, "id", 101L);
+        given(watchlistRepository.findAllAlertEnabled()).willReturn(List.of(watchlist));
+        given(subscriptionService.getSubscriberMemberIds(List.of(SUBSCRIBER_MEMBER_ID)))
+                .willReturn(Set.of(SUBSCRIBER_MEMBER_ID));
+        given(priceHistoryRepository.findLatestPerSourceEntitiesByCourseIds(List.of(COURSE_ID)))
+                .willReturn(List.of(
+                        priceHistoryOf(source, 450_000_000L),
+                        priceHistoryOf(anotherSource, 438_000_000L)));
+        given(alertLogRepository.findWatchlistIdsSentAfter(eq(List.of(101L)), any()))
+                .willReturn(List.of());
+        given(alertLogRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        alertService.checkAndNotify();
+
+        ArgumentCaptor<com.membershipflow.watchlist.entity.AlertLog> captor =
+                ArgumentCaptor.forClass(com.membershipflow.watchlist.entity.AlertLog.class);
+        then(alertLogRepository).should().save(captor.capture());
+        assertThat(captor.getValue().getTriggeredPrice()).isEqualTo(438_000_000L);
+        assertThat(captor.getValue().getSource()).isSameAs(anotherSource);
+        then(messagingTemplate).should()
+                .convertAndSendToUser(eq(String.valueOf(SUBSCRIBER_MEMBER_ID)), any(), any());
+    }
+
+    @Test
+    @DisplayName("모든 거래소 최신가가 목표가를 초과하면 알림을 발송하지 않는다")
+    void checkAndNotify_allSourcePricesAboveTarget_doesNotNotify() {
+        Watchlist watchlist = watchlistOf(SUBSCRIBER_MEMBER_ID, 440_000_000L);
+        ReflectionTestUtils.setField(watchlist, "id", 101L);
+        given(watchlistRepository.findAllAlertEnabled()).willReturn(List.of(watchlist));
+        given(subscriptionService.getSubscriberMemberIds(List.of(SUBSCRIBER_MEMBER_ID)))
+                .willReturn(Set.of(SUBSCRIBER_MEMBER_ID));
+        given(priceHistoryRepository.findLatestPerSourceEntitiesByCourseIds(List.of(COURSE_ID)))
+                .willReturn(List.of(
+                        priceHistoryOf(source, 450_000_000L),
+                        priceHistoryOf(anotherSource, 445_000_000L)));
+        given(alertLogRepository.findWatchlistIdsSentAfter(eq(List.of(101L)), any()))
+                .willReturn(List.of());
+
+        alertService.checkAndNotify();
+
+        then(alertLogRepository).should(never()).save(any());
+        then(messagingTemplate).should(never())
+                .convertAndSendToUser(any(), any(), any());
     }
 }

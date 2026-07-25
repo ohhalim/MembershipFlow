@@ -99,6 +99,22 @@ jobs:
           target: /opt/membershipflow/
           strip_components: 0
 
+      - name: Guard optional Discord alert provisioning
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /opt/membershipflow
+            if ! grep -Eq '^DISCORD_ERROR_WEBHOOK_URL=.+$' .env; then
+              rm -f \
+                grafana/provisioning/alerting/contactpoints.yaml \
+                grafana/provisioning/alerting/notification-policies.yaml \
+                grafana/provisioning/alerting/rules.yaml
+              echo "Discord webhook not configured; batch heartbeat alert provisioning skipped"
+            fi
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -117,4 +133,12 @@ jobs:
             docker compose up -d node-exporter
             docker compose up -d --no-deps --force-recreate prometheus
             docker compose restart nginx grafana
+            grafana_container=$(docker compose ps -q grafana)
+            test -n "${grafana_container}"
+            for check in 1 2 3; do
+              sleep 10
+              grafana_status=$(docker inspect --format '{{.State.Status}} {{.State.Restarting}}' "${grafana_container}")
+              echo "Grafana poll ${check}: ${grafana_status}"
+              test "${grafana_status}" = "running false"
+            done
             docker image prune -f

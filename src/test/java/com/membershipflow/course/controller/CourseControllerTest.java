@@ -225,4 +225,28 @@ class CourseControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
     }
+
+    @Test
+    @DisplayName("목록의 page가 음수이면 400을 반환한다")
+    void list_negativePage_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/courses").param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("랭킹의 size가 0이면 400을 반환한다")
+    void ranking_zeroSize_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/courses/ranking").param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("거래소 비교 limit가 음수이면 400을 반환한다")
+    void sourceComparison_negativeLimit_returnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/courses/source-comparison").param("limit", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
 }

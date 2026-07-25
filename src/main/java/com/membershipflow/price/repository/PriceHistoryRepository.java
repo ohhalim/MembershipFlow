@@ -40,6 +40,23 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
             """, nativeQuery = true)
     List<PriceHistory> findLatestByCourseIds(@Param("courseIds") List<Long> courseIds);
 
+    // 여러 종목의 (종목, 소스)별 최신 PriceHistory 배치 조회 — 목표가 알림의 최저가 선택용
+    @Query(value = """
+            SELECT ph.id, ph.course_id, ph.source_id, ph.price, ph.collected_at, ph.collect_run_id
+            FROM (
+                SELECT id, course_id, source_id, price, collected_at, collect_run_id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY course_id, source_id
+                           ORDER BY collected_at DESC, id DESC
+                       ) AS rn
+                FROM price_history
+                WHERE course_id IN (:courseIds)
+            ) ph
+            WHERE ph.rn = 1
+            """, nativeQuery = true)
+    List<PriceHistory> findLatestPerSourceEntitiesByCourseIds(
+            @Param("courseIds") List<Long> courseIds);
+
     // 7일 전 배치 조회 (priceChangeRate 계산용)
     @Query(value = """
             SELECT ph.id, ph.course_id, ph.source_id, ph.price, ph.collected_at, ph.collect_run_id

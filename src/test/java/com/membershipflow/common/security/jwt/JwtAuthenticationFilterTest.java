@@ -1,9 +1,7 @@
 package com.membershipflow.common.security.jwt;
 
-import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.entity.MemberRole;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
-import com.membershipflow.member.repository.MemberRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
@@ -18,8 +16,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -29,7 +25,6 @@ import static org.mockito.Mockito.*;
 class JwtAuthenticationFilterTest {
 
     @Mock JwtTokenProvider jwtTokenProvider;
-    @Mock MemberRepository memberRepository;
     @InjectMocks JwtAuthenticationFilter filter;
 
     MockHttpServletRequest request;
@@ -49,8 +44,8 @@ class JwtAuthenticationFilterTest {
         SecurityContextHolder.clearContext();
     }
 
-    private Member member(Long id) {
-        return Member.builder().id(id).email("user@test.com").role(MemberRole.USER).build();
+    private JwtPrincipalClaims claims(Long id) {
+        return new JwtPrincipalClaims(id, "user@test.com", "사용자", MemberRole.USER);
     }
 
     @Test
@@ -59,8 +54,7 @@ class JwtAuthenticationFilterTest {
         // given
         request.addHeader("Authorization", "Bearer valid-token");
         given(jwtTokenProvider.validateToken("valid-token")).willReturn(true);
-        given(jwtTokenProvider.getMemberIdFromToken("valid-token")).willReturn(1L);
-        given(memberRepository.findById(1L)).willReturn(Optional.of(member(1L)));
+        given(jwtTokenProvider.getPrincipalClaims("valid-token")).willReturn(claims(1L));
 
         // when
         filter.doFilter(request, response, chain);
@@ -85,7 +79,6 @@ class JwtAuthenticationFilterTest {
         // then
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         then(chain).should().doFilter(request, response);
-        then(memberRepository).shouldHaveNoInteractions();
     }
 
     @Test
@@ -100,24 +93,6 @@ class JwtAuthenticationFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         then(chain).should().doFilter(request, response);
         then(jwtTokenProvider).shouldHaveNoInteractions();
-        then(memberRepository).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("토큰이 유효하지만 DB에 회원이 없으면 인증 없이 체인이 계속된다")
-    void validTokenButMemberNotFound_noAuth() throws Exception {
-        // given
-        request.addHeader("Authorization", "Bearer valid-token");
-        given(jwtTokenProvider.validateToken("valid-token")).willReturn(true);
-        given(jwtTokenProvider.getMemberIdFromToken("valid-token")).willReturn(99L);
-        given(memberRepository.findById(99L)).willReturn(Optional.empty());
-
-        // when
-        filter.doFilter(request, response, chain);
-
-        // then
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-        then(chain).should().doFilter(request, response);
     }
 
     @Test
@@ -132,7 +107,6 @@ class JwtAuthenticationFilterTest {
         // then
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         then(jwtTokenProvider).shouldHaveNoInteractions();
-        then(memberRepository).shouldHaveNoInteractions();
     }
 
     @Test
@@ -141,8 +115,7 @@ class JwtAuthenticationFilterTest {
         // given
         request.setCookies(new Cookie("access_token", "cookie-token"));
         given(jwtTokenProvider.validateToken("cookie-token")).willReturn(true);
-        given(jwtTokenProvider.getMemberIdFromToken("cookie-token")).willReturn(1L);
-        given(memberRepository.findById(1L)).willReturn(Optional.of(member(1L)));
+        given(jwtTokenProvider.getPrincipalClaims("cookie-token")).willReturn(claims(1L));
 
         // when
         filter.doFilter(request, response, chain);
@@ -161,8 +134,7 @@ class JwtAuthenticationFilterTest {
         request.addHeader("Authorization", "Bearer header-token");
         request.setCookies(new Cookie("access_token", "cookie-token"));
         given(jwtTokenProvider.validateToken("header-token")).willReturn(true);
-        given(jwtTokenProvider.getMemberIdFromToken("header-token")).willReturn(1L);
-        given(memberRepository.findById(1L)).willReturn(Optional.of(member(1L)));
+        given(jwtTokenProvider.getPrincipalClaims("header-token")).willReturn(claims(1L));
 
         // when
         filter.doFilter(request, response, chain);
@@ -185,6 +157,5 @@ class JwtAuthenticationFilterTest {
         // then
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         then(jwtTokenProvider).shouldHaveNoInteractions();
-        then(memberRepository).shouldHaveNoInteractions();
     }
 }

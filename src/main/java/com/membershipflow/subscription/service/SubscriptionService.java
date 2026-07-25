@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -26,6 +27,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SubscriptionService {
 
+    private static final DateTimeFormatter BILLING_CYCLE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
     private final MemberRepository              memberRepository;
     private final SubscriptionPlanRepository    planRepository;
     private final BillingAttemptRepository      billingAttemptRepository;
@@ -33,6 +37,7 @@ public class SubscriptionService {
     private final PaymentHistoryRepository      paymentHistoryRepository;
     private final TossPaymentsClient            tossPaymentsClient;
     private final BillingKeyEncryptor           billingKeyEncryptor;
+    private final InitialPaymentStateService    initialPaymentStateService;
 
     @Value("${toss.client-key}")
     private String tossClientKey;
@@ -40,7 +45,7 @@ public class SubscriptionService {
     /** 플랜 목록 조회 */
     @Transactional(readOnly = true)
     public List<SubscriptionPlanResponse> getPlans() {
-        return planRepository.findAll().stream()
+        return planRepository.findAllByActiveTrueOrderById().stream()
                 .map(SubscriptionPlanResponse::from)
                 .toList();
     }
@@ -51,7 +56,7 @@ public class SubscriptionService {
     @Transactional
     public BillingPrepareResponse prepare(Long memberId, Long planId) {
         Member member = findMember(memberId);
-        SubscriptionPlan plan = planRepository.findById(planId)
+        SubscriptionPlan plan = planRepository.findByIdAndActiveTrue(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
 
         // 이미 활성 구독이면 신규 등록 불가
@@ -73,78 +78,58 @@ public class SubscriptionService {
     /**
      * 카드 등록 콜백: authKey + customerKey → 빌링 키 발급 → 최초 결제 → Subscription 저장
      */
-    @Transactional
     public SubscriptionResponse handleCallback(String customerKey, String authKey) {
-        BillingAttempt attempt = billingAttemptRepository
-                .findByCustomerKeyAndStatusAndExpiresAtAfter(
-                        customerKey, BillingAttemptStatus.PENDING, LocalDateTime.now())
-                .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
-
-        attempt.complete();
-
-        Member member           = attempt.getMember();
-        SubscriptionPlan plan   = attempt.getPlan();
-
-        // 재구독 확인 (#179): member_id UNIQUE 제약이 있어 신규 INSERT는 기존 row가
-        // 있으면 실패한다. 토스 결제는 롤백이 안 되므로 반드시 결제 호출 전에 확인.
-        Optional<Subscription> existing = subscriptionRepository.findByMemberId(member.getId());
-        if (existing.isPresent() && existing.get().isActive()) {
-            throw new BusinessException(ErrorCode.SUBSCRIPTION_ALREADY_EXISTS);
+        InitialPaymentStateService.InitialPaymentContext context =
+                initialPaymentStateService.load(customerKey);
+        if (context.completed()) {
+            return initialPaymentStateService.getCompletedSubscription(context.memberId());
         }
 
-        // 빌링 키 발급
-        TossPaymentsClient.BillingKeyResponse billingKeyResp =
-                tossPaymentsClient.issueBillingKey(customerKey, authKey);
+        if (context.encryptedBillingKey() == null) {
+            TossPaymentsClient.BillingKeyResponse billingKeyResponse =
+                    tossPaymentsClient.issueBillingKey(customerKey, authKey);
+            if (billingKeyResponse == null
+                    || billingKeyResponse.billingKey() == null
+                    || !customerKey.equals(billingKeyResponse.customerKey())) {
+                throw new BusinessException(ErrorCode.BILLING_KEY_ISSUE_FAILED);
+            }
 
-        String encryptedBillingKey = billingKeyEncryptor.encrypt(billingKeyResp.billingKey());
-
-        // 최초 결제
-        String orderId  = "ORDER-" + UUID.randomUUID();
-        TossPaymentsClient.PaymentResponse paymentResp =
-                tossPaymentsClient.charge(
-                        billingKeyResp.billingKey(),
-                        customerKey,
-                        plan.getPrice(),
-                        orderId,
-                        plan.getName() + " 구독 결제");
-
-        LocalDateTime now           = LocalDateTime.now();
-        LocalDateTime nextBillingAt = now.plusMonths(1);
-        String cardNumberMasked = billingKeyResp.card() != null ? billingKeyResp.card().number() : null;
-        String cardCompany      = billingKeyResp.card() != null ? billingKeyResp.card().cardCompany() : null;
-
-        // 기존 row가 있으면(취소 후 만료된 재구독) INSERT 대신 재활성화 (#179)
-        Subscription subscription;
-        if (existing.isPresent()) {
-            subscription = existing.get();
-            subscription.resubscribe(plan, encryptedBillingKey, customerKey,
-                    cardNumberMasked, cardCompany, now, nextBillingAt);
-        } else {
-            subscription = Subscription.builder()
-                    .member(member)
-                    .plan(plan)
-                    .billingKey(encryptedBillingKey)
-                    .customerKey(customerKey)
-                    .cardNumberMasked(cardNumberMasked)
-                    .cardCompany(cardCompany)
-                    .startedAt(now)
-                    .nextBillingAt(nextBillingAt)
-                    .build();
-            subscriptionRepository.save(subscription);
+            String cardNumber = billingKeyResponse.card() != null
+                    ? billingKeyResponse.card().number() : null;
+            String cardCompany = billingKeyResponse.card() != null
+                    ? billingKeyResponse.card().cardCompany() : null;
+            context = initialPaymentStateService.storeBillingKey(
+                    customerKey,
+                    billingKeyEncryptor.encrypt(billingKeyResponse.billingKey()),
+                    "ORDER-" + customerKey,
+                    cardNumber,
+                    cardCompany);
         }
 
-        PaymentHistory history = PaymentHistory.builder()
-                .member(member)
-                .subscription(subscription)
-                .tossOrderId(orderId)
-                .tossPaymentKey(paymentResp.paymentKey())
-                .amount(plan.getPrice())
-                .status(PaymentStatus.SUCCESS)
-                .billedAt(now)
-                .build();
-        paymentHistoryRepository.save(history);
+        InitialPaymentStateService.InitialPaymentContext paymentContext = context;
+        String rawBillingKey = billingKeyEncryptor.decrypt(paymentContext.encryptedBillingKey());
+        TossPaymentsClient.PaymentResponse paymentResponse;
+        try {
+            paymentResponse = tossPaymentsClient.charge(
+                    rawBillingKey,
+                    customerKey,
+                    paymentContext.amount(),
+                    paymentContext.orderId(),
+                    paymentContext.planName() + " 구독 결제");
+        } catch (BusinessException chargeFailure) {
+            paymentResponse = tossPaymentsClient.findPaymentByOrderId(paymentContext.orderId())
+                    .filter(response -> response.paymentKey() != null
+                            && response.totalAmount() == paymentContext.amount())
+                    .orElseThrow(() -> chargeFailure);
+        }
 
-        return SubscriptionResponse.from(subscription);
+        if (paymentResponse == null
+                || paymentResponse.paymentKey() == null
+                || paymentResponse.totalAmount() != paymentContext.amount()) {
+            throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
+        }
+
+        return initialPaymentStateService.complete(customerKey, paymentResponse);
     }
 
     /** 내 구독 조회 — 구독 없으면 null 반환 (404 아님) */
@@ -199,7 +184,7 @@ public class SubscriptionService {
      */
     @Transactional
     public void processBilling(Long subscriptionId) {
-        Subscription sub = subscriptionRepository.findById(subscriptionId)
+        Subscription sub = subscriptionRepository.findByIdForUpdate(subscriptionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
 
         // 결제 시점 재검증 (#178): 배치 조회~개별 결제 사이에 취소/정지됐거나
@@ -213,7 +198,7 @@ public class SubscriptionService {
         }
 
         String rawBillingKey = billingKeyEncryptor.decrypt(sub.getBillingKey());
-        String orderId       = "AUTO-" + UUID.randomUUID();
+        String orderId       = recurringOrderId(sub);
         LocalDateTime now    = LocalDateTime.now();
 
         try {
@@ -225,20 +210,20 @@ public class SubscriptionService {
                             orderId,
                             sub.getPlan().getName() + " 구독 정기결제");
 
-            sub.paymentSuccess(now.plusMonths(1));
-
-            PaymentHistory history = PaymentHistory.builder()
-                    .member(sub.getMember())
-                    .subscription(sub)
-                    .tossOrderId(orderId)
-                    .tossPaymentKey(resp.paymentKey())
-                    .amount(sub.getPlan().getPrice())
-                    .status(PaymentStatus.SUCCESS)
-                    .billedAt(now)
-                    .build();
-            paymentHistoryRepository.save(history);
+            recordSuccessfulBilling(sub, orderId, resp, now);
 
         } catch (BusinessException e) {
+            Optional<TossPaymentsClient.PaymentResponse> approved =
+                    tossPaymentsClient.findPaymentByOrderId(orderId)
+                            .filter(resp -> resp.paymentKey() != null
+                                    && resp.totalAmount() == sub.getPlan().getPrice());
+            if (approved.isPresent()) {
+                recordSuccessfulBilling(sub, orderId, approved.get(), now);
+                log.info("정기결제 승인 결과 복구: subscriptionId={}, orderId={}",
+                        subscriptionId, orderId);
+                return;
+            }
+
             String reason = e.getMessage();
             sub.paymentFailed(reason);
 
@@ -254,6 +239,27 @@ public class SubscriptionService {
             paymentHistoryRepository.save(history);
             log.warn("정기결제 실패: subscriptionId={}, reason={}", subscriptionId, reason);
         }
+    }
+
+    private String recurringOrderId(Subscription sub) {
+        return "AUTO-" + sub.getId() + "-"
+                + BILLING_CYCLE_FORMAT.format(sub.getNextBillingAt()) + "-"
+                + sub.getFailCount();
+    }
+
+    private void recordSuccessfulBilling(Subscription sub, String orderId,
+                                         TossPaymentsClient.PaymentResponse response,
+                                         LocalDateTime billedAt) {
+        sub.paymentSuccess(billedAt.plusMonths(1));
+        paymentHistoryRepository.save(PaymentHistory.builder()
+                .member(sub.getMember())
+                .subscription(sub)
+                .tossOrderId(orderId)
+                .tossPaymentKey(response.paymentKey())
+                .amount(sub.getPlan().getPrice())
+                .status(PaymentStatus.SUCCESS)
+                .billedAt(billedAt)
+                .build());
     }
 
     private Member findMember(Long memberId) {

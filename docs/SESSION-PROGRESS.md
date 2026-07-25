@@ -47,8 +47,8 @@
 | TD-3 | BE#98 | AlertService N+1 | fix/98/alert-n-plus-one | ⬜ |
 | TD-4 | BE#99 | 랭킹 findAll() 전체 메모리 조회 | — | ⬜ |
 | TD-5 | FE#48 | 검색 디바운스 (글자마다 API 호출) | — | ⬜ |
-| TD-6 | FE#49 | OAuth 토큰 URL 노출 | — | ⬜ |
-| TD-7 | FE#50 | AccessToken localStorage XSS | — | ⬜ |
+| TD-6 | FE#49 / BE#185, #210 | OAuth 토큰 URL 노출 | fix/210/oauth-token-query-removal | ✅ |
+| TD-7 | FE#50 / BE#185 | AccessToken localStorage XSS | feat/185/httponly-access-token-cookie | ✅ |
 | TD-8 | FE#51 | SEO (lang, sitemap, openGraph) | — | ⬜ |
 | TD-9 | BE#100 | 가격 비정규화 부재 | — | ⬜ |
 
