@@ -75,11 +75,28 @@ class SubscriptionControllerTest {
                 10L,
                 new SubscriptionResponse.PlanDto(1L, "INDIVIDUAL", "개인 플랜", 49_000),
                 SubscriptionStatus.ACTIVE,
+                true,
+                null,
                 LocalDateTime.of(2026, 6, 24, 0, 0),
                 LocalDateTime.of(2026, 7, 24, 0, 0),
                 "123456789012",
                 "신한카드",
                 null);
+    }
+
+    SubscriptionResponse sampleExpiredCancelledSubscription() {
+        LocalDateTime serviceEndsAt = LocalDateTime.of(2026, 7, 25, 0, 0);
+        return new SubscriptionResponse(
+                10L,
+                new SubscriptionResponse.PlanDto(1L, "INDIVIDUAL", "개인 플랜", 49_000),
+                SubscriptionStatus.CANCELLED,
+                false,
+                serviceEndsAt,
+                LocalDateTime.of(2026, 6, 25, 0, 0),
+                serviceEndsAt,
+                "123456789012",
+                "신한카드",
+                LocalDateTime.of(2026, 7, 20, 0, 0));
     }
 
     @Test
@@ -149,7 +166,23 @@ class SubscriptionControllerTest {
         mockMvc.perform(get("/api/v1/subscriptions/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cardCompany").value("신한카드"))
+                .andExpect(jsonPath("$.serviceActive").value(true))
+                .andExpect(jsonPath("$.serviceEndsAt").doesNotExist())
                 .andExpect(jsonPath("$.nextBillingAt").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/subscriptions/me — 종료된 취소 구독의 이용 상태와 종료일을 반환한다")
+    void getMySubscription_expiredCancelled_returnsServiceEndState() throws Exception {
+        given(subscriptionService.getMySubscription(MEMBER_ID))
+                .willReturn(sampleExpiredCancelledSubscription());
+
+        mockMvc.perform(get("/api/v1/subscriptions/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.serviceActive").value(false))
+                .andExpect(jsonPath("$.serviceEndsAt").value("2026-07-25T00:00:00"))
+                .andExpect(jsonPath("$.nextBillingAt").value("2026-07-25T00:00:00"));
     }
 
     @Test
