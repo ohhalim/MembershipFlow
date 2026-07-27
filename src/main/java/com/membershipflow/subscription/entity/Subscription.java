@@ -121,7 +121,11 @@ public class Subscription {
     }
 
     public boolean isActive() {
+        return isActiveAt(LocalDateTime.now());
+    }
+
+    public boolean isActiveAt(LocalDateTime now) {
         return status == SubscriptionStatus.ACTIVE
-                || (status == SubscriptionStatus.CANCELLED && LocalDateTime.now().isBefore(nextBillingAt));
+                || (status == SubscriptionStatus.CANCELLED && now.isBefore(nextBillingAt));
     }
 }

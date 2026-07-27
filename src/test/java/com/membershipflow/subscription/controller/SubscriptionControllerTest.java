@@ -75,6 +75,8 @@ class SubscriptionControllerTest {
                 10L,
                 new SubscriptionResponse.PlanDto(1L, "INDIVIDUAL", "개인 플랜", 49_000),
                 SubscriptionStatus.ACTIVE,
+                true,
+                null,
                 LocalDateTime.of(2026, 6, 24, 0, 0),
                 LocalDateTime.of(2026, 7, 24, 0, 0),
                 "123456789012",
@@ -149,6 +151,8 @@ class SubscriptionControllerTest {
         mockMvc.perform(get("/api/v1/subscriptions/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cardCompany").value("신한카드"))
+                .andExpect(jsonPath("$.serviceActive").value(true))
+                .andExpect(jsonPath("$.serviceEndsAt").doesNotExist())
                 .andExpect(jsonPath("$.nextBillingAt").isNotEmpty());
     }
 
