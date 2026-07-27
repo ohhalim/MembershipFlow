@@ -46,6 +46,18 @@ class SubscriptionTest {
     }
 
     @Test
+    @DisplayName("취소 구독은 이용 종료 시각부터 비활성이다")
+    void isActiveAt_cancelledAtServiceEnd_false() {
+        LocalDateTime serviceEndsAt = LocalDateTime.of(2026, 7, 25, 0, 0);
+        Subscription sub = subscriptionWithNextBillingAt(serviceEndsAt);
+        sub.cancel();
+
+        assertThat(sub.isActiveAt(serviceEndsAt.minusNanos(1))).isTrue();
+        assertThat(sub.isActiveAt(serviceEndsAt)).isFalse();
+        assertThat(sub.isActiveAt(serviceEndsAt.plusNanos(1))).isFalse();
+    }
+
+    @Test
     @DisplayName("결제 실패(PAYMENT_FAILED) 상태는 비활성이다")
     void isActive_paymentFailed_false() {
         Subscription sub = subscriptionWithNextBillingAt(LocalDateTime.now().minusDays(1));

@@ -103,6 +103,21 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    @DisplayName("종료일이 지난 취소 구독은 이용 종료 상태와 종료일을 반환한다")
+    void getMySubscription_expiredCancelled_returnsInactiveServiceState() {
+        LocalDateTime serviceEndsAt = LocalDateTime.now().minusDays(1);
+        Subscription sub = subscriptionDueAt(serviceEndsAt);
+        sub.cancel();
+        given(subscriptionRepository.findByMemberId(member.getId())).willReturn(Optional.of(sub));
+
+        var response = subscriptionService.getMySubscription(member.getId());
+
+        assertThat(response.status()).isEqualTo(SubscriptionStatus.CANCELLED);
+        assertThat(response.serviceActive()).isFalse();
+        assertThat(response.serviceEndsAt()).isEqualTo(serviceEndsAt);
+    }
+
+    @Test
     @DisplayName("결제일이 도래한 ACTIVE 구독은 정기결제를 실행한다")
     void processBilling_dueActiveSubscription_charges() {
         // given
