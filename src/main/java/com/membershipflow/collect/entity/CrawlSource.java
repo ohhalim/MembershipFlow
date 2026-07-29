@@ -32,6 +32,9 @@ public class CrawlSource {
     @Column(nullable = false)
     private boolean active;
 
+    @Column(name = "allow_new_courses", nullable = false)
+    private boolean allowNewCourses;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -40,11 +43,13 @@ public class CrawlSource {
     private LocalDateTime updatedAt;
 
     @Builder
-    public CrawlSource(String name, String baseUrl, CrawlType crawlType, boolean active) {
-        this.name      = name;
-        this.baseUrl   = baseUrl;
-        this.crawlType = crawlType;
-        this.active    = active;
-        this.createdAt = LocalDateTime.now();
+    public CrawlSource(String name, String baseUrl, CrawlType crawlType, boolean active,
+                       Boolean allowNewCourses) {
+        this.name            = name;
+        this.baseUrl         = baseUrl;
+        this.crawlType       = crawlType;
+        this.active          = active;
+        this.allowNewCourses = allowNewCourses == null || allowNewCourses;
+        this.createdAt       = LocalDateTime.now();
     }
 }
