@@ -219,7 +219,9 @@ public class CollectPersistenceService {
             extractedType = normalized.type();
         }
 
-        MembershipType membershipType = collectedType != null ? collectedType
+        MembershipType membershipType = alias != null && alias.getMembershipType() != null
+                ? alias.getMembershipType()
+                : collectedType != null ? collectedType
                 : extractedType != null ? extractedType
                 : MembershipType.REGULAR;
 

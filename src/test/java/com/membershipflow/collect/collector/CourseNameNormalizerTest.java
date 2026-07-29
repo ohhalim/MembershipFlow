@@ -25,6 +25,7 @@ class CourseNameNormalizerTest {
             "파미힐스주주,   파미힐스,   SHAREHOLDER",
             "김포여자,       김포,       FEMALE",
             "안성일반,       안성,       REGULAR",
+            "김포씨사이드CC-남자, 김포씨사이드, MALE",
             // 하이픈 제거 후 토큰 추출
             "가야-주중,      가야,       WEEKDAY",
             "동래베네스트-남자, 동래베네스트, MALE",

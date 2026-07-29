@@ -348,6 +348,36 @@ class CollectServiceTest {
     }
 
     @Test
+    @DisplayName("별칭에 회원권 종류가 지정되면 이름에서 추정한 종류보다 우선한다")
+    void collectOne_aliasType_overridesCollectedType() {
+        CollectedPrice cp = new CollectedPrice(
+                "표기상개인", null, CourseType.GOLF, MembershipType.INDIVIDUAL,
+                null, 100_000_000L, "테스트거래소");
+        MembershipCourse course = MembershipCourse.builder()
+                .name("정식회원권").courseType(CourseType.GOLF)
+                .membershipType(MembershipType.REGULAR)
+                .build();
+
+        given(courseAliasRepository.findAll()).willReturn(List.of(
+                CourseAlias.builder()
+                        .aliasName("표기상개인")
+                        .canonicalName("정식회원권")
+                        .membershipType(MembershipType.REGULAR)
+                        .build()));
+        given(collector.collect()).willReturn(List.of(cp));
+        given(collectRunRepository.save(any())).willReturn(run);
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "정식회원권", CourseType.GOLF, MembershipType.REGULAR))
+                .willReturn(Optional.of(course));
+
+        collectService.collectOne(source, collector);
+
+        then(membershipCourseRepository).should().findByNameAndCourseTypeAndMembershipType(
+                "정식회원권", CourseType.GOLF, MembershipType.REGULAR);
+        then(membershipCourseRepository).should(never()).save(any(MembershipCourse.class));
+    }
+
+    @Test
     @DisplayName("구분이 코스명 끝에 붙은 동아 원본명은 정규화되어 조회된다")
     void collectOne_trailingTypeToken_isNormalized() {
         // given — "경주신라주주" → (경주신라, SHAREHOLDER)
