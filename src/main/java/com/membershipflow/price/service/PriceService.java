@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -67,8 +68,9 @@ public class PriceService {
 
         LocalDateTime fromDt = effectiveFrom.atStartOfDay();
         LocalDateTime toDt   = effectiveTo.atTime(LocalTime.MAX);
+        String effectiveInterval = resolveChartInterval(interval, effectiveFrom, effectiveTo);
 
-        List<Object[]> rows = switch (interval.toUpperCase()) {
+        List<Object[]> rows = switch (effectiveInterval) {
             case "WEEK"  -> priceHistoryRepository.findChartByWeek(courseId, fromDt, toDt);
             case "MONTH" -> priceHistoryRepository.findChartByMonth(courseId, fromDt, toDt);
             default      -> priceHistoryRepository.findChartByDay(courseId, fromDt, toDt);
@@ -82,9 +84,21 @@ public class PriceService {
 
         return new PriceChartResponse(
                 courseId, course.getName(),
-                interval.toUpperCase(),
+                effectiveInterval,
                 effectiveFrom, effectiveTo,
                 points, summary, subscriptionRequired);
+    }
+
+    private String resolveChartInterval(String requestedInterval,
+                                        LocalDate effectiveFrom,
+                                        LocalDate effectiveTo) {
+        String normalized = requestedInterval.toUpperCase();
+        long effectiveDays = ChronoUnit.DAYS.between(effectiveFrom, effectiveTo);
+
+        if (effectiveDays <= 7 && (normalized.equals("WEEK") || normalized.equals("MONTH"))) {
+            return "DAY";
+        }
+        return normalized;
     }
 
     // 배치 조회: 목록용 latestPrice + priceChangeRate
