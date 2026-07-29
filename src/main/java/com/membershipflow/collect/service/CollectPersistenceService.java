@@ -67,6 +67,7 @@ public class CollectPersistenceService {
                                            List<CollectedPrice> prices) {
         int successCount = 0;
         int failCount = 0;
+        int skippedCount = 0;
         List<PriceHistory> toSave = new ArrayList<>();
         Map<String, CourseAlias> aliases = loadAliases();
 
@@ -74,7 +75,12 @@ public class CollectPersistenceService {
             try {
                 MembershipCourse course = findOrRegisterCourse(
                         cp.courseName(), cp.region(), cp.courseType(),
-                        cp.membershipType(), cp.holes(), aliases);
+                        cp.membershipType(), cp.holes(), aliases,
+                        source.isAllowNewCourses());
+                if (course == null) {
+                    skippedCount++;
+                    continue;
+                }
                 PriceHistory priceHistory = PriceHistory.builder()
                         .course(course)
                         .source(source)
@@ -99,7 +105,8 @@ public class CollectPersistenceService {
         run.complete(successCount, failCount);
         CollectRun savedRun = collectRunRepository.save(run);
 
-        log.info("[{}] 저장 완료: 성공={}, 실패={}", source.getName(), successCount, failCount);
+        log.info("[{}] 저장 완료: 성공={}, 실패={}, 미매칭 건너뜀={}",
+                source.getName(), successCount, failCount, skippedCount);
         return savedRun;
     }
 
@@ -113,7 +120,7 @@ public class CollectPersistenceService {
             try {
                 MembershipCourse course = findOrRegisterCourse(
                         hp.courseName(), null, hp.courseType(),
-                        hp.membershipType(), null, aliases);
+                        hp.membershipType(), null, aliases, true);
 
                 boolean exists = priceHistoryRepository
                         .existsByCourseAndSourceAndCollectedAt(course, source, hp.collectedAt());
@@ -196,7 +203,8 @@ public class CollectPersistenceService {
 
     private MembershipCourse findOrRegisterCourse(String rawName, String region, CourseType courseType,
                                                   MembershipType collectedType, Integer holes,
-                                                  Map<String, CourseAlias> aliases) {
+                                                  Map<String, CourseAlias> aliases,
+                                                  boolean allowNewCourses) {
         String trimmed = rawName == null ? "" : rawName.trim();
 
         String name;
@@ -218,6 +226,10 @@ public class CollectPersistenceService {
         return membershipCourseRepository
                 .findByNameAndCourseTypeAndMembershipType(name, courseType, membershipType)
                 .orElseGet(() -> {
+                    if (!allowNewCourses) {
+                        log.debug("미매칭 종목 건너뜀: {} (원본: {})", name, trimmed);
+                        return null;
+                    }
                     log.debug("신규 종목 등록: {} (원본: {})", name, trimmed);
                     return membershipCourseRepository.save(
                             MembershipCourse.builder()
