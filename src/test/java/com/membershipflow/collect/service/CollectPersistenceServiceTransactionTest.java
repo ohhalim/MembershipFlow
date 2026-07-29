@@ -2,18 +2,26 @@ package com.membershipflow.collect.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 
+import com.membershipflow.collect.collector.CollectedPrice;
 import com.membershipflow.collect.entity.CollectRun;
+import com.membershipflow.collect.entity.CollectStatus;
 import com.membershipflow.collect.entity.CrawlSource;
 import com.membershipflow.collect.entity.CrawlType;
 import com.membershipflow.collect.repository.CollectRunRepository;
 import com.membershipflow.collect.repository.CourseAliasRepository;
 import com.membershipflow.collect.repository.CourseSourceMappingRepository;
+import com.membershipflow.course.entity.CourseType;
+import com.membershipflow.course.entity.MembershipType;
 import com.membershipflow.course.repository.CourseInfoRepository;
 import com.membershipflow.course.repository.MembershipCourseRepository;
 import com.membershipflow.price.repository.PriceHistoryRepository;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +39,8 @@ class CollectPersistenceServiceTransactionTest {
     @Autowired CollectPersistenceService persistenceService;
     @Autowired CourseAliasRepository courseAliasRepository;
     @Autowired CollectRunRepository collectRunRepository;
+    @Autowired MembershipCourseRepository membershipCourseRepository;
+    @Autowired PriceHistoryRepository priceHistoryRepository;
 
     @Test
     void saveCollectedPrices_runsInsideTransactionProxy() {
@@ -42,6 +52,8 @@ class CollectPersistenceServiceTransactionTest {
                 .build();
         CollectRun run = CollectRun.builder().source(source).parserVersion("1.0").build();
 
+        assertThat(source.isAllowNewCourses()).isTrue();
+
         given(courseAliasRepository.findAll()).willAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
             return List.of();
@@ -51,6 +63,37 @@ class CollectPersistenceServiceTransactionTest {
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
         persistenceService.saveCollectedPrices(source, run, List.of());
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+    }
+
+    @Test
+    void saveCollectedPrices_disallowsUnknownCourseRegistration_forRestrictedSource() {
+        CrawlSource source = CrawlSource.builder()
+                .name("프리미엄회원권")
+                .baseUrl("https://www.premiumgolf.co.kr/")
+                .crawlType(CrawlType.JSOUP)
+                .active(true)
+                .allowNewCourses(false)
+                .build();
+        CollectRun run = CollectRun.builder().source(source).parserVersion("1.0").build();
+        CollectedPrice unmatched = new CollectedPrice(
+                "미등록회원권", null, CourseType.GOLF,
+                MembershipType.REGULAR, null, 100_000_000L, source.getName());
+
+        assertThat(source.isAllowNewCourses()).isFalse();
+
+        given(courseAliasRepository.findAll()).willReturn(List.of());
+        given(membershipCourseRepository.findByNameAndCourseTypeAndMembershipType(
+                "미등록회원권", CourseType.GOLF, MembershipType.REGULAR))
+                .willReturn(Optional.empty());
+        given(collectRunRepository.save(run)).willReturn(run);
+
+        persistenceService.saveCollectedPrices(source, run, List.of(unmatched));
+
+        verify(membershipCourseRepository, never()).save(any());
+        verify(priceHistoryRepository).saveAll(List.of());
+        assertThat(run.getStatus()).isEqualTo(CollectStatus.SUCCESS);
+        assertThat(run.getSuccessCount()).isZero();
+        assertThat(run.getFailCount()).isZero();
     }
 
     @Configuration
