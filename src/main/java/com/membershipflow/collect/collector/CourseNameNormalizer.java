@@ -69,7 +69,7 @@ public final class CourseNameNormalizer {
                     // 토큰 추출 후 이름이 비면 원래 이름 유지
                     return new NormalizedCourse(name, null);
                 }
-                return new NormalizedCourse(stripped, e.getValue());
+                return new NormalizedCourse(stripTrailingCc(stripped), e.getValue());
             }
         }
 
@@ -79,7 +79,7 @@ public final class CourseNameNormalizer {
         if (m.matches()) {
             MembershipType type = TRAILING_TOKENS.get(m.group(2).trim());
             if (type != null && !m.group(1).isBlank()) {
-                return new NormalizedCourse(m.group(1), type);
+                return new NormalizedCourse(stripTrailingCc(m.group(1)), type);
             }
         }
 
@@ -127,5 +127,10 @@ public final class CourseNameNormalizer {
             return false;
         }
         return true;
+    }
+
+    private static String stripTrailingCc(String name) {
+        String stripped = TRAILING_CC.matcher(name).replaceFirst("");
+        return stripped.isBlank() ? name : stripped;
     }
 }
