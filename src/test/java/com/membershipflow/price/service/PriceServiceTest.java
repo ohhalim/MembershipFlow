@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class PriceServiceTest {
@@ -89,5 +93,45 @@ class PriceServiceTest {
         // when / then
         assertThatThrownBy(() -> priceService.getLatestBySource(999L))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("비구독자의 장기 차트가 7일로 제한되면 일별로 집계한다")
+    void getChart_nonSubscriberLongPeriod_usesDailyInterval() {
+        // given
+        LocalDate today = LocalDate.now();
+        given(courseRepository.findById(1L)).willReturn(Optional.of(course));
+        given(priceHistoryRepository.findChartByDay(eq(1L), any(), any()))
+                .willReturn(List.of());
+
+        // when
+        var result = priceService.getChart(
+                1L, today.minusYears(1), today, "MONTH", false);
+
+        // then
+        assertThat(result.interval()).isEqualTo("DAY");
+        assertThat(result.from()).isEqualTo(today.minusDays(7));
+        assertThat(result.subscriptionRequired()).isTrue();
+        verify(priceHistoryRepository).findChartByDay(eq(1L), any(), any());
+    }
+
+    @Test
+    @DisplayName("구독자의 1년 차트는 월별 집계를 유지한다")
+    void getChart_subscriberLongPeriod_keepsMonthlyInterval() {
+        // given
+        LocalDate today = LocalDate.now();
+        given(courseRepository.findById(1L)).willReturn(Optional.of(course));
+        given(priceHistoryRepository.findChartByMonth(eq(1L), any(), any()))
+                .willReturn(List.of());
+
+        // when
+        var result = priceService.getChart(
+                1L, today.minusYears(1), today, "MONTH", true);
+
+        // then
+        assertThat(result.interval()).isEqualTo("MONTH");
+        assertThat(result.from()).isEqualTo(today.minusYears(1));
+        assertThat(result.subscriptionRequired()).isFalse();
+        verify(priceHistoryRepository).findChartByMonth(eq(1L), any(), any());
     }
 }
