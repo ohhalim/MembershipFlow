@@ -91,6 +91,26 @@ class PremiumGolfCollectorTest {
     }
 
     @Test
+    @DisplayName("long 범위를 넘는 가격 행만 건너뛴다")
+    void parse_overflowingPrice_skipsOnlyInvalidRows() {
+        Document doc = Jsoup.parse("""
+                <div data-tab="tab01">
+                  <div class="cont__body type2">
+                    <div class="colum"><div>파싱범위초과</div><div>9,223,372,036,854,775,808</div><div>0</div></div>
+                    <div class="colum"><div>곱셈범위초과</div><div>922,337,203,685,478</div><div>0</div></div>
+                    <div class="colum"><div>정상종목</div><div>10,000</div><div>0</div></div>
+                  </div>
+                </div>
+                """);
+
+        List<CollectedPrice> result = collector.parse(doc);
+
+        assertThat(result).singleElement()
+                .extracting(CollectedPrice::courseName)
+                .isEqualTo("정상종목");
+    }
+
+    @Test
     @DisplayName("골프 시세 행이 없으면 파싱 실패로 처리한다")
     void parse_noRows_throwsCollectException() {
         Document doc = Jsoup.parse("<html><body></body></html>");

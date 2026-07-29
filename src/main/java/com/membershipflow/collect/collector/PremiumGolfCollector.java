@@ -95,6 +95,11 @@ public class PremiumGolfCollector implements PriceCollector {
         if (cleaned.isBlank()) {
             throw new CollectException("가격 파싱 실패: " + text);
         }
-        return Long.parseLong(cleaned) * 10_000L;
+        try {
+            long priceInTenThousands = Long.parseLong(cleaned);
+            return Math.multiplyExact(priceInTenThousands, 10_000L);
+        } catch (NumberFormatException | ArithmeticException e) {
+            throw new CollectException("가격 파싱 실패: " + text, e);
+        }
     }
 }
