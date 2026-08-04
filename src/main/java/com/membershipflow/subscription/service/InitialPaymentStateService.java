@@ -2,6 +2,7 @@ package com.membershipflow.subscription.service;
 
 import com.membershipflow.common.exception.BusinessException;
 import com.membershipflow.common.exception.ErrorCode;
+import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
 import com.membershipflow.subscription.dto.SubscriptionResponse;
 import com.membershipflow.subscription.entity.BillingAttempt;
@@ -13,6 +14,8 @@ import com.membershipflow.subscription.repository.BillingAttemptRepository;
 import com.membershipflow.subscription.repository.PaymentHistoryRepository;
 import com.membershipflow.subscription.repository.SubscriptionRepository;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InitialPaymentStateService {
 
     private final BillingAttemptRepository billingAttemptRepository;
+    private final MemberRepository memberRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final PaymentHistoryRepository paymentHistoryRepository;
 
@@ -29,11 +33,58 @@ public class InitialPaymentStateService {
     public InitialPaymentContext load(String customerKey) {
         BillingAttempt attempt = findLocked(customerKey);
         if (attempt.getStatus() == BillingAttemptStatus.COMPLETED) {
-            return contextOf(attempt, true);
+            return contextOf(attempt, true, false);
+        }
+        if (attempt.getStatus() == BillingAttemptStatus.PROCESSING) {
+            throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
         }
         validatePending(attempt);
         rejectActiveSubscription(attempt);
-        return contextOf(attempt, false);
+        return contextOf(attempt, false, false);
+    }
+
+    /**
+     * 콜백의 외부 호출을 시작하기 전에 회원 단위로 결제 시도를 선점한다.
+     * 같은 회원의 두 콜백이 서로 다른 customerKey를 사용해도 한 건만 PROCESSING이 된다.
+     */
+    @Transactional
+    public InitialPaymentContext claim(String customerKey) {
+        BillingAttempt reference = billingAttemptRepository.findByCustomerKey(customerKey)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
+        memberRepository.findByIdForUpdate(reference.getMember().getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
+
+        BillingAttempt attempt = findLocked(customerKey);
+        if (attempt.getStatus() == BillingAttemptStatus.COMPLETED) {
+            return contextOf(attempt, true, false);
+        }
+
+        List<BillingAttempt> attempts = billingAttemptRepository
+                .findAllByMemberIdAndStatusInOrderByIdAsc(
+                        attempt.getMember().getId(),
+                        Set.of(BillingAttemptStatus.PENDING, BillingAttemptStatus.PROCESSING));
+        expireUnstartedAttempts(attempts);
+
+        long activeCount = attempts.stream()
+                .filter(this::isActiveAttempt)
+                .count();
+        if (activeCount > 1) {
+            // 과거 중복 데이터는 자동 선택·정리하지 않고 운영 확인을 요구한다.
+            throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
+        }
+
+        if (attempt.getStatus() == BillingAttemptStatus.PROCESSING) {
+            // 외부 승인 결과가 늦게 도착한 경우에는 재과금하지 않고 주문 상태만 확인한다.
+            return contextOf(attempt, false, true);
+        }
+        if (attempt.getBillingKey() != null || attempt.getOrderId() != null) {
+            // V14 이전 흐름에서 저장된 복구 정보는 승인 상태 대조 전까지 재사용하지 않는다.
+            throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
+        }
+        validatePending(attempt);
+        rejectActiveSubscription(attempt);
+        attempt.startProcessing();
+        return contextOf(attempt, false, false);
     }
 
     @Transactional
@@ -41,11 +92,11 @@ public class InitialPaymentStateService {
                                                   String orderId, String cardNumberMasked,
                                                   String cardCompany) {
         BillingAttempt attempt = findLocked(customerKey);
-        validatePending(attempt);
+        validateProcessing(attempt);
         rejectActiveSubscription(attempt);
         attempt.storeBillingKey(
                 encryptedBillingKey, orderId, cardNumberMasked, cardCompany);
-        return contextOf(attempt, false);
+        return contextOf(attempt, false, false);
     }
 
     @Transactional(readOnly = true)
@@ -62,7 +113,7 @@ public class InitialPaymentStateService {
         if (attempt.getStatus() == BillingAttemptStatus.COMPLETED) {
             return getCompletedSubscription(attempt.getMember().getId());
         }
-        validatePending(attempt);
+        validateProcessing(attempt);
         if (attempt.getBillingKey() == null || attempt.getOrderId() == null) {
             throw new BusinessException(ErrorCode.BILLING_KEY_ISSUE_FAILED);
         }
@@ -121,6 +172,29 @@ public class InitialPaymentStateService {
         }
     }
 
+    private void validateProcessing(BillingAttempt attempt) {
+        if (attempt.getStatus() != BillingAttemptStatus.PROCESSING) {
+            throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
+        }
+    }
+
+    private void expireUnstartedAttempts(List<BillingAttempt> attempts) {
+        LocalDateTime now = LocalDateTime.now();
+        attempts.stream()
+                .filter(attempt -> attempt.getStatus() == BillingAttemptStatus.PENDING)
+                .filter(attempt -> !attempt.getExpiresAt().isAfter(now))
+                .filter(attempt -> attempt.getBillingKey() == null && attempt.getOrderId() == null)
+                .forEach(BillingAttempt::expire);
+    }
+
+    private boolean isActiveAttempt(BillingAttempt attempt) {
+        if (attempt.getStatus() == BillingAttemptStatus.PROCESSING) return true;
+        if (attempt.getStatus() != BillingAttemptStatus.PENDING) return false;
+        // 기존 복구 필드가 있는 PENDING은 승인 여부를 확인하기 전까지 재사용하지 않는다.
+        if (attempt.getBillingKey() != null || attempt.getOrderId() != null) return true;
+        return attempt.getExpiresAt().isAfter(LocalDateTime.now());
+    }
+
     private void rejectActiveSubscription(BillingAttempt attempt) {
         subscriptionRepository.findByMemberId(attempt.getMember().getId())
                 .filter(Subscription::isActive)
@@ -129,11 +203,11 @@ public class InitialPaymentStateService {
                 });
     }
 
-    private InitialPaymentContext contextOf(BillingAttempt attempt, boolean completed) {
+    private InitialPaymentContext contextOf(BillingAttempt attempt, boolean completed, boolean processing) {
         return new InitialPaymentContext(
                 attempt.getCustomerKey(), attempt.getMember().getId(),
                 attempt.getPlan().getName(), attempt.getPlan().getPrice(),
-                attempt.getBillingKey(), attempt.getOrderId(), completed);
+                attempt.getBillingKey(), attempt.getOrderId(), completed, processing);
     }
 
     public record InitialPaymentContext(
@@ -143,5 +217,13 @@ public class InitialPaymentStateService {
             int amount,
             String encryptedBillingKey,
             String orderId,
-            boolean completed) {}
+            boolean completed,
+            boolean processing) {
+        public InitialPaymentContext(String customerKey, Long memberId, String planName,
+                                     int amount, String encryptedBillingKey, String orderId,
+                                     boolean completed) {
+            this(customerKey, memberId, planName, amount, encryptedBillingKey, orderId,
+                    completed, false);
+        }
+    }
 }

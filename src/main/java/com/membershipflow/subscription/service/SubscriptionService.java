@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -55,7 +56,8 @@ public class SubscriptionService {
      */
     @Transactional
     public BillingPrepareResponse prepare(Long memberId, Long planId) {
-        Member member = findMember(memberId);
+        Member member = memberRepository.findByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
         SubscriptionPlan plan = planRepository.findByIdAndActiveTrue(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
 
@@ -63,6 +65,31 @@ public class SubscriptionService {
         subscriptionRepository.findByMemberId(memberId).ifPresent(sub -> {
             if (sub.isActive()) throw new BusinessException(ErrorCode.SUBSCRIPTION_ALREADY_EXISTS);
         });
+
+        List<BillingAttempt> attempts = billingAttemptRepository
+                .findAllByMemberIdAndStatusInOrderByIdAsc(
+                        memberId, Set.of(BillingAttemptStatus.PENDING, BillingAttemptStatus.PROCESSING));
+        expireUnstartedAttempts(attempts);
+
+        List<BillingAttempt> activeAttempts = attempts.stream()
+                .filter(this::isActiveAttempt)
+                .toList();
+        if (activeAttempts.stream().anyMatch(attempt ->
+                attempt.getStatus() == BillingAttemptStatus.PROCESSING)) {
+            throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
+        }
+        if (activeAttempts.size() > 1) {
+            // 기존 운영 중복 데이터는 임의로 선택하지 않고 수동 상태 대조를 요구한다.
+            throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
+        }
+        if (activeAttempts.size() == 1) {
+            BillingAttempt active = activeAttempts.get(0);
+            if (!Objects.equals(active.getPlan().getId(), planId)) {
+                throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
+            }
+            return new BillingPrepareResponse(
+                    active.getCustomerKey(), tossClientKey, active.getPlan().getId());
+        }
 
         String customerKey = UUID.randomUUID().toString();
         BillingAttempt attempt = BillingAttempt.builder()
@@ -80,9 +107,23 @@ public class SubscriptionService {
      */
     public SubscriptionResponse handleCallback(String customerKey, String authKey) {
         InitialPaymentStateService.InitialPaymentContext context =
-                initialPaymentStateService.load(customerKey);
+                initialPaymentStateService.claim(customerKey);
         if (context.completed()) {
             return initialPaymentStateService.getCompletedSubscription(context.memberId());
+        }
+
+        if (context.processing()) {
+            if (context.orderId() == null) {
+                throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
+            }
+            String processingOrderId = context.orderId();
+            int processingAmount = context.amount();
+            TossPaymentsClient.PaymentResponse recovered =
+                    tossPaymentsClient.findPaymentByOrderId(processingOrderId)
+                            .filter(response -> response.paymentKey() != null
+                                    && response.totalAmount() == processingAmount)
+                            .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS));
+            return initialPaymentStateService.complete(customerKey, recovered);
         }
 
         if (context.encryptedBillingKey() == null) {
@@ -262,9 +303,21 @@ public class SubscriptionService {
                 .build());
     }
 
-    private Member findMember(Long memberId) {
-        return memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
+    private void expireUnstartedAttempts(List<BillingAttempt> attempts) {
+        LocalDateTime now = LocalDateTime.now();
+        attempts.stream()
+                .filter(attempt -> attempt.getStatus() == BillingAttemptStatus.PENDING)
+                .filter(attempt -> !attempt.getExpiresAt().isAfter(now))
+                .filter(attempt -> attempt.getBillingKey() == null && attempt.getOrderId() == null)
+                .forEach(BillingAttempt::expire);
+    }
+
+    private boolean isActiveAttempt(BillingAttempt attempt) {
+        if (attempt.getStatus() == BillingAttemptStatus.PROCESSING) return true;
+        if (attempt.getStatus() != BillingAttemptStatus.PENDING) return false;
+        // 기존 복구 필드가 있는 PENDING은 Toss 승인 여부 확인 전까지 차단한다.
+        if (attempt.getBillingKey() != null || attempt.getOrderId() != null) return true;
+        return attempt.getExpiresAt().isAfter(LocalDateTime.now());
     }
 
     private Subscription findActiveSubscription(Long memberId) {

@@ -37,6 +37,10 @@ public class BillingAttempt {
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
+    /** 외부 결제 요청을 선점한 시각. PROCESSING은 승인 결과 확인 전까지 유지한다. */
+    @Column(name = "processing_at")
+    private LocalDateTime processingAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -62,11 +66,39 @@ public class BillingAttempt {
         this.createdAt   = LocalDateTime.now();
     }
 
-    public void complete() { this.status = BillingAttemptStatus.COMPLETED; }
-    public void fail()     { this.status = BillingAttemptStatus.FAILED; }
+    public void startProcessing() {
+        if (this.status != BillingAttemptStatus.PENDING) {
+            throw new IllegalStateException("결제 시도는 PENDING 상태에서만 선점할 수 있습니다.");
+        }
+        this.status = BillingAttemptStatus.PROCESSING;
+        this.processingAt = LocalDateTime.now();
+    }
+
+    public void complete() {
+        this.status = BillingAttemptStatus.COMPLETED;
+        this.processingAt = null;
+    }
+
+    public void fail() {
+        this.status = BillingAttemptStatus.FAILED;
+        this.processingAt = null;
+    }
+
+    /** 빌링 키 발급과 외부 결제가 시작되지 않은 만료 시도만 정리한다. */
+    public void expire() {
+        if (this.status != BillingAttemptStatus.PENDING
+                || this.billingKey != null
+                || this.orderId != null) {
+            throw new IllegalStateException("외부 결제 정보가 있는 시도는 자동 만료할 수 없습니다.");
+        }
+        this.status = BillingAttemptStatus.EXPIRED;
+    }
 
     public void storeBillingKey(String billingKey, String orderId,
                                 String cardNumberMasked, String cardCompany) {
+        if (this.status != BillingAttemptStatus.PROCESSING) {
+            throw new IllegalStateException("PROCESSING 상태에서만 빌링 키를 저장할 수 있습니다.");
+        }
         if (this.billingKey != null) return;
         this.billingKey = billingKey;
         this.orderId = orderId;
