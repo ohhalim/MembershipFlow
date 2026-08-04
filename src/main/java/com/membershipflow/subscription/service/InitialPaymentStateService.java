@@ -13,6 +13,7 @@ import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.repository.BillingAttemptRepository;
 import com.membershipflow.subscription.repository.PaymentHistoryRepository;
 import com.membershipflow.subscription.repository.SubscriptionRepository;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -23,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class InitialPaymentStateService {
+
+    private static final Duration ABANDONED_BILLING_ISSUE_TIMEOUT = Duration.ofMinutes(10);
 
     private final BillingAttemptRepository billingAttemptRepository;
     private final MemberRepository memberRepository;
@@ -73,8 +76,15 @@ public class InitialPaymentStateService {
             throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
         }
 
+        if (isAbandonedBillingIssue(attempt)) {
+            attempt.fail();
+            return contextOf(attempt, false, false, true);
+        }
         if (attempt.getStatus() == BillingAttemptStatus.PROCESSING) {
-            attempt.ensureIssueIdempotencyKey();
+            if (attempt.getIssueIdempotencyKey() == null) {
+                // V19 이전 PROCESSING은 기존 외부 요청 결과를 알 수 없어 새 키로 재호출하지 않는다.
+                throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
+            }
             return contextOf(attempt, false, true);
         }
         if (attempt.getBillingKey() != null || attempt.getOrderId() != null) {
@@ -199,6 +209,15 @@ public class InitialPaymentStateService {
         return attempt.getExpiresAt().isAfter(LocalDateTime.now());
     }
 
+    private boolean isAbandonedBillingIssue(BillingAttempt attempt) {
+        return attempt.getStatus() == BillingAttemptStatus.PROCESSING
+                && attempt.getBillingKey() == null
+                && attempt.getOrderId() == null
+                && attempt.getProcessingAt() != null
+                && attempt.getProcessingAt().isBefore(
+                        LocalDateTime.now().minus(ABANDONED_BILLING_ISSUE_TIMEOUT));
+    }
+
     private void rejectActiveSubscription(BillingAttempt attempt) {
         subscriptionRepository.findByMemberId(attempt.getMember().getId())
                 .filter(Subscription::isActive)
@@ -208,12 +227,17 @@ public class InitialPaymentStateService {
     }
 
     private InitialPaymentContext contextOf(BillingAttempt attempt, boolean completed, boolean processing) {
+        return contextOf(attempt, completed, processing, false);
+    }
+
+    private InitialPaymentContext contextOf(BillingAttempt attempt, boolean completed,
+                                            boolean processing, boolean reauthenticationRequired) {
         return new InitialPaymentContext(
                 attempt.getCustomerKey(), attempt.getMember().getId(),
                 attempt.getPlan().getName(), attempt.getPlan().getPrice(),
                 attempt.getBillingKey(), attempt.getOrderId(),
                 attempt.getIssueIdempotencyKey(), attempt.getChargeIdempotencyKey(),
-                completed, processing);
+                completed, processing, reauthenticationRequired);
     }
 
     private boolean isExpectedCompletedPayment(
@@ -236,19 +260,29 @@ public class InitialPaymentStateService {
             String issueIdempotencyKey,
             String chargeIdempotencyKey,
             boolean completed,
-            boolean processing) {
+            boolean processing,
+            boolean reauthenticationRequired) {
         public InitialPaymentContext(String customerKey, Long memberId, String planName,
                                      int amount, String encryptedBillingKey, String orderId,
                                      boolean completed) {
             this(customerKey, memberId, planName, amount, encryptedBillingKey, orderId,
-                    null, null, completed, false);
+                    null, null, completed, false, false);
         }
 
         public InitialPaymentContext(String customerKey, Long memberId, String planName,
                                      int amount, String encryptedBillingKey, String orderId,
                                      boolean completed, boolean processing) {
             this(customerKey, memberId, planName, amount, encryptedBillingKey, orderId,
-                    null, null, completed, processing);
+                    null, null, completed, processing, false);
+        }
+
+        public InitialPaymentContext(String customerKey, Long memberId, String planName,
+                                     int amount, String encryptedBillingKey, String orderId,
+                                     String issueIdempotencyKey, String chargeIdempotencyKey,
+                                     boolean completed, boolean processing) {
+            this(customerKey, memberId, planName, amount, encryptedBillingKey, orderId,
+                    issueIdempotencyKey, chargeIdempotencyKey,
+                    completed, processing, false);
         }
     }
 }

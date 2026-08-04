@@ -479,6 +479,24 @@ class SubscriptionServiceTest {
         then(initialPaymentStateService).should().complete("customer-key", response);
     }
 
+    @Test
+    @DisplayName("중단된 빌링키 발급 시도는 외부 요청 없이 새 카드 인증을 요구한다")
+    void handleCallback_abandonedBillingIssue_requiresReauthentication() {
+        var abandoned = new InitialPaymentStateService.InitialPaymentContext(
+                "customer-key", member.getId(), "프리미엄", 9900,
+                null, null, "issue-idempotency-key", null,
+                false, false, true);
+        given(initialPaymentStateService.claim("customer-key")).willReturn(abandoned);
+
+        assertThatThrownBy(() ->
+                subscriptionService.handleCallback("customer-key", "auth-key"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SUBSCRIPTION_NOT_FOUND);
+
+        then(tossPaymentsClient).shouldHaveNoInteractions();
+    }
+
     private TossPaymentsClient.PaymentResponse completedInitialPayment(
             String paymentKey, String orderId) {
         return new TossPaymentsClient.PaymentResponse(

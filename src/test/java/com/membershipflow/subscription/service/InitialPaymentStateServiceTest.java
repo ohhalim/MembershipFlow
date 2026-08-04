@@ -126,6 +126,51 @@ class InitialPaymentStateServiceTest {
     }
 
     @Test
+    void claim_preV19ProcessingWithoutIssueKey_doesNotCreateReplacementKey() {
+        ReflectionTestUtils.setField(attempt, "issueIdempotencyKey", null);
+        given(billingAttemptRepository.findByCustomerKey("customer-key"))
+                .willReturn(Optional.of(attempt));
+        given(memberRepository.findByIdForUpdate(member.getId()))
+                .willReturn(Optional.of(member));
+        given(billingAttemptRepository.findByCustomerKeyForUpdate("customer-key"))
+                .willReturn(Optional.of(attempt));
+        given(billingAttemptRepository.findAllByMemberIdAndStatusInOrderByIdAsc(
+                member.getId(),
+                java.util.Set.of(BillingAttemptStatus.PENDING, BillingAttemptStatus.PROCESSING)))
+                .willReturn(List.of(attempt));
+
+        assertThatThrownBy(() -> stateService.claim("customer-key"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PAYMENT_IN_PROGRESS);
+
+        assertThat(attempt.getIssueIdempotencyKey()).isNull();
+        assertThat(attempt.getStatus()).isEqualTo(BillingAttemptStatus.PROCESSING);
+    }
+
+    @Test
+    void claim_staleProcessingBeforeBillingKey_marksAttemptFailed() {
+        ReflectionTestUtils.setField(
+                attempt, "processingAt", LocalDateTime.now().minusMinutes(11));
+        given(billingAttemptRepository.findByCustomerKey("customer-key"))
+                .willReturn(Optional.of(attempt));
+        given(memberRepository.findByIdForUpdate(member.getId()))
+                .willReturn(Optional.of(member));
+        given(billingAttemptRepository.findByCustomerKeyForUpdate("customer-key"))
+                .willReturn(Optional.of(attempt));
+        given(billingAttemptRepository.findAllByMemberIdAndStatusInOrderByIdAsc(
+                member.getId(),
+                java.util.Set.of(BillingAttemptStatus.PENDING, BillingAttemptStatus.PROCESSING)))
+                .willReturn(List.of(attempt));
+
+        var context = stateService.claim("customer-key");
+
+        assertThat(context.reauthenticationRequired()).isTrue();
+        assertThat(attempt.getStatus()).isEqualTo(BillingAttemptStatus.FAILED);
+        assertThat(attempt.getProcessingAt()).isNull();
+    }
+
+    @Test
     void complete_expiredCancelledSubscription_reactivatesExistingRow() {
         attempt.storeBillingKey(
                 "encrypted-key", "ORDER-customer-key", "1234-****", "국민");

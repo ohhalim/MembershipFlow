@@ -114,6 +114,9 @@ public class SubscriptionService {
         if (context.completed()) {
             return initialPaymentStateService.getCompletedSubscription(context.memberId());
         }
+        if (context.reauthenticationRequired()) {
+            throw new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND);
+        }
 
         if (context.encryptedBillingKey() == null) {
             TossPaymentsClient.BillingKeyResponse billingKeyResponse =
