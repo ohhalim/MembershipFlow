@@ -17,7 +17,10 @@ case "$*" in
     printf '%s\n' "${FAKE_CONTAINER_ID:-backend-container}"
     ;;
   "inspect --format "*)
-    printf '%s\n' "${FAKE_HEALTH:-healthy}"
+    printf '%s %s %s\n' \
+      "${FAKE_STATUS:-running}" \
+      "${FAKE_RESTARTING:-false}" \
+      "${FAKE_HEALTH:-healthy}"
     ;;
   "compose ps backend")
     printf '%s\n' "backend diagnostic status"
@@ -49,7 +52,23 @@ if failure_output="$(PATH="${fixture_directory}:${PATH}" FAKE_HEALTH=unhealthy \
   echo "expected unhealthy inspection failure" >&2
   exit 1
 fi
-[[ "${failure_output}" == *"ERROR: backend health is unhealthy"* ]]
+[[ "${failure_output}" == *"health=unhealthy"* ]]
+[[ "${failure_output}" == *"backend diagnostic logs"* ]]
+
+if failure_output="$(PATH="${fixture_directory}:${PATH}" FAKE_STATUS=exited \
+  bash "${script_directory}/wait-for-backend-health.sh" 2>&1)"; then
+  echo "expected exited container failure" >&2
+  exit 1
+fi
+[[ "${failure_output}" == *"state=exited"* ]]
+[[ "${failure_output}" == *"backend diagnostic logs"* ]]
+
+if failure_output="$(PATH="${fixture_directory}:${PATH}" FAKE_RESTARTING=true \
+  bash "${script_directory}/wait-for-backend-health.sh" 2>&1)"; then
+  echo "expected restarting container failure" >&2
+  exit 1
+fi
+[[ "${failure_output}" == *"restarting=true"* ]]
 [[ "${failure_output}" == *"backend diagnostic logs"* ]]
 
 echo "Backend health gate tests passed"

@@ -15,20 +15,32 @@ if ! docker compose up -d --no-deps --wait \
   exit 1
 fi
 
-backend_container="$(docker compose ps -q backend)"
-if [[ -z "${backend_container}" ]]; then
+backend_containers=()
+while IFS= read -r backend_container; do
+  if [[ -n "${backend_container}" ]]; then
+    backend_containers+=("${backend_container}")
+  fi
+done < <(docker compose ps -q backend)
+
+if [[ "${#backend_containers[@]}" -eq 0 ]]; then
   echo "ERROR: backend container was not created"
   print_backend_diagnostics
   exit 1
 fi
 
-backend_health="$(docker inspect --format \
-  '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
-  "${backend_container}")"
-if [[ "${backend_health}" != "healthy" ]]; then
-  echo "ERROR: backend health is ${backend_health}"
-  print_backend_diagnostics
-  exit 1
-fi
+for backend_container in "${backend_containers[@]}"; do
+  backend_state="$(docker inspect --format \
+    '{{.State.Status}} {{.State.Restarting}} {{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
+    "${backend_container}")"
+  read -r runtime_status restarting health_status <<< "${backend_state}"
 
-echo "Backend health gate passed: ${backend_container} (${backend_health})"
+  if [[ "${runtime_status}" != "running" \
+    || "${restarting}" != "false" \
+    || "${health_status}" != "healthy" ]]; then
+    echo "ERROR: backend ${backend_container} state=${runtime_status} restarting=${restarting} health=${health_status}"
+    print_backend_diagnostics
+    exit 1
+  fi
+
+  echo "Backend health gate passed: ${backend_container} state=${runtime_status} restarting=${restarting} health=${health_status}"
+done
