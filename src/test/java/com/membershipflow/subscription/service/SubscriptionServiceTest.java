@@ -6,6 +6,7 @@ import com.membershipflow.common.util.BillingKeyEncryptor;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
+import com.membershipflow.subscription.entity.BillingAttempt;
 import com.membershipflow.subscription.entity.PaymentHistory;
 import com.membershipflow.subscription.entity.PaymentStatus;
 import com.membershipflow.subscription.entity.Subscription;
@@ -80,7 +81,7 @@ class SubscriptionServiceTest {
     @Test
     @DisplayName("비활성 또는 존재하지 않는 플랜은 결제 준비를 차단한다")
     void prepare_inactivePlan_throwsBeforeAttemptCreation() {
-        given(memberRepository.findById(member.getId())).willReturn(Optional.of(member));
+        given(memberRepository.findByIdForUpdate(member.getId())).willReturn(Optional.of(member));
         given(planRepository.findByIdAndActiveTrue(99L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> subscriptionService.prepare(member.getId(), 99L))
@@ -88,6 +89,45 @@ class SubscriptionServiceTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.SUBSCRIPTION_NOT_FOUND);
 
+        then(billingAttemptRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("동일 회원의 유효한 결제 준비 요청은 새 시도를 만들지 않고 기존 customerKey를 재사용한다")
+    void prepare_reusesExistingPendingAttempt() {
+        BillingAttempt active = BillingAttempt.builder()
+                .member(member).plan(plan).customerKey("existing-customer-key")
+                .build();
+        given(memberRepository.findByIdForUpdate(member.getId())).willReturn(Optional.of(member));
+        given(planRepository.findByIdAndActiveTrue(1L)).willReturn(Optional.of(plan));
+        given(subscriptionRepository.findByMemberId(member.getId())).willReturn(Optional.empty());
+        given(billingAttemptRepository.findAllByMemberIdAndStatusInOrderByIdAsc(
+                eq(member.getId()), any())).willReturn(List.of(active));
+        given(plan.getId()).willReturn(1L);
+
+        var response = subscriptionService.prepare(member.getId(), 1L);
+
+        assertThat(response.customerKey()).isEqualTo("existing-customer-key");
+        then(billingAttemptRepository).should(never()).save(any());
+    }
+
+    @Test
+    @DisplayName("처리 중인 결제 준비 요청은 새 시도를 만들지 않는다")
+    void prepare_processingAttempt_blocksNewAttempt() {
+        BillingAttempt processing = BillingAttempt.builder()
+                .member(member).plan(plan).customerKey("processing-customer-key")
+                .build();
+        processing.startProcessing();
+        given(memberRepository.findByIdForUpdate(member.getId())).willReturn(Optional.of(member));
+        given(planRepository.findByIdAndActiveTrue(1L)).willReturn(Optional.of(plan));
+        given(subscriptionRepository.findByMemberId(member.getId())).willReturn(Optional.empty());
+        given(billingAttemptRepository.findAllByMemberIdAndStatusInOrderByIdAsc(
+                eq(member.getId()), any())).willReturn(List.of(processing));
+
+        assertThatThrownBy(() -> subscriptionService.prepare(member.getId(), 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PAYMENT_IN_PROGRESS);
         then(billingAttemptRepository).should(never()).save(any());
     }
 
@@ -268,7 +308,7 @@ class SubscriptionServiceTest {
         var stored = new InitialPaymentStateService.InitialPaymentContext(
                 "new-customer-key", member.getId(), "프리미엄", 9900,
                 "enc-new-key", "ORDER-new-customer-key", false);
-        given(initialPaymentStateService.load("new-customer-key")).willReturn(initial);
+        given(initialPaymentStateService.claim("new-customer-key")).willReturn(initial);
         given(tossPaymentsClient.issueBillingKey(anyString(), anyString()))
                 .willReturn(new TossPaymentsClient.BillingKeyResponse(
                         "new-billing-key", "new-customer-key",
@@ -300,7 +340,7 @@ class SubscriptionServiceTest {
         var stored = new InitialPaymentStateService.InitialPaymentContext(
                 "customer-key", member.getId(), "프리미엄", 9900,
                 "encrypted-key", "ORDER-customer-key", false);
-        given(initialPaymentStateService.load("customer-key")).willReturn(stored);
+        given(initialPaymentStateService.claim("customer-key")).willReturn(stored);
         given(billingKeyEncryptor.decrypt("encrypted-key")).willReturn("raw-key");
         given(tossPaymentsClient.charge(
                 "raw-key", "customer-key", 9900,
@@ -318,12 +358,51 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    @DisplayName("처리 중 콜백은 재과금하지 않고 기존 주문 승인만 복구한다")
+    void handleCallback_processingAttempt_recoversWithoutChargingAgain() {
+        var processing = new InitialPaymentStateService.InitialPaymentContext(
+                "customer-key", member.getId(), "프리미엄", 9900,
+                "encrypted-key", "ORDER-customer-key", false, true);
+        var recovered = new TossPaymentsClient.PaymentResponse(
+                "payment-key", "2026-07-25", 9900, null);
+        given(initialPaymentStateService.claim("customer-key")).willReturn(processing);
+        given(tossPaymentsClient.findPaymentByOrderId("ORDER-customer-key"))
+                .willReturn(Optional.of(recovered));
+
+        subscriptionService.handleCallback("customer-key", "auth-key");
+
+        then(tossPaymentsClient).should(never()).charge(
+                anyString(), anyString(), anyInt(), anyString(), anyString());
+        then(initialPaymentStateService).should().complete("customer-key", recovered);
+    }
+
+    @Test
+    @DisplayName("처리 중 결제의 승인 상태를 확인할 수 없으면 재과금하지 않고 PROCESSING을 유지한다")
+    void handleCallback_processingAttempt_statusCheckFailure_doesNotComplete() {
+        var processing = new InitialPaymentStateService.InitialPaymentContext(
+                "customer-key", member.getId(), "프리미엄", 9900,
+                "encrypted-key", "ORDER-customer-key", false, true);
+        given(initialPaymentStateService.claim("customer-key")).willReturn(processing);
+        given(tossPaymentsClient.findPaymentByOrderId("ORDER-customer-key"))
+                .willThrow(new BusinessException(ErrorCode.PAYMENT_STATUS_CHECK_FAILED));
+
+        assertThatThrownBy(() -> subscriptionService.handleCallback("customer-key", "auth-key"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PAYMENT_STATUS_CHECK_FAILED);
+        then(tossPaymentsClient).should(never()).charge(
+                anyString(), anyString(), anyInt(), anyString(), anyString());
+        then(initialPaymentStateService).should(never())
+                .complete(anyString(), any(TossPaymentsClient.PaymentResponse.class));
+    }
+
+    @Test
     @DisplayName("이미 완료된 최초 결제 콜백은 외부 결제를 다시 호출하지 않는다")
     void handleCallback_completedAttempt_returnsStoredSubscription() {
         var completed = new InitialPaymentStateService.InitialPaymentContext(
                 "customer-key", member.getId(), "프리미엄", 9900,
                 "encrypted-key", "ORDER-customer-key", true);
-        given(initialPaymentStateService.load("customer-key")).willReturn(completed);
+        given(initialPaymentStateService.claim("customer-key")).willReturn(completed);
 
         subscriptionService.handleCallback("customer-key", "auth-key");
 
@@ -335,7 +414,7 @@ class SubscriptionServiceTest {
     @Test
     @DisplayName("활성 구독이 있으면 결제 호출 전에 SUBSCRIPTION_ALREADY_EXISTS로 차단한다 (#179)")
     void handleCallback_activeSubscriptionExists_blocksBeforeCharge() {
-        given(initialPaymentStateService.load("dup-customer-key"))
+        given(initialPaymentStateService.claim("dup-customer-key"))
                 .willThrow(new BusinessException(ErrorCode.SUBSCRIPTION_ALREADY_EXISTS));
 
         // when / then — 토스 결제/빌링키 발급이 아예 호출되지 않아야 함 (돈 안 나감)

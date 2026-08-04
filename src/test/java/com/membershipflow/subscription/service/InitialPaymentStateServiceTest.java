@@ -5,8 +5,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 
 import com.membershipflow.member.entity.Member;
+import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
 import com.membershipflow.subscription.entity.BillingAttempt;
 import com.membershipflow.subscription.entity.BillingAttemptStatus;
@@ -19,6 +21,7 @@ import com.membershipflow.subscription.repository.PaymentHistoryRepository;
 import com.membershipflow.subscription.repository.SubscriptionRepository;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +35,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class InitialPaymentStateServiceTest {
 
     @Mock BillingAttemptRepository billingAttemptRepository;
+    @Mock MemberRepository memberRepository;
     @Mock SubscriptionRepository subscriptionRepository;
     @Mock PaymentHistoryRepository paymentHistoryRepository;
     @InjectMocks InitialPaymentStateService stateService;
@@ -44,13 +48,14 @@ class InitialPaymentStateServiceTest {
     void setUp() {
         member = Member.builder().id(10L).email("sub@test.com").build();
         plan = org.mockito.Mockito.mock(SubscriptionPlan.class);
-        given(plan.getName()).willReturn("프리미엄");
-        given(plan.getPrice()).willReturn(9900);
+        lenient().when(plan.getName()).thenReturn("프리미엄");
+        lenient().when(plan.getPrice()).thenReturn(9900);
         attempt = BillingAttempt.builder()
                 .member(member)
                 .plan(plan)
                 .customerKey("customer-key")
                 .build();
+        attempt.startProcessing();
     }
 
     @Test
@@ -67,6 +72,52 @@ class InitialPaymentStateServiceTest {
         assertThat(context.encryptedBillingKey()).isEqualTo("encrypted-key");
         assertThat(context.orderId()).isEqualTo("ORDER-customer-key");
         assertThat(attempt.getCardCompany()).isEqualTo("국민");
+    }
+
+    @Test
+    void claim_marksAttemptProcessing_beforeExternalCall() {
+        BillingAttempt fresh = BillingAttempt.builder()
+                .member(member)
+                .plan(plan)
+                .customerKey("claim-key")
+                .build();
+        given(billingAttemptRepository.findByCustomerKey("claim-key"))
+                .willReturn(Optional.of(fresh));
+        given(memberRepository.findByIdForUpdate(member.getId()))
+                .willReturn(Optional.of(member));
+        given(billingAttemptRepository.findByCustomerKeyForUpdate("claim-key"))
+                .willReturn(Optional.of(fresh));
+        given(billingAttemptRepository.findAllByMemberIdAndStatusInOrderByIdAsc(
+                member.getId(),
+                java.util.Set.of(BillingAttemptStatus.PENDING, BillingAttemptStatus.PROCESSING)))
+                .willReturn(List.of(fresh));
+        given(subscriptionRepository.findByMemberId(member.getId()))
+                .willReturn(Optional.empty());
+
+        var context = stateService.claim("claim-key");
+
+        assertThat(context.completed()).isFalse();
+        assertThat(fresh.getStatus()).isEqualTo(BillingAttemptStatus.PROCESSING);
+        assertThat(fresh.getProcessingAt()).isNotNull();
+    }
+
+    @Test
+    void claim_returnsRecoveryContext_whileAttemptIsProcessing() {
+        given(billingAttemptRepository.findByCustomerKey("customer-key"))
+                .willReturn(Optional.of(attempt));
+        given(memberRepository.findByIdForUpdate(member.getId()))
+                .willReturn(Optional.of(member));
+        given(billingAttemptRepository.findByCustomerKeyForUpdate("customer-key"))
+                .willReturn(Optional.of(attempt));
+        given(billingAttemptRepository.findAllByMemberIdAndStatusInOrderByIdAsc(
+                member.getId(),
+                java.util.Set.of(BillingAttemptStatus.PENDING, BillingAttemptStatus.PROCESSING)))
+                .willReturn(List.of(attempt));
+
+        var context = stateService.claim("customer-key");
+
+        assertThat(context.processing()).isTrue();
+        assertThat(context.completed()).isFalse();
     }
 
     @Test

@@ -9,9 +9,16 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface BillingAttemptRepository extends JpaRepository<BillingAttempt, Long> {
+    Optional<BillingAttempt> findByCustomerKey(String customerKey);
+
+    List<BillingAttempt> findAllByMemberIdAndStatusInOrderByIdAsc(
+            Long memberId, Collection<BillingAttemptStatus> statuses);
+
     Optional<BillingAttempt> findByCustomerKeyAndStatusAndExpiresAtAfter(
             String customerKey, BillingAttemptStatus status, LocalDateTime now);
 
