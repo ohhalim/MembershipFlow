@@ -20,6 +20,7 @@ public enum ErrorCode {
 
     SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND,        "SUBSCRIPTION_NOT_FOUND",       "구독 정보를 찾을 수 없습니다."),
     SUBSCRIPTION_ALREADY_EXISTS(HttpStatus.CONFLICT,    "SUBSCRIPTION_ALREADY_EXISTS",  "이미 구독 중입니다."),
+    PAYMENT_IN_PROGRESS(HttpStatus.CONFLICT,            "PAYMENT_IN_PROGRESS",          "이미 진행 중인 결제가 있습니다."),
     SUBSCRIPTION_REQUIRED(HttpStatus.FORBIDDEN,         "SUBSCRIPTION_REQUIRED",        "구독이 필요한 기능입니다."),
     BILLING_KEY_ISSUE_FAILED(HttpStatus.BAD_GATEWAY,    "BILLING_KEY_ISSUE_FAILED",     "빌링 키 발급에 실패했습니다."),
     PAYMENT_FAILED_ERROR(HttpStatus.PAYMENT_REQUIRED,   "PAYMENT_FAILED",               "결제에 실패했습니다."),
