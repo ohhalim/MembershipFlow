@@ -131,6 +131,29 @@ class SubscriptionServiceTest {
         then(billingAttemptRepository).should(never()).save(any());
     }
 
+    @Test
+    @DisplayName("빌링키 발급 전에 중단된 처리 상태는 10분 후 종료하고 새 인증을 허용한다")
+    void prepare_abandonedBillingIssueAttempt_allowsNewAttempt() {
+        BillingAttempt abandoned = BillingAttempt.builder()
+                .member(member).plan(plan).customerKey("abandoned-customer-key")
+                .build();
+        abandoned.startProcessing();
+        ReflectionTestUtils.setField(
+                abandoned, "processingAt", LocalDateTime.now().minusMinutes(11));
+        given(memberRepository.findByIdForUpdate(member.getId())).willReturn(Optional.of(member));
+        given(planRepository.findByIdAndActiveTrue(1L)).willReturn(Optional.of(plan));
+        given(subscriptionRepository.findByMemberId(member.getId())).willReturn(Optional.empty());
+        given(billingAttemptRepository.findAllByMemberIdAndStatusInOrderByIdAsc(
+                eq(member.getId()), any())).willReturn(List.of(abandoned));
+
+        var response = subscriptionService.prepare(member.getId(), 1L);
+
+        assertThat(abandoned.getStatus())
+                .isEqualTo(com.membershipflow.subscription.entity.BillingAttemptStatus.FAILED);
+        assertThat(response.customerKey()).isNotEqualTo("abandoned-customer-key");
+        then(billingAttemptRepository).should().save(any(BillingAttempt.class));
+    }
+
     private Subscription subscriptionDueAt(LocalDateTime nextBillingAt) {
         Subscription sub = Subscription.builder()
                 .member(member).plan(plan)
@@ -304,23 +327,28 @@ class SubscriptionServiceTest {
     void handleCallback_newAttempt_persistsBillingKeyBeforeCharge() {
         var initial = new InitialPaymentStateService.InitialPaymentContext(
                 "new-customer-key", member.getId(), "프리미엄", 9900,
-                null, null, false);
+                null, null, "issue-idempotency-key", null, false, false);
         var stored = new InitialPaymentStateService.InitialPaymentContext(
                 "new-customer-key", member.getId(), "프리미엄", 9900,
-                "enc-new-key", "ORDER-new-customer-key", false);
+                "enc-new-key", "ORDER-new-customer-key",
+                "issue-idempotency-key", "charge-idempotency-key", false, true);
         given(initialPaymentStateService.claim("new-customer-key")).willReturn(initial);
-        given(tossPaymentsClient.issueBillingKey(anyString(), anyString()))
+        given(tossPaymentsClient.issueBillingKey(
+                "new-customer-key", "auth-key", "issue-idempotency-key"))
                 .willReturn(new TossPaymentsClient.BillingKeyResponse(
                         "new-billing-key", "new-customer-key",
-                        new TossPaymentsClient.BillingKeyResponse.CardInfo("1234-****", "국민")));
+                        new TossPaymentsClient.BillingKeyResponse.CardInfo("1234-****"),
+                        "국민", "1234-****"));
         given(billingKeyEncryptor.encrypt("new-billing-key")).willReturn("enc-new-key");
         given(initialPaymentStateService.storeBillingKey(
                 "new-customer-key", "enc-new-key", "ORDER-new-customer-key",
                 "1234-****", "국민"))
                 .willReturn(stored);
         given(billingKeyEncryptor.decrypt("enc-new-key")).willReturn("new-billing-key");
-        given(tossPaymentsClient.charge(anyString(), anyString(), anyInt(), anyString(), anyString()))
-                .willReturn(new TossPaymentsClient.PaymentResponse("pay-key", "2026-07-10", 9900, null));
+        given(tossPaymentsClient.charge(
+                "new-billing-key", "new-customer-key", 9900,
+                "ORDER-new-customer-key", "프리미엄 구독 결제", "charge-idempotency-key"))
+                .willReturn(completedInitialPayment("pay-key", "ORDER-new-customer-key"));
 
         subscriptionService.handleCallback("new-customer-key", "auth-key");
 
@@ -329,7 +357,7 @@ class SubscriptionServiceTest {
                 "1234-****", "국민");
         then(tossPaymentsClient).should().charge(
                 "new-billing-key", "new-customer-key", 9900,
-                "ORDER-new-customer-key", "프리미엄 구독 결제");
+                "ORDER-new-customer-key", "프리미엄 구독 결제", "charge-idempotency-key");
         then(initialPaymentStateService).should().complete(
                 eq("new-customer-key"), any(TossPaymentsClient.PaymentResponse.class));
     }
@@ -339,21 +367,22 @@ class SubscriptionServiceTest {
     void handleCallback_chargeResponseLost_recoversByOrderId() {
         var stored = new InitialPaymentStateService.InitialPaymentContext(
                 "customer-key", member.getId(), "프리미엄", 9900,
-                "encrypted-key", "ORDER-customer-key", false);
+                "encrypted-key", "ORDER-customer-key",
+                "issue-idempotency-key", "charge-idempotency-key", false, true);
         given(initialPaymentStateService.claim("customer-key")).willReturn(stored);
         given(billingKeyEncryptor.decrypt("encrypted-key")).willReturn("raw-key");
         given(tossPaymentsClient.charge(
                 "raw-key", "customer-key", 9900,
-                "ORDER-customer-key", "프리미엄 구독 결제"))
+                "ORDER-customer-key", "프리미엄 구독 결제", "charge-idempotency-key"))
                 .willThrow(new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR));
-        var recovered = new TossPaymentsClient.PaymentResponse(
-                "payment-key", "2026-07-25", 9900, null);
+        var recovered = completedInitialPayment("payment-key", "ORDER-customer-key");
         given(tossPaymentsClient.findPaymentByOrderId("ORDER-customer-key"))
                 .willReturn(Optional.of(recovered));
 
         subscriptionService.handleCallback("customer-key", "auth-key");
 
-        then(tossPaymentsClient).should(never()).issueBillingKey(anyString(), anyString());
+        then(tossPaymentsClient).should(never())
+                .issueBillingKey(anyString(), anyString(), anyString());
         then(initialPaymentStateService).should().complete("customer-key", recovered);
     }
 
@@ -363,8 +392,7 @@ class SubscriptionServiceTest {
         var processing = new InitialPaymentStateService.InitialPaymentContext(
                 "customer-key", member.getId(), "프리미엄", 9900,
                 "encrypted-key", "ORDER-customer-key", false, true);
-        var recovered = new TossPaymentsClient.PaymentResponse(
-                "payment-key", "2026-07-25", 9900, null);
+        var recovered = completedInitialPayment("payment-key", "ORDER-customer-key");
         given(initialPaymentStateService.claim("customer-key")).willReturn(processing);
         given(tossPaymentsClient.findPaymentByOrderId("ORDER-customer-key"))
                 .willReturn(Optional.of(recovered));
@@ -422,8 +450,56 @@ class SubscriptionServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.SUBSCRIPTION_ALREADY_EXISTS);
-        then(tossPaymentsClient).should(never()).issueBillingKey(anyString(), anyString());
+        then(tossPaymentsClient).should(never())
+                .issueBillingKey(anyString(), anyString(), anyString());
         then(tossPaymentsClient).should(never())
                 .charge(anyString(), anyString(), anyInt(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("처리 중 최초 결제는 저장된 멱등키로 같은 승인 요청을 안전하게 재호출한다")
+    void handleCallback_processingAttempt_retriesChargeWithSameIdempotencyKey() {
+        var processing = new InitialPaymentStateService.InitialPaymentContext(
+                "customer-key", member.getId(), "프리미엄", 9900,
+                "encrypted-key", "ORDER-customer-key",
+                "issue-idempotency-key", "charge-idempotency-key", false, true);
+        var response = completedInitialPayment("payment-key", "ORDER-customer-key");
+        given(initialPaymentStateService.claim("customer-key")).willReturn(processing);
+        given(billingKeyEncryptor.decrypt("encrypted-key")).willReturn("raw-key");
+        given(tossPaymentsClient.charge(
+                "raw-key", "customer-key", 9900,
+                "ORDER-customer-key", "프리미엄 구독 결제", "charge-idempotency-key"))
+                .willReturn(response);
+
+        subscriptionService.handleCallback("customer-key", "auth-key");
+
+        then(tossPaymentsClient).should().charge(
+                "raw-key", "customer-key", 9900,
+                "ORDER-customer-key", "프리미엄 구독 결제", "charge-idempotency-key");
+        then(initialPaymentStateService).should().complete("customer-key", response);
+    }
+
+    @Test
+    @DisplayName("중단된 빌링키 발급 시도는 외부 요청 없이 새 카드 인증을 요구한다")
+    void handleCallback_abandonedBillingIssue_requiresReauthentication() {
+        var abandoned = new InitialPaymentStateService.InitialPaymentContext(
+                "customer-key", member.getId(), "프리미엄", 9900,
+                null, null, "issue-idempotency-key", null,
+                false, false, true);
+        given(initialPaymentStateService.claim("customer-key")).willReturn(abandoned);
+
+        assertThatThrownBy(() ->
+                subscriptionService.handleCallback("customer-key", "auth-key"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SUBSCRIPTION_NOT_FOUND);
+
+        then(tossPaymentsClient).shouldHaveNoInteractions();
+    }
+
+    private TossPaymentsClient.PaymentResponse completedInitialPayment(
+            String paymentKey, String orderId) {
+        return new TossPaymentsClient.PaymentResponse(
+                paymentKey, orderId, "DONE", "BILLING", "2026-07-25", 9900, null);
     }
 }
