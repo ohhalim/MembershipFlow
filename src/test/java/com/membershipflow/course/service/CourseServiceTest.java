@@ -139,6 +139,9 @@ class CourseServiceTest {
         given(courseRepository.findById(COURSE_ID)).willReturn(Optional.of(course));
         given(priceService.getLatestBySource(COURSE_ID)).willReturn(List.of(
                 new com.membershipflow.price.dto.LatestSourcePriceResponse(
+                        "비활성거래소", "http://disabled.example", 100_000_000L,
+                        LocalDateTime.of(2026, 7, 7, 6, 0), false),
+                new com.membershipflow.price.dto.LatestSourcePriceResponse(
                         "동아골프", "http://donga.com", 450_000_000L,
                         LocalDateTime.of(2026, 7, 7, 7, 0)),
                 new com.membershipflow.price.dto.LatestSourcePriceResponse(
@@ -152,11 +155,13 @@ class CourseServiceTest {
         // then — 최신 수집가(450M)가 아니라 거래소 최저가(438M)가 latestPrice, updatedAt도 최저가 소스 기준
         assertThat(detail.latestPrice()).isEqualTo(438_000_000L);
         assertThat(detail.updatedAt()).isEqualTo("2026-07-06T09:00");
+        assertThat(detail.latestPriceSource()).isEqualTo("동부회원권");
+        assertThat(detail.sources()).noneMatch(source -> source.sourceName().equals("비활성거래소"));
     }
 
     @Test
-    @DisplayName("상세에서 거래소별 가격이 없으면 비정규화 컬럼(course.latestPrice)으로 폴백한다 (#168)")
-    void getDetail_noSourcePrices_fallsBackToCourseLatestPrice() {
+    @DisplayName("상세에서 유효한 거래소별 가격이 없으면 오래된 비정규화 가격을 사용하지 않는다 (#262)")
+    void getDetail_noFreshSourcePrices_returnsNull() {
         // given
         course.updateLatestPrice(420_000_000L, "동부회원권", LocalDateTime.of(2026, 7, 5, 8, 0));
         given(courseRepository.findById(COURSE_ID)).willReturn(Optional.of(course));
@@ -167,8 +172,8 @@ class CourseServiceTest {
         CourseDetailResponse detail = courseService.getDetail(COURSE_ID);
 
         // then
-        assertThat(detail.latestPrice()).isEqualTo(420_000_000L);
-        assertThat(detail.updatedAt()).isEqualTo("2026-07-05T08:00");
+        assertThat(detail.latestPrice()).isNull();
+        assertThat(detail.updatedAt()).isNull();
     }
 
     @Test
@@ -227,8 +232,10 @@ class CourseServiceTest {
     void search_listPrice_isMinOfSourcePrices() {
         // given — 동아 450,000,000 / 동부 438,000,000
         stubSearch(List.of(
-                new Object[]{COURSE_ID, "동아골프", 450_000_000L},
-                new Object[]{COURSE_ID, "동부회원권", 438_000_000L}));
+                new Object[]{COURSE_ID, "동아골프", 450_000_000L,
+                        java.sql.Timestamp.valueOf("2026-07-07 07:00:00")},
+                new Object[]{COURSE_ID, "동부회원권", 438_000_000L,
+                        java.sql.Timestamp.valueOf("2026-07-06 09:00:00")}));
 
         // when
         Page<CourseListItemResponse> result =
@@ -239,7 +246,10 @@ class CourseServiceTest {
         assertThat(item.latestPrice()).isEqualTo(438_000_000L);
         assertThat(item.sourcePrices()).hasSize(2);
         // updatedAt은 기존 로직(소스 무관 최신 수집 시각) 유지
-        assertThat(item.updatedAt()).isEqualTo("2026-07-07T07:00");
+        assertThat(item.updatedAt()).isEqualTo("2026-07-06T09:00");
+        assertThat(item.latestPriceSource()).isEqualTo("동부회원권");
+        assertThat(item.sourcePrices().get(1).collectedAt()).isEqualTo("2026-07-06T09:00");
+        assertThat(item.sourcePrices().get(1).fresh()).isTrue();
     }
 
     @Test
@@ -259,9 +269,9 @@ class CourseServiceTest {
     }
 
     @Test
-    @DisplayName("changeRate는 대표 가격이 아닌 기존 로직(소스 무관 최신가 vs 7일 기준가)을 유지한다")
-    void search_changeRate_keepsExistingLogic() {
-        // given — 7일 전 기준가 400,000,000 → (450M-400M)/400M = +12.5%
+    @DisplayName("changeRate는 대표 최저가와 7일 대표 기준가를 비교한다 (#262)")
+    void search_changeRate_usesRepresentativePrice() {
+        // given — 대표 최신가 438,000,000 / 7일 전 기준가 400,000,000 → +9.5%
         PriceHistory base = PriceHistory.builder()
                 .price(400_000_000L)
                 .collectedAt(LocalDateTime.of(2026, 6, 30, 7, 0))
@@ -276,10 +286,10 @@ class CourseServiceTest {
         Page<CourseListItemResponse> result =
                 courseService.search(null, null, null, null, null, pageable);
 
-        // then — 대표 가격은 최저가지만 등락률은 최신 수집가 기준
+        // then — 대표 가격과 등락률 모두 거래소별 대표 최저가 기준
         CourseListItemResponse item = result.getContent().get(0);
         assertThat(item.latestPrice()).isEqualTo(438_000_000L);
-        assertThat(item.changeRate()).isEqualTo(12.5);
+        assertThat(item.changeRate()).isEqualTo(9.5);
     }
 
     @Test

@@ -40,7 +40,8 @@ public class PriceService {
                         ph.getSource().getName(),
                         sourceUrlResolver.resolve(course, ph.getSource()),
                         ph.getPrice(),
-                        ph.getCollectedAt()))
+                        ph.getCollectedAt(),
+                        true))
                 .toList();
     }
 

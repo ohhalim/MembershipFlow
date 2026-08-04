@@ -98,7 +98,8 @@ public class CourseService {
         return new PageImpl<>(content, pageable, total);
     }
 
-    // (courseId, sourceName, price) 행을 courseId별로 그룹핑
+    // (courseId, sourceName, price, collectedAt) 행을 courseId별로 그룹핑.
+    // PriceHistoryRepository가 이미 활성·fresh 소스만 반환하므로 stale 행은 숨긴다.
     private Map<Long, List<CourseListItemResponse.SourcePriceItem>> getSourcePriceMap(List<Long> ids) {
         if (ids.isEmpty()) return Map.of();
         return priceService.getLatestPerSourceRows(ids).stream()
@@ -106,7 +107,9 @@ public class CourseService {
                         row -> ((Number) row[0]).longValue(),
                         Collectors.mapping(
                                 row -> new CourseListItemResponse.SourcePriceItem(
-                                        (String) row[1], ((Number) row[2]).longValue()),
+                                        (String) row[1], ((Number) row[2]).longValue(),
+                                        row.length > 3 ? formatCollectedAt(row[3]) : null,
+                                        true),
                                 Collectors.toList())));
     }
 
@@ -118,27 +121,68 @@ public class CourseService {
         PriceHistory base   = baseMap.get(c.getId());
         List<CourseListItemResponse.SourcePriceItem> sourcePrices =
                 sourcePriceMap.getOrDefault(c.getId(), List.of());
+        CourseListItemResponse.SourcePriceItem representative = resolveRepresentativeSourcePrice(sourcePrices);
+        Long latestPrice = representative != null ? representative.price()
+                : latest != null ? latest.getPrice() : null;
+        String updatedAt = representative != null && representative.collectedAt() != null
+                ? representative.collectedAt()
+                : latest != null ? latest.getCollectedAt().toString() : null;
+        String latestPriceSource = representative != null ? representative.source()
+                : latest != null && latest.getSource() != null
+                ? latest.getSource().getName()
+                : c.getLatestPriceSource();
+        PriceHistory representativeHistory = representative != null
+                ? toPriceHistory(representative, latest)
+                : latest;
         return new CourseListItemResponse(
                 c.getId(), c.getName(), c.getRegion(),
                 c.getCourseType() != null ? c.getCourseType().name() : null,
                 c.getMembershipType() != null ? c.getMembershipType().name() : null,
                 c.getHoles(),
-                resolveListPrice(latest, sourcePrices),
-                latest != null ? latest.getCollectedAt().toString() : null,
-                calcChangeRate(latest, base),
+                latestPrice,
+                updatedAt,
+                calcChangeRate(representativeHistory, base),
+                latestPriceSource,
                 sourcePrices);
     }
 
-    // 목록 대표 가격 규칙 (#130): 코스 통합 후 거래소별 최신가가 섞이지 않도록,
-    // 매수자 관점에서 거래소별 최신가 중 최저가를 대표 가격으로 사용.
-    // 거래소별 가격이 없으면 소스 무관 최신가로 폴백
-    private Long resolveListPrice(PriceHistory latest,
-                                  List<CourseListItemResponse.SourcePriceItem> sourcePrices) {
+    // 목록 대표 가격 규칙 (#262): 활성·fresh 거래소별 최신가 중 최저가를 대표 가격으로 사용.
+    // sourcePrices가 비어 있는 경우에는 DB 대표 행(latest)도 이미 같은 freshness 계약을 따른다.
+    private CourseListItemResponse.SourcePriceItem resolveRepresentativeSourcePrice(
+            List<CourseListItemResponse.SourcePriceItem> sourcePrices) {
         return sourcePrices.stream()
-                .map(CourseListItemResponse.SourcePriceItem::price)
-                .filter(Objects::nonNull)
-                .min(Long::compareTo)
-                .orElse(latest != null ? latest.getPrice() : null);
+                .filter(CourseListItemResponse.SourcePriceItem::fresh)
+                .filter(p -> p.price() != null)
+                .min(java.util.Comparator.comparing(CourseListItemResponse.SourcePriceItem::price)
+                        .thenComparing(p -> p.collectedAt() == null ? "" : p.collectedAt()))
+                .orElse(null);
+    }
+
+    private String formatCollectedAt(Object value) {
+        if (value == null) return null;
+        if (value instanceof java.sql.Timestamp timestamp) {
+            return timestamp.toLocalDateTime().toString();
+        }
+        if (value instanceof LocalDateTime dateTime) {
+            return dateTime.toString();
+        }
+        return value.toString();
+    }
+
+    private PriceHistory toPriceHistory(CourseListItemResponse.SourcePriceItem sourcePrice,
+                                        PriceHistory fallback) {
+        LocalDateTime collectedAt = fallback != null ? fallback.getCollectedAt() : null;
+        if (sourcePrice.collectedAt() != null) {
+            try {
+                collectedAt = LocalDateTime.parse(sourcePrice.collectedAt());
+            } catch (java.time.format.DateTimeParseException ignored) {
+                // 테스트/구버전 응답에 시각이 없거나 파싱할 수 없으면 단건 latest를 사용한다.
+            }
+        }
+        return PriceHistory.builder()
+                .price(sourcePrice.price())
+                .collectedAt(collectedAt)
+                .build();
     }
 
     public CourseDetailResponse getDetail(Long courseId) {
@@ -148,8 +192,14 @@ public class CourseService {
         List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices =
                 priceService.getLatestBySource(courseId);
 
-        Long latestPrice  = resolveDetailPrice(rawPrices, course.getLatestPrice());
-        String updatedAt  = resolveDetailUpdatedAt(rawPrices, latestPrice, course);
+        Long latestPrice  = resolveDetailPrice(rawPrices);
+        String updatedAt  = resolveDetailUpdatedAt(rawPrices, latestPrice);
+        String latestPriceSource = rawPrices.stream()
+                .filter(p -> p.fresh())
+                .filter(p -> latestPrice != null && latestPrice.equals(p.price()))
+                .map(com.membershipflow.price.dto.LatestSourcePriceResponse::sourceName)
+                .findFirst()
+                .orElse(null);
         PriceHistory base = priceService.get7dBasePriceBatch(List.of(courseId)).get(courseId);
         Double changeRate = latestPrice != null
                 ? calcChangeRate(PriceHistory.builder().price(latestPrice).build(), base)
@@ -159,31 +209,33 @@ public class CourseService {
                 course.getId(), course.getName(), course.getRegion(),
                 course.getCourseType(), course.getMembershipType(), course.getHoles(),
                 rawPrices, latestPrice, updatedAt, changeRate,
+                latestPriceSource,
                 false, null,
                 courseInfoRepository.findByCourseId(courseId)
                         .map(this::toCourseInfoDto)
                         .orElse(null));
     }
 
-    // 상세 대표 가격 (#168): 목록(resolveListPrice)과 동일한 규칙 — 거래소별 최신가 중 최저가.
-    // 거래소별 가격이 없으면 비정규화 컬럼(course.latestPrice, TD-9)으로 폴백
-    private Long resolveDetailPrice(List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices,
-                                     Long fallbackPrice) {
+    // 상세 대표 가격 (#262): 목록과 동일한 규칙 — 활성·fresh 거래소별 최신가 중 최저가.
+    // 유효한 거래소별 가격이 없으면 오래된 비정규화 컬럼으로 폴백하지 않는다.
+    private Long resolveDetailPrice(List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices) {
         return rawPrices.stream()
+                .filter(com.membershipflow.price.dto.LatestSourcePriceResponse::fresh)
                 .map(com.membershipflow.price.dto.LatestSourcePriceResponse::price)
                 .filter(Objects::nonNull)
                 .min(Long::compareTo)
-                .orElse(fallbackPrice);
+                .orElse(null);
     }
 
-    // 상세 updatedAt (#168): 위에서 선택된 최저가 소스의 수집 시각, 없으면 비정규화 컬럼(latestPriceAt) 폴백
+    // 상세 updatedAt: 대표 가격으로 선택된 동일 행의 수집 시각.
     private String resolveDetailUpdatedAt(List<com.membershipflow.price.dto.LatestSourcePriceResponse> rawPrices,
-                                           Long latestPrice, MembershipCourse course) {
+                                           Long latestPrice) {
         return rawPrices.stream()
+                .filter(com.membershipflow.price.dto.LatestSourcePriceResponse::fresh)
                 .filter(p -> latestPrice != null && latestPrice.equals(p.price()))
                 .map(p -> p.collectedAt() != null ? p.collectedAt().toString() : null)
                 .findFirst()
-                .orElse(course.getLatestPriceAt() != null ? course.getLatestPriceAt().toString() : null);
+                .orElse(null);
     }
 
     private CourseDetailResponse.CourseInfoDto toCourseInfoDto(CourseInfo info) {
