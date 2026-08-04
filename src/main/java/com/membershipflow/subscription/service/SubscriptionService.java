@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
@@ -30,6 +31,7 @@ public class SubscriptionService {
 
     private static final DateTimeFormatter BILLING_CYCLE_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final Duration ABANDONED_BILLING_ISSUE_TIMEOUT = Duration.ofMinutes(10);
 
     private final MemberRepository              memberRepository;
     private final SubscriptionPlanRepository    planRepository;
@@ -70,6 +72,7 @@ public class SubscriptionService {
                 .findAllByMemberIdAndStatusInOrderByIdAsc(
                         memberId, Set.of(BillingAttemptStatus.PENDING, BillingAttemptStatus.PROCESSING));
         expireUnstartedAttempts(attempts);
+        failAbandonedBillingIssueAttempts(attempts);
 
         List<BillingAttempt> activeAttempts = attempts.stream()
                 .filter(this::isActiveAttempt)
@@ -111,34 +114,24 @@ public class SubscriptionService {
         if (context.completed()) {
             return initialPaymentStateService.getCompletedSubscription(context.memberId());
         }
-
-        if (context.processing()) {
-            if (context.orderId() == null) {
-                throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
-            }
-            String processingOrderId = context.orderId();
-            int processingAmount = context.amount();
-            TossPaymentsClient.PaymentResponse recovered =
-                    tossPaymentsClient.findPaymentByOrderId(processingOrderId)
-                            .filter(response -> response.paymentKey() != null
-                                    && response.totalAmount() == processingAmount)
-                            .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS));
-            return initialPaymentStateService.complete(customerKey, recovered);
+        if (context.reauthenticationRequired()) {
+            throw new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND);
         }
 
         if (context.encryptedBillingKey() == null) {
             TossPaymentsClient.BillingKeyResponse billingKeyResponse =
-                    tossPaymentsClient.issueBillingKey(customerKey, authKey);
+                    tossPaymentsClient.issueBillingKey(
+                            customerKey, authKey, context.issueIdempotencyKey());
             if (billingKeyResponse == null
                     || billingKeyResponse.billingKey() == null
                     || !customerKey.equals(billingKeyResponse.customerKey())) {
                 throw new BusinessException(ErrorCode.BILLING_KEY_ISSUE_FAILED);
             }
 
-            String cardNumber = billingKeyResponse.card() != null
-                    ? billingKeyResponse.card().number() : null;
-            String cardCompany = billingKeyResponse.card() != null
-                    ? billingKeyResponse.card().cardCompany() : null;
+            String cardNumber = billingKeyResponse.cardNumber() != null
+                    ? billingKeyResponse.cardNumber()
+                    : billingKeyResponse.card() != null ? billingKeyResponse.card().number() : null;
+            String cardCompany = billingKeyResponse.cardCompany();
             context = initialPaymentStateService.storeBillingKey(
                     customerKey,
                     billingKeyEncryptor.encrypt(billingKeyResponse.billingKey()),
@@ -148,6 +141,14 @@ public class SubscriptionService {
         }
 
         InitialPaymentStateService.InitialPaymentContext paymentContext = context;
+        if (paymentContext.chargeIdempotencyKey() == null) {
+            TossPaymentsClient.PaymentResponse recovered =
+                    tossPaymentsClient.findPaymentByOrderId(paymentContext.orderId())
+                            .filter(response -> isExpectedCompletedPayment(response, paymentContext))
+                            .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS));
+            return initialPaymentStateService.complete(customerKey, recovered);
+        }
+
         String rawBillingKey = billingKeyEncryptor.decrypt(paymentContext.encryptedBillingKey());
         TossPaymentsClient.PaymentResponse paymentResponse;
         try {
@@ -156,17 +157,15 @@ public class SubscriptionService {
                     customerKey,
                     paymentContext.amount(),
                     paymentContext.orderId(),
-                    paymentContext.planName() + " 구독 결제");
+                    paymentContext.planName() + " 구독 결제",
+                    paymentContext.chargeIdempotencyKey());
         } catch (BusinessException chargeFailure) {
             paymentResponse = tossPaymentsClient.findPaymentByOrderId(paymentContext.orderId())
-                    .filter(response -> response.paymentKey() != null
-                            && response.totalAmount() == paymentContext.amount())
+                    .filter(response -> isExpectedCompletedPayment(response, paymentContext))
                     .orElseThrow(() -> chargeFailure);
         }
 
-        if (paymentResponse == null
-                || paymentResponse.paymentKey() == null
-                || paymentResponse.totalAmount() != paymentContext.amount()) {
+        if (!isExpectedCompletedPayment(paymentResponse, paymentContext)) {
             throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
         }
 
@@ -310,6 +309,31 @@ public class SubscriptionService {
                 .filter(attempt -> !attempt.getExpiresAt().isAfter(now))
                 .filter(attempt -> attempt.getBillingKey() == null && attempt.getOrderId() == null)
                 .forEach(BillingAttempt::expire);
+    }
+
+    /**
+     * 빌링키/주문번호를 저장하기 전에 중단된 시도는 실제 과금 수단이 남아 있지 않다.
+     * 충분한 대기 후 FAILED로 종료해 사용자가 새 카드 인증을 시작할 수 있게 한다.
+     */
+    private void failAbandonedBillingIssueAttempts(List<BillingAttempt> attempts) {
+        LocalDateTime cutoff = LocalDateTime.now().minus(ABANDONED_BILLING_ISSUE_TIMEOUT);
+        attempts.stream()
+                .filter(attempt -> attempt.getStatus() == BillingAttemptStatus.PROCESSING)
+                .filter(attempt -> attempt.getBillingKey() == null && attempt.getOrderId() == null)
+                .filter(attempt -> attempt.getProcessingAt() != null
+                        && attempt.getProcessingAt().isBefore(cutoff))
+                .forEach(BillingAttempt::fail);
+    }
+
+    private boolean isExpectedCompletedPayment(
+            TossPaymentsClient.PaymentResponse paymentResponse,
+            InitialPaymentStateService.InitialPaymentContext context) {
+        return paymentResponse != null
+                && paymentResponse.paymentKey() != null
+                && context.orderId().equals(paymentResponse.orderId())
+                && context.amount() == paymentResponse.totalAmount()
+                && "DONE".equals(paymentResponse.status())
+                && "BILLING".equals(paymentResponse.type());
     }
 
     private boolean isActiveAttempt(BillingAttempt attempt) {

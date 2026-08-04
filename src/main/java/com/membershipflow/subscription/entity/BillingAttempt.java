@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.UUID;
 
 @Entity
 @Table(name = "billing_attempt")
@@ -41,6 +43,10 @@ public class BillingAttempt {
     @Column(name = "processing_at")
     private LocalDateTime processingAt;
 
+    /** Toss 빌링키 발급 POST 재호출에 사용하는 멱등키. 외부 호출 전에 저장한다. */
+    @Column(name = "issue_idempotency_key", unique = true, length = 36)
+    private String issueIdempotencyKey;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -49,6 +55,10 @@ public class BillingAttempt {
 
     @Column(name = "order_id", unique = true, length = 64)
     private String orderId;
+
+    /** 최초 자동결제 승인 POST 재호출에 사용하는 멱등키. 외부 호출 전에 저장한다. */
+    @Column(name = "charge_idempotency_key", unique = true, length = 36)
+    private String chargeIdempotencyKey;
 
     @Column(name = "card_number_masked", length = 50)
     private String cardNumberMasked;
@@ -64,6 +74,7 @@ public class BillingAttempt {
         this.status      = BillingAttemptStatus.PENDING;
         this.expiresAt   = LocalDateTime.now().plusMinutes(30);
         this.createdAt   = LocalDateTime.now();
+        this.issueIdempotencyKey = UUID.randomUUID().toString();
     }
 
     public void startProcessing() {
@@ -84,6 +95,13 @@ public class BillingAttempt {
         this.processingAt = null;
     }
 
+    public String ensureIssueIdempotencyKey() {
+        if (this.issueIdempotencyKey == null) {
+            this.issueIdempotencyKey = UUID.randomUUID().toString();
+        }
+        return this.issueIdempotencyKey;
+    }
+
     /** 빌링 키 발급과 외부 결제가 시작되지 않은 만료 시도만 정리한다. */
     public void expire() {
         if (this.status != BillingAttemptStatus.PENDING
@@ -99,9 +117,15 @@ public class BillingAttempt {
         if (this.status != BillingAttemptStatus.PROCESSING) {
             throw new IllegalStateException("PROCESSING 상태에서만 빌링 키를 저장할 수 있습니다.");
         }
-        if (this.billingKey != null) return;
+        if (this.billingKey != null) {
+            if (!Objects.equals(this.orderId, orderId)) {
+                throw new IllegalStateException("이미 저장된 최초 결제 주문번호와 일치하지 않습니다.");
+            }
+            return;
+        }
         this.billingKey = billingKey;
         this.orderId = orderId;
+        this.chargeIdempotencyKey = UUID.randomUUID().toString();
         this.cardNumberMasked = cardNumberMasked;
         this.cardCompany = cardCompany;
     }
