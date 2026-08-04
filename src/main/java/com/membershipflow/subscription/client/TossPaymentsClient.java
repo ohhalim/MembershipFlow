@@ -22,20 +22,23 @@ public class TossPaymentsClient {
     private final String secretKey;
 
     public TossPaymentsClient(
+            RestClient.Builder restClientBuilder,
             @Value("${toss.api-base-url}") String baseUrl,
             @Value("${toss.secret-key}") String secretKey) {
         this.secretKey  = secretKey;
-        this.restClient = RestClient.builder()
+        this.restClient = restClientBuilder
                 .baseUrl(baseUrl)
                 .build();
     }
 
     /** 빌링 키 발급 */
-    public BillingKeyResponse issueBillingKey(String customerKey, String authKey) {
+    public BillingKeyResponse issueBillingKey(String customerKey, String authKey,
+                                              String idempotencyKey) {
         try {
             return restClient.post()
                     .uri("/v1/billing/authorizations/issue")
                     .header("Authorization", basicAuth())
+                    .header("Idempotency-Key", idempotencyKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("customerKey", customerKey, "authKey", authKey))
                     .retrieve()
@@ -49,12 +52,22 @@ public class TossPaymentsClient {
     /** 자동결제 승인 */
     public PaymentResponse charge(String billingKey, String customerKey,
                                    int amount, String orderId, String orderName) {
+        return charge(billingKey, customerKey, amount, orderId, orderName, null);
+    }
+
+    /** 자동결제 승인. idempotencyKey가 있으면 응답 유실 후에도 같은 요청을 안전하게 재호출한다. */
+    public PaymentResponse charge(String billingKey, String customerKey,
+                                  int amount, String orderId, String orderName,
+                                  String idempotencyKey) {
         try {
-            return restClient.post()
+            RestClient.RequestBodySpec request = restClient.post()
                     .uri("/v1/billing/{billingKey}", billingKey)
                     .header("Authorization", basicAuth())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
+                    .contentType(MediaType.APPLICATION_JSON);
+            if (idempotencyKey != null) {
+                request.header("Idempotency-Key", idempotencyKey);
+            }
+            return request.body(Map.of(
                             "customerKey", customerKey,
                             "amount",      amount,
                             "orderId",     orderId,
@@ -91,17 +104,27 @@ public class TossPaymentsClient {
     public record BillingKeyResponse(
             String billingKey,
             String customerKey,
-            CardInfo card
+            CardInfo card,
+            String cardCompany,
+            String cardNumber
     ) {
-        public record CardInfo(String number, String cardCompany) {}
+        public record CardInfo(String number) {}
     }
 
     public record PaymentResponse(
             String paymentKey,
+            String orderId,
+            String status,
+            String type,
             String approvedAt,
             int totalAmount,
             FailureInfo failure
     ) {
+        public PaymentResponse(String paymentKey, String approvedAt,
+                               int totalAmount, FailureInfo failure) {
+            this(paymentKey, null, null, null, approvedAt, totalAmount, failure);
+        }
+
         public record FailureInfo(String code, String message) {}
     }
 }

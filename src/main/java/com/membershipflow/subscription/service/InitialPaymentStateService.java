@@ -74,7 +74,7 @@ public class InitialPaymentStateService {
         }
 
         if (attempt.getStatus() == BillingAttemptStatus.PROCESSING) {
-            // 외부 승인 결과가 늦게 도착한 경우에는 재과금하지 않고 주문 상태만 확인한다.
+            attempt.ensureIssueIdempotencyKey();
             return contextOf(attempt, false, true);
         }
         if (attempt.getBillingKey() != null || attempt.getOrderId() != null) {
@@ -83,6 +83,7 @@ public class InitialPaymentStateService {
         }
         validatePending(attempt);
         rejectActiveSubscription(attempt);
+        attempt.ensureIssueIdempotencyKey();
         attempt.startProcessing();
         return contextOf(attempt, false, false);
     }
@@ -116,6 +117,9 @@ public class InitialPaymentStateService {
         validateProcessing(attempt);
         if (attempt.getBillingKey() == null || attempt.getOrderId() == null) {
             throw new BusinessException(ErrorCode.BILLING_KEY_ISSUE_FAILED);
+        }
+        if (!isExpectedCompletedPayment(attempt, paymentResponse)) {
+            throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
         }
 
         Subscription subscription = subscriptionRepository
@@ -207,7 +211,19 @@ public class InitialPaymentStateService {
         return new InitialPaymentContext(
                 attempt.getCustomerKey(), attempt.getMember().getId(),
                 attempt.getPlan().getName(), attempt.getPlan().getPrice(),
-                attempt.getBillingKey(), attempt.getOrderId(), completed, processing);
+                attempt.getBillingKey(), attempt.getOrderId(),
+                attempt.getIssueIdempotencyKey(), attempt.getChargeIdempotencyKey(),
+                completed, processing);
+    }
+
+    private boolean isExpectedCompletedPayment(
+            BillingAttempt attempt, TossPaymentsClient.PaymentResponse paymentResponse) {
+        return paymentResponse != null
+                && paymentResponse.paymentKey() != null
+                && attempt.getOrderId().equals(paymentResponse.orderId())
+                && attempt.getPlan().getPrice() == paymentResponse.totalAmount()
+                && "DONE".equals(paymentResponse.status())
+                && "BILLING".equals(paymentResponse.type());
     }
 
     public record InitialPaymentContext(
@@ -217,13 +233,22 @@ public class InitialPaymentStateService {
             int amount,
             String encryptedBillingKey,
             String orderId,
+            String issueIdempotencyKey,
+            String chargeIdempotencyKey,
             boolean completed,
             boolean processing) {
         public InitialPaymentContext(String customerKey, Long memberId, String planName,
                                      int amount, String encryptedBillingKey, String orderId,
                                      boolean completed) {
             this(customerKey, memberId, planName, amount, encryptedBillingKey, orderId,
-                    completed, false);
+                    null, null, completed, false);
+        }
+
+        public InitialPaymentContext(String customerKey, Long memberId, String planName,
+                                     int amount, String encryptedBillingKey, String orderId,
+                                     boolean completed, boolean processing) {
+            this(customerKey, memberId, planName, amount, encryptedBillingKey, orderId,
+                    null, null, completed, processing);
         }
     }
 }

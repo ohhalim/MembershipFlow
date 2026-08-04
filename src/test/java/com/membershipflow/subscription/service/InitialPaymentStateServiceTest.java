@@ -1,6 +1,7 @@
 package com.membershipflow.subscription.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -9,6 +10,8 @@ import static org.mockito.Mockito.lenient;
 
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
+import com.membershipflow.common.exception.BusinessException;
+import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.subscription.client.TossPaymentsClient;
 import com.membershipflow.subscription.entity.BillingAttempt;
 import com.membershipflow.subscription.entity.BillingAttemptStatus;
@@ -71,6 +74,7 @@ class InitialPaymentStateServiceTest {
 
         assertThat(context.encryptedBillingKey()).isEqualTo("encrypted-key");
         assertThat(context.orderId()).isEqualTo("ORDER-customer-key");
+        assertThat(context.chargeIdempotencyKey()).isNotBlank();
         assertThat(attempt.getCardCompany()).isEqualTo("국민");
     }
 
@@ -97,6 +101,7 @@ class InitialPaymentStateServiceTest {
         var context = stateService.claim("claim-key");
 
         assertThat(context.completed()).isFalse();
+        assertThat(context.issueIdempotencyKey()).isNotBlank();
         assertThat(fresh.getStatus()).isEqualTo(BillingAttemptStatus.PROCESSING);
         assertThat(fresh.getProcessingAt()).isNotNull();
     }
@@ -140,7 +145,8 @@ class InitialPaymentStateServiceTest {
         given(paymentHistoryRepository.findByTossOrderId("ORDER-customer-key"))
                 .willReturn(Optional.empty());
         var payment = new TossPaymentsClient.PaymentResponse(
-                "payment-key", "2026-07-25", 9900, null);
+                "payment-key", "ORDER-customer-key", "DONE", "BILLING",
+                "2026-07-25", 9900, null);
 
         stateService.complete("customer-key", payment);
 
@@ -154,6 +160,25 @@ class InitialPaymentStateServiceTest {
         then(paymentHistoryRepository).should().save(historyCaptor.capture());
         assertThat(historyCaptor.getValue().getTossOrderId())
                 .isEqualTo("ORDER-customer-key");
+    }
+
+    @Test
+    void complete_rejectsPaymentForDifferentOrder() {
+        attempt.storeBillingKey(
+                "encrypted-key", "ORDER-customer-key", "1234-****", "국민");
+        given(billingAttemptRepository.findByCustomerKeyForUpdate("customer-key"))
+                .willReturn(Optional.of(attempt));
+        var payment = new TossPaymentsClient.PaymentResponse(
+                "payment-key", "ORDER-another-customer", "DONE", "BILLING",
+                "2026-07-25", 9900, null);
+
+        assertThatThrownBy(() -> stateService.complete("customer-key", payment))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PAYMENT_FAILED_ERROR);
+
+        then(paymentHistoryRepository).shouldHaveNoInteractions();
+        then(subscriptionRepository).shouldHaveNoInteractions();
     }
 
     @Test
