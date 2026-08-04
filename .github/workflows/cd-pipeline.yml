@@ -89,6 +89,16 @@ jobs:
           source: docker-compose.yml
           target: /opt/membershipflow/
 
+      - name: Copy backend health gate to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: .github/scripts/wait-for-backend-health.sh
+          target: /opt/membershipflow/
+          strip_components: 2
+
       - name: Copy Prometheus configuration to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -129,7 +139,7 @@ jobs:
               prom/prometheus:latest \
               check config /etc/prometheus/prometheus.yml
             docker compose pull backend
-            docker compose up -d --no-deps backend
+            bash wait-for-backend-health.sh
             docker compose up -d node-exporter
             docker compose up -d --no-deps --force-recreate prometheus
             docker compose restart nginx grafana
