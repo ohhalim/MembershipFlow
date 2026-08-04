@@ -45,8 +45,8 @@ public class MembershipCourse {
     @Column(nullable = false)
     private boolean active;
 
-    // 가격 비정규화 컬럼 (#100): 정렬/랭킹/요약 등에서 price_history 전체 JOIN 없이 사용.
-    // 소스 무관 "가장 최근에 수집된" 가격 기준 — PriceHistoryRepository#findLatestByCourseIds와 동일 기준
+    // 가격 비정규화 컬럼 (#100): 수집 상태·하위 호환용 보조 필드.
+    // 현재 대표가는 PriceHistoryRepository의 활성·fresh 소스별 최저가 쿼리를 사용한다.
     @Column(name = "latest_price")
     private Long latestPrice;
 
