@@ -140,7 +140,7 @@ public class InitialPaymentStateService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime nextBillingAt = now.plusMonths(1);
+        LocalDateTime nextBillingAt = attempt.getPlan().getBillingCycle().nextBillingAt(now);
         if (subscription != null) {
             subscription.resubscribe(
                     attempt.getPlan(), attempt.getBillingKey(), attempt.getCustomerKey(),

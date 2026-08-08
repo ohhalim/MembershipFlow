@@ -290,7 +290,7 @@ public class SubscriptionService {
     private void recordSuccessfulBilling(Subscription sub, String orderId,
                                          TossPaymentsClient.PaymentResponse response,
                                          LocalDateTime billedAt) {
-        sub.paymentSuccess(billedAt.plusMonths(1));
+        sub.paymentSuccess(sub.getPlan().getBillingCycle().nextBillingAt(billedAt));
         paymentHistoryRepository.save(PaymentHistory.builder()
                 .member(sub.getMember())
                 .subscription(sub)

@@ -1,6 +1,7 @@
 package com.membershipflow.subscription.dto;
 
 import com.membershipflow.subscription.entity.Subscription;
+import com.membershipflow.subscription.entity.BillingCycle;
 import com.membershipflow.subscription.entity.SubscriptionStatus;
 
 import java.time.LocalDateTime;
@@ -17,13 +18,20 @@ public record SubscriptionResponse(
         String cardCompany,
         LocalDateTime cancelledAt
 ) {
-    public record PlanDto(Long id, String code, String name, int price) {}
+    public record PlanDto(
+            Long id,
+            String code,
+            String name,
+            int price,
+            BillingCycle billingCycle
+    ) {}
 
     public static SubscriptionResponse from(Subscription s) {
         return new SubscriptionResponse(
                 s.getId(),
                 new PlanDto(s.getPlan().getId(), s.getPlan().getCode(),
-                        s.getPlan().getName(), s.getPlan().getPrice()),
+                        s.getPlan().getName(), s.getPlan().getPrice(),
+                        s.getPlan().getBillingCycle()),
                 s.getStatus(),
                 s.isActive(),
                 s.getStatus() == SubscriptionStatus.CANCELLED ? s.getNextBillingAt() : null,
