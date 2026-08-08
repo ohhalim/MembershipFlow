@@ -15,6 +15,7 @@ import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.subscription.client.TossPaymentsClient;
 import com.membershipflow.subscription.entity.BillingAttempt;
 import com.membershipflow.subscription.entity.BillingAttemptStatus;
+import com.membershipflow.subscription.entity.BillingCycle;
 import com.membershipflow.subscription.entity.PaymentHistory;
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.entity.SubscriptionPlan;
@@ -53,6 +54,7 @@ class InitialPaymentStateServiceTest {
         plan = org.mockito.Mockito.mock(SubscriptionPlan.class);
         lenient().when(plan.getName()).thenReturn("프리미엄");
         lenient().when(plan.getPrice()).thenReturn(9900);
+        lenient().when(plan.getBillingCycle()).thenReturn(BillingCycle.MONTHLY);
         attempt = BillingAttempt.builder()
                 .member(member)
                 .plan(plan)

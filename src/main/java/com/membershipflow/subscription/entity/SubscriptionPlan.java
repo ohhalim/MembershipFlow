@@ -26,6 +26,10 @@ public class SubscriptionPlan {
     @Column(nullable = false)
     private int price;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "billing_cycle", nullable = false, length = 20)
+    private BillingCycle billingCycle;
+
     @Column(length = 500)
     private String description;
 
