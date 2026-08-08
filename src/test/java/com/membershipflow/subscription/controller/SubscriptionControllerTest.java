@@ -9,6 +9,7 @@ import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.entity.MemberRole;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import com.membershipflow.subscription.dto.*;
+import com.membershipflow.subscription.entity.BillingCycle;
 import com.membershipflow.subscription.entity.SubscriptionStatus;
 import com.membershipflow.subscription.service.SubscriptionService;
 import jakarta.servlet.FilterChain;
@@ -67,13 +68,16 @@ class SubscriptionControllerTest {
     }
 
     SubscriptionPlanResponse samplePlan() {
-        return new SubscriptionPlanResponse(1L, "INDIVIDUAL", "개인 플랜", 49_000, "개인 구독자용 플랜");
+        return new SubscriptionPlanResponse(
+                1L, "MONTHLY", "월간 구독", 10_000,
+                BillingCycle.MONTHLY, "월간 구독 플랜");
     }
 
     SubscriptionResponse sampleSubscription() {
         return new SubscriptionResponse(
                 10L,
-                new SubscriptionResponse.PlanDto(1L, "INDIVIDUAL", "개인 플랜", 49_000),
+                new SubscriptionResponse.PlanDto(
+                        1L, "MONTHLY", "월간 구독", 10_000, BillingCycle.MONTHLY),
                 SubscriptionStatus.ACTIVE,
                 true,
                 null,
@@ -88,7 +92,8 @@ class SubscriptionControllerTest {
         LocalDateTime serviceEndsAt = LocalDateTime.of(2026, 7, 25, 0, 0);
         return new SubscriptionResponse(
                 10L,
-                new SubscriptionResponse.PlanDto(1L, "INDIVIDUAL", "개인 플랜", 49_000),
+                new SubscriptionResponse.PlanDto(
+                        1L, "MONTHLY", "월간 구독", 10_000, BillingCycle.MONTHLY),
                 SubscriptionStatus.CANCELLED,
                 false,
                 serviceEndsAt,
@@ -108,8 +113,9 @@ class SubscriptionControllerTest {
         // when / then
         mockMvc.perform(get("/api/v1/subscriptions/plans"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].code").value("INDIVIDUAL"))
-                .andExpect(jsonPath("$[0].price").value(49_000));
+                .andExpect(jsonPath("$[0].code").value("MONTHLY"))
+                .andExpect(jsonPath("$[0].price").value(10_000))
+                .andExpect(jsonPath("$[0].billingCycle").value("MONTHLY"));
     }
 
     @Test
@@ -166,6 +172,7 @@ class SubscriptionControllerTest {
         mockMvc.perform(get("/api/v1/subscriptions/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cardCompany").value("신한카드"))
+                .andExpect(jsonPath("$.plan.billingCycle").value("MONTHLY"))
                 .andExpect(jsonPath("$.serviceActive").value(true))
                 .andExpect(jsonPath("$.serviceEndsAt").doesNotExist())
                 .andExpect(jsonPath("$.nextBillingAt").isNotEmpty());

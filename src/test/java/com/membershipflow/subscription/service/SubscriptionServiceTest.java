@@ -7,6 +7,7 @@ import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
 import com.membershipflow.subscription.entity.BillingAttempt;
+import com.membershipflow.subscription.entity.BillingCycle;
 import com.membershipflow.subscription.entity.PaymentHistory;
 import com.membershipflow.subscription.entity.PaymentStatus;
 import com.membershipflow.subscription.entity.Subscription;
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,6 +67,7 @@ class SubscriptionServiceTest {
     void setUp() {
         member = Member.builder().id(10L).email("sub@test.com").build();
         plan = mock(SubscriptionPlan.class);
+        lenient().when(plan.getBillingCycle()).thenReturn(BillingCycle.MONTHLY);
     }
 
     @Test
@@ -201,6 +204,26 @@ class SubscriptionServiceTest {
         then(paymentHistoryRepository).should().save(any());
         assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(sub.getNextBillingAt()).isAfter(LocalDateTime.now());
+    }
+
+    @Test
+    @DisplayName("연간 플랜 결제 성공 시 다음 결제일을 12개월 뒤로 갱신한다")
+    void processBilling_annualPlan_advancesTwelveMonths() {
+        LocalDateTime billedAt = LocalDateTime.now();
+        Subscription sub = subscriptionDueAt(billedAt.minusHours(1));
+        given(subscriptionRepository.findByIdForUpdate(SUBSCRIPTION_ID)).willReturn(Optional.of(sub));
+        given(billingKeyEncryptor.decrypt("enc-key")).willReturn("raw-key");
+        given(plan.getBillingCycle()).willReturn(BillingCycle.ANNUAL);
+        given(plan.getPrice()).willReturn(90_000);
+        given(plan.getName()).willReturn("연간 구독");
+        given(tossPaymentsClient.charge(anyString(), anyString(), anyInt(), anyString(), anyString()))
+                .willReturn(new TossPaymentsClient.PaymentResponse(
+                        "pay-key", "2026-08-08", 90_000, null));
+
+        subscriptionService.processBilling(SUBSCRIPTION_ID);
+
+        assertThat(sub.getNextBillingAt())
+                .isBetween(billedAt.plusMonths(12), LocalDateTime.now().plusMonths(12));
     }
 
     @Test
