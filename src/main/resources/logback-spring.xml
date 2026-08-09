@@ -25,6 +25,8 @@
             <totalSizeCap>1GB</totalSizeCap>
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Logback context에는 webhook URL 같은 설정값이 있으므로 JSON 본문에 포함하지 않는다. -->
+            <includeContext>false</includeContext>
             <customFields>{"service":"${applicationName}","environment":"${applicationEnvironment}"}</customFields>
             <includeMdcKeyName>request_id</includeMdcKeyName>
         </encoder>

@@ -1,0 +1,43 @@
+loki.source.file "membershipflow_backend" {
+  targets = [
+    {
+      __path__ = "/var/log/membershipflow/*.json",
+      job      = "membershipflow-backend",
+    },
+  ]
+
+  forward_to   = [loki.process.membershipflow_backend.receiver]
+  tail_from_end = false
+
+  file_match {
+    enabled     = true
+    sync_period = "5s"
+  }
+}
+
+loki.process "membershipflow_backend" {
+  stage.json {
+    expressions = {
+      environment = "environment",
+      level       = "level",
+      service     = "service",
+    }
+  }
+
+  // request_id와 logger_name은 고카디널리티 방지를 위해 label로 승격하지 않는다.
+  stage.labels {
+    values = {
+      environment = "",
+      level       = "",
+      service     = "",
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
