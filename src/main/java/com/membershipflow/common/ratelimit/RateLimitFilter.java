@@ -53,7 +53,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 (w == null || w.minute != currentMinute) ? new Window(currentMinute) : w);
 
         if (window.count.incrementAndGet() > requestsPerMinute) {
-            log.warn("[RateLimit] 한도 초과: ip={}, uri={}", ip, request.getRequestURI());
+            // 원격 IP는 rate limit 계산에만 사용하고 외부 로그 저장소에는 남기지 않는다.
+            log.warn("[RateLimit] 한도 초과: uri={}", request.getRequestURI());
             response.setStatus(429);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
