@@ -25,3 +25,4 @@ out/
 
 ### OS / logs ###
 *.log
+/logs/

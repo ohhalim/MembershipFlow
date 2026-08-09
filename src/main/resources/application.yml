@@ -46,6 +46,9 @@ jwt:
 # 애플리케이션 커스텀 설정
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  logging:
+    environment: ${APP_ENVIRONMENT:local}
+    json-file: ${JSON_LOG_FILE:logs/membershipflow.json}
   oauth2:
     redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:3000/auth/callback}
   cors:
