@@ -1,0 +1,89 @@
+services:
+  mysql:
+    networks:
+      - default
+      - incident-data
+
+  incident-db-bootstrap:
+    image: mysql:8.0
+    profiles:
+      - incident-setup
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      INCIDENT_DB_NAME: membershipflow_incident
+      INCIDENT_DB_RUNTIME_USERNAME: incident_analyzer_runtime
+      INCIDENT_DB_RUNTIME_PASSWORD: ${INCIDENT_DB_RUNTIME_PASSWORD:-local_runtime_password_2026}
+      INCIDENT_DB_MIGRATION_USERNAME: incident_analyzer_migrator
+      INCIDENT_DB_MIGRATION_PASSWORD: ${INCIDENT_DB_MIGRATION_PASSWORD:-local_migration_password_2026}
+    volumes:
+      - ./incident-analyzer/scripts/bootstrap-database.sh:/usr/local/bin/bootstrap-incident-db:ro
+    entrypoint:
+      - /bin/sh
+      - /usr/local/bin/bootstrap-incident-db
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - incident-data
+    restart: "no"
+
+  incident-migrate:
+    build:
+      context: ./incident-analyzer
+    profiles:
+      - incident-setup
+    command:
+      - alembic
+      - upgrade
+      - head
+    environment:
+      INCIDENT_DB_HOST: mysql
+      INCIDENT_DB_NAME: membershipflow_incident
+      INCIDENT_DB_MIGRATION_USERNAME: incident_analyzer_migrator
+      INCIDENT_DB_MIGRATION_PASSWORD: ${INCIDENT_DB_MIGRATION_PASSWORD:-local_migration_password_2026}
+    depends_on:
+      incident-db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - incident-data
+    restart: "no"
+
+  incident-api:
+    build:
+      context: ./incident-analyzer
+    environment:
+      INCIDENT_DB_HOST: mysql
+      INCIDENT_DB_NAME: membershipflow_incident
+      INCIDENT_DB_USERNAME: incident_analyzer_runtime
+      INCIDENT_DB_PASSWORD: ${INCIDENT_DB_RUNTIME_PASSWORD:-local_runtime_password_2026}
+      DB_POOL_SIZE: 2
+      DB_MAX_OVERFLOW: 0
+      EXPECTED_DB_REVISION: 0001_incident_storage
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.healthcheck", "ready"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - incident-data
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  incident-data:
+    internal: true

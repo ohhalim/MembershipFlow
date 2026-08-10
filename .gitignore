@@ -26,3 +26,10 @@ out/
 ### OS / logs ###
 *.log
 /logs/
+
+### Python ###
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.coverage
