@@ -36,3 +36,12 @@ def test_settings_reject_shared_database_or_excess_connections(
 
     with pytest.raises(ValidationError):
         Settings(**values)
+
+
+def test_settings_rejects_local_webhook_secret_in_production() -> None:
+    with pytest.raises(ValidationError, match="production webhook secret"):
+        Settings(
+            incident_db_password="runtime_test_password",
+            app_environment="production",
+            _env_file=None,
+        )

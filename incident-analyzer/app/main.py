@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.api.incidents import router as incidents_router
 from app.config import get_settings
-from app.database import engine, verify_database_ready
+from app.persistence.database import engine, verify_database_ready
 
 
 def create_app() -> FastAPI:
@@ -13,6 +14,7 @@ def create_app() -> FastAPI:
         openapi_url=None,
     )
     application.state.database_engine = engine
+    application.include_router(incidents_router)
 
     @application.get("/health/live")
     def live() -> dict[str, str]:
