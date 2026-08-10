@@ -12,12 +12,14 @@ from app.domain.incident import (
     CreatedIncident,
     CreateIncidentCommand,
 )
+from app.domain.notification import ClaimedNotificationDelivery, DeliveryFailure
 from app.llm.client import LlmAnalysis
 from app.persistence.models import (
     AnalysisJobModel,
     AnalysisResultModel,
     EvidenceBundleModel,
     IncidentModel,
+    NotificationDeliveryModel,
 )
 
 
@@ -197,6 +199,18 @@ class AnalysisJobRepository:
                         latency_ms=analysis.latency_ms,
                     )
                 )
+                session.add(
+                    NotificationDeliveryModel(
+                        incident_id=claimed.incident_id,
+                        analysis_revision=claimed.analysis_revision,
+                        destination="SLACK",
+                        status="PENDING",
+                        available_at=now,
+                        attempt_count=0,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
             job.status = "SUCCEEDED"
             job.lease_owner = None
             job.lease_until = None
@@ -228,3 +242,106 @@ class AnalysisJobRepository:
             job.lease_until = None
             job.failure_code = failure_code[:64]
             job.updated_at = now
+
+
+class NotificationDeliveryRepository:
+    def claim_next(
+        self, session: Session, worker_id: str, lease_seconds: int
+    ) -> ClaimedNotificationDelivery | None:
+        now = datetime.now(UTC).replace(tzinfo=None)
+        with session.begin():
+            delivery = session.scalar(
+                select(NotificationDeliveryModel)
+                .where(
+                    NotificationDeliveryModel.destination == "SLACK",
+                    NotificationDeliveryModel.available_at <= now,
+                    or_(
+                        NotificationDeliveryModel.status == "PENDING",
+                        (
+                            (NotificationDeliveryModel.status == "SENDING")
+                            & (NotificationDeliveryModel.lease_until < now)
+                        ),
+                    ),
+                )
+                .order_by(
+                    NotificationDeliveryModel.available_at,
+                    NotificationDeliveryModel.id,
+                )
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            if delivery is None:
+                return None
+            incident = session.get(IncidentModel, delivery.incident_id)
+            result = session.scalar(
+                select(AnalysisResultModel).where(
+                    AnalysisResultModel.incident_id == delivery.incident_id,
+                    AnalysisResultModel.analysis_revision == delivery.analysis_revision,
+                )
+            )
+            if incident is None or result is None:
+                raise RuntimeError("notification source data is missing")
+            delivery.status = "SENDING"
+            delivery.attempt_count += 1
+            delivery.lease_owner = worker_id
+            delivery.lease_until = now + timedelta(seconds=lease_seconds)
+            delivery.last_error_code = None
+            delivery.updated_at = now
+            return ClaimedNotificationDelivery(
+                delivery_id=delivery.id,
+                incident_id=delivery.incident_id,
+                analysis_revision=delivery.analysis_revision,
+                started_at=incident.started_at.replace(tzinfo=UTC),
+                masked_event=incident.masked_event_json,
+                analysis=result.content_json,
+            )
+
+    def complete(
+        self,
+        session: Session,
+        claimed: ClaimedNotificationDelivery,
+        worker_id: str,
+    ) -> None:
+        now = datetime.now(UTC).replace(tzinfo=None)
+        with session.begin():
+            delivery = session.scalar(
+                select(NotificationDeliveryModel)
+                .where(NotificationDeliveryModel.id == claimed.delivery_id)
+                .with_for_update()
+            )
+            if delivery is None or delivery.lease_owner != worker_id:
+                raise RuntimeError("notification delivery lease ownership lost")
+            delivery.status = "SENT"
+            delivery.lease_owner = None
+            delivery.lease_until = None
+            delivery.last_error_code = None
+            delivery.updated_at = now
+
+    def fail(
+        self,
+        session: Session,
+        claimed: ClaimedNotificationDelivery,
+        worker_id: str,
+        failure: DeliveryFailure,
+        max_attempts: int,
+    ) -> None:
+        now = datetime.now(UTC).replace(tzinfo=None)
+        with session.begin():
+            delivery = session.scalar(
+                select(NotificationDeliveryModel)
+                .where(NotificationDeliveryModel.id == claimed.delivery_id)
+                .with_for_update()
+            )
+            if delivery is None or delivery.lease_owner != worker_id:
+                return
+            should_retry = failure.retryable and delivery.attempt_count < max_attempts
+            if failure.retry_after_seconds is not None:
+                delay = failure.retry_after_seconds
+            else:
+                delay = min(5 * (2 ** max(0, delivery.attempt_count - 1)), 300)
+            delivery.status = "PENDING" if should_retry else "DEAD"
+            delivery.available_at = now + timedelta(seconds=delay)
+            delivery.lease_owner = None
+            delivery.lease_until = None
+            delivery.last_error_code = failure.code[:64]
+            delivery.updated_at = now

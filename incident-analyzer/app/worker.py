@@ -9,9 +9,18 @@ from pydantic import ValidationError
 
 from app.collectors.loki import LokiClient
 from app.config import Settings, get_settings
+from app.domain.notification import DeliveryFailure
 from app.llm import GeminiClient, LlmClient, insufficient_evidence_analysis
+from app.notifications import (
+    SlackDeliveryError,
+    SlackIncomingWebhookClient,
+    render_incident_message,
+)
 from app.persistence.database import SessionFactory
-from app.persistence.repositories import AnalysisJobRepository
+from app.persistence.repositories import (
+    AnalysisJobRepository,
+    NotificationDeliveryRepository,
+)
 
 
 def build_worker_id() -> str:
@@ -82,12 +91,56 @@ async def run_once(
         return True
 
 
+async def deliver_notification_once(
+    settings: Settings,
+    worker_id: str | None = None,
+    slack_client: SlackIncomingWebhookClient | None = None,
+) -> bool:
+    repository = NotificationDeliveryRepository()
+    owner = worker_id or build_worker_id()
+    with SessionFactory() as session:
+        claimed = repository.claim_next(
+            session, owner, settings.notification_lease_seconds
+        )
+    if claimed is None:
+        return False
+
+    try:
+        if slack_client is None and settings.slack_webhook_url is None:
+            raise SlackDeliveryError("SLACK_NOT_CONFIGURED", False)
+        try:
+            client = slack_client or SlackIncomingWebhookClient(
+                settings.slack_webhook_url.get_secret_value(),
+                settings.slack_timeout_seconds,
+            )
+        except ValueError as exc:
+            raise SlackDeliveryError("SLACK_NOT_CONFIGURED", False) from exc
+        await client.send(render_incident_message(claimed))
+        with SessionFactory() as session:
+            repository.complete(session, claimed, owner)
+    except SlackDeliveryError as exc:
+        with SessionFactory() as session:
+            repository.fail(
+                session,
+                claimed,
+                owner,
+                DeliveryFailure(
+                    code=exc.code,
+                    retryable=exc.retryable,
+                    retry_after_seconds=exc.retry_after_seconds,
+                ),
+                settings.notification_max_attempts,
+            )
+    return True
+
+
 async def run_forever() -> None:
     settings = get_settings()
     worker_id = build_worker_id()
     while True:
-        processed = await run_once(settings, worker_id)
-        if not processed:
+        analyzed = await run_once(settings, worker_id)
+        delivered = await deliver_notification_once(settings, worker_id)
+        if not analyzed and not delivered:
             await asyncio.sleep(2)
 
 

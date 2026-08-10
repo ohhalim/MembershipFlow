@@ -186,7 +186,8 @@ jobs:
               INCIDENT_DB_MIGRATION_PASSWORD \
               INCIDENT_WEBHOOK_SECRET \
               GEMINI_API_KEY \
-              LLM_MODEL; do
+              LLM_MODEL \
+              SLACK_WEBHOOK_URL; do
               if ! grep -Eq "^${required_key}=.+$" .env; then
                 echo "ERROR: ${required_key} is not configured in /opt/membershipflow/.env"
                 exit 1

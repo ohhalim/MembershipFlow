@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=2, ge=1, le=2)
     db_max_overflow: int = Field(default=0, ge=0, le=0)
     db_pool_timeout_seconds: int = Field(default=2, ge=1, le=5)
-    expected_db_revision: str = "0002_analysis_storage"
+    expected_db_revision: str = "0003_slack_delivery"
     incident_webhook_secret: SecretStr = SecretStr(
         "local_webhook_secret_change_before_production"
     )
@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     llm_model: str | None = None
     llm_timeout_seconds: float = Field(default=20.0, ge=1.0, le=20.0)
     llm_max_output_tokens: int = Field(default=4096, ge=128, le=4096)
+    slack_webhook_url: SecretStr | None = None
+    slack_timeout_seconds: float = Field(default=5.0, ge=1.0, le=10.0)
+    notification_lease_seconds: int = Field(default=30, ge=10, le=120)
+    notification_max_attempts: int = Field(default=5, ge=1, le=10)
     job_lease_seconds: int = Field(default=120, ge=30, le=300)
     job_max_attempts: int = Field(default=3, ge=1, le=5)
 

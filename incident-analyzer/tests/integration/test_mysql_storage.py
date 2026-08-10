@@ -21,8 +21,12 @@ from app.persistence.models import (
     AnalysisResultModel,
     EvidenceBundleModel,
     IncidentModel,
+    NotificationDeliveryModel,
 )
-from app.persistence.repositories import AnalysisJobRepository, IncidentRepository
+from app.persistence.repositories import (
+    AnalysisJobRepository,
+    IncidentRepository,
+)
 
 ROOT_PASSWORD = "root_test_password_2026"
 RUNTIME_PASSWORD = "runtime_test_password_2026"
@@ -255,6 +259,49 @@ def test_claim_and_complete_analysis_job(mysql_database) -> None:
         assert (
             session.scalar(select(func.count()).select_from(AnalysisResultModel)) == 1
         )
+        delivery = session.scalar(select(NotificationDeliveryModel))
+        assert delivery is not None
+        assert delivery.status == "PENDING"
+        assert delivery.destination == "SLACK"
+
+    runtime_engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_notification_delivery_moves_outbox_to_sent(
+    mysql_database, monkeypatch
+) -> None:
+    runtime_engine = create_engine(
+        runtime_url(mysql_database, "membershipflow_incident")
+    )
+    session_factory = sessionmaker(bind=runtime_engine, expire_on_commit=False)
+    with session_factory() as session:
+        pending = session.scalar(
+            select(NotificationDeliveryModel).where(
+                NotificationDeliveryModel.status == "PENDING"
+            )
+        )
+    assert pending is not None
+
+    class FakeSlackClient:
+        async def send(self, payload):
+            assert "MembershipFlow 장애 분석" in payload["text"]
+
+    monkeypatch.setattr(worker_module, "SessionFactory", session_factory)
+    processed = await worker_module.deliver_notification_once(
+        Settings(incident_db_password="test-password", _env_file=None),
+        "notification-worker",
+        FakeSlackClient(),
+    )
+
+    assert processed is True
+    with Session(runtime_engine) as session:
+        delivery = session.get(NotificationDeliveryModel, pending.id)
+        assert delivery is not None
+        assert delivery.status == "SENT"
+        assert delivery.attempt_count == 1
+        assert delivery.lease_owner is None
 
     runtime_engine.dispose()
 

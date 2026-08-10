@@ -1,8 +1,8 @@
 # MembershipFlow Incident Analyzer
 
 현재 범위는 HMAC 기반 incident 접수, 전용 MySQL 작업 큐, Loki log Evidence 조회,
-Gemini 구조화 분석, Evidence·분석 결과 저장까지다. Prometheus Evidence와 Slack 전송은
-포함하지 않는다.
+Gemini 구조화 분석, Evidence·분석 결과 저장, Slack 장애 알림 전송까지다. Prometheus
+Evidence는 포함하지 않는다.
 
 ## 디렉터리 구조
 
@@ -12,6 +12,7 @@ app/
 ├── collectors/      # Loki 등 외부 Evidence 수집
 ├── domain/          # 인시던트·Evidence·분석 결과 규칙
 ├── llm/             # LLM 공통 계약과 Gemini 구현
+├── notifications/   # Slack 메시지 생성과 Incoming Webhook 전송
 ├── persistence/     # DB 연결·SQLAlchemy 모델·저장소
 ├── security/        # 웹훅 서명 검증
 ├── config.py        # 환경 설정
@@ -42,8 +43,9 @@ docker compose \
 
 3. 분석 worker 실행
 
-`.env`에 새로 발급한 `GEMINI_API_KEY`와 실제 사용 가능한 고정 `LLM_MODEL`을 설정한 뒤
-Loki가 포함된 오버레이와 함께 실행한다. API key와 모델명은 저장소에 커밋하지 않는다.
+`.env`에 새로 발급한 `GEMINI_API_KEY`, 실제 사용 가능한 고정 `LLM_MODEL`,
+`SLACK_WEBHOOK_URL`을 설정한 뒤 Loki가 포함된 오버레이와 함께 실행한다. API key,
+모델명, Webhook URL은 저장소에 커밋하지 않는다.
 
 ```bash
 docker compose \
@@ -69,7 +71,8 @@ docker compose \
 ```
 
 API는 host port를 열지 않고 `incident-ingress`에서 Grafana webhook만 받는다. worker만
-Loki와 Gemini에 접근하며, Spring Boot와 프론트엔드에는 Gemini API key를 제공하지 않는다.
+Loki, Gemini, Slack에 접근하며, Spring Boot와 프론트엔드에는 외부 API 비밀값을 제공하지
+않는다.
 
 운영 CD는 동일 Dockerfile을 `membershipflow-incident-analyzer:<git-sha>`로 한 번 빌드해
 API, migration, worker가 같은 불변 이미지를 사용하도록 배포한다. DB bootstrap과 migration
@@ -93,9 +96,15 @@ python -m venv .venv
 ```
 
 통합 테스트는 일회용 MySQL 8 Testcontainer를 사용해 migration, 권한 격리,
-incident·job 원자 저장, worker 상태 전이, Evidence·분석 결과 저장을 검증한다. Loki와
-Gemini는 가짜 응답으로 timeout, 5xx, 데이터 부재, 잘못된 JSON, 잘못된 Evidence ID를
-검증하며 일반 CI에서 실제 Gemini API를 호출하지 않는다.
+incident·job 원자 저장, worker 상태 전이, Evidence·분석 결과·Slack 전송 작업의 원자 저장,
+전송 상태 전이를 검증한다. Loki, Gemini, Slack은 가짜 응답으로 timeout, 5xx, 429,
+데이터 부재, 잘못된 JSON, 잘못된 Evidence ID를 검증하며 일반 CI에서 실제 외부 API를
+호출하지 않는다.
+
+Slack 전송은 분석 성공 트랜잭션에서 `notification_deliveries`에 함께 등록한다. worker는
+전송 작업을 lease 기반으로 선점하며 429의 `Retry-After`, timeout, 5xx를 재시도한다.
+Slack 장애는 저장된 분석 결과를 실패로 되돌리지 않는다. Incoming Webhook 특성상 Slack이
+수신한 직후 worker가 종료되면 중복 알림 가능성은 남는다.
 
 Docker Desktop for Mac에서 Docker socket 자동 탐지가 실패하면 다음과 같이 실행한다.
 
