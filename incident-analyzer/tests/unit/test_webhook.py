@@ -6,10 +6,15 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+import app.api.incidents as incidents_api
 import app.main as main_module
-from app.database import get_session
-from app.domain import CreatedIncident
-from app.webhook import GrafanaWebhook, to_create_commands, verify_webhook_signature
+from app.domain.incident import CreatedIncident
+from app.persistence.database import get_session
+from app.security.webhook import (
+    GrafanaWebhook,
+    to_create_commands,
+    verify_webhook_signature,
+)
 
 SECRET = "test_webhook_secret_at_least_32_characters"
 
@@ -105,9 +110,9 @@ def test_incident_endpoint_accepts_signed_payload(monkeypatch) -> None:
 
     application = main_module.create_app()
     application.dependency_overrides[get_session] = lambda: object()
-    monkeypatch.setattr(main_module, "IncidentRepository", FakeRepository)
+    monkeypatch.setattr(incidents_api, "IncidentRepository", FakeRepository)
     monkeypatch.setattr(
-        main_module,
+        incidents_api,
         "get_settings",
         lambda: type(
             "TestSettings",

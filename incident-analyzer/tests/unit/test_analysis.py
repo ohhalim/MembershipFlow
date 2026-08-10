@@ -4,9 +4,9 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-import app.llm as llm_module
-from app.analysis import AnalysisResult
-from app.evidence import EvidenceBundle, LogEvidence
+import app.llm.gemini_client as llm_module
+from app.domain.analysis import AnalysisResult
+from app.domain.evidence import EvidenceBundle, LogEvidence
 from app.llm import GeminiClient
 
 

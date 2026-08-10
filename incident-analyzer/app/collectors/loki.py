@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from app.evidence import EvidenceBundle, LogEvidence
+from app.domain.evidence import EvidenceBundle, LogEvidence
 
 LOKI_QUERY = '{service="membershipflow-backend"} | json | level=~"WARN|ERROR"'
 MAX_EVIDENCE_BYTES = 16 * 1024

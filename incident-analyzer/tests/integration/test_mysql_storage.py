@@ -11,18 +11,18 @@ from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.community.mysql import MySqlContainer
 
 import app.worker as worker_module
-from app.analysis import AnalysisResult
 from app.config import Settings
-from app.domain import CreateIncidentCommand
-from app.evidence import EvidenceBundle, LogEvidence
+from app.domain.analysis import AnalysisResult
+from app.domain.evidence import EvidenceBundle, LogEvidence
+from app.domain.incident import CreateIncidentCommand
 from app.llm import LlmAnalysis
-from app.models import (
+from app.persistence.models import (
     AnalysisJobModel,
     AnalysisResultModel,
     EvidenceBundleModel,
     IncidentModel,
 )
-from app.repositories import AnalysisJobRepository, IncidentRepository
+from app.persistence.repositories import AnalysisJobRepository, IncidentRepository
 
 ROOT_PASSWORD = "root_test_password_2026"
 RUNTIME_PASSWORD = "runtime_test_password_2026"

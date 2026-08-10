@@ -7,11 +7,11 @@ from uuid import uuid4
 from google.genai import errors
 from pydantic import ValidationError
 
+from app.collectors.loki import LokiClient
 from app.config import Settings, get_settings
-from app.database import SessionFactory
 from app.llm import GeminiClient, LlmClient, insufficient_evidence_analysis
-from app.loki import LokiClient
-from app.repositories import AnalysisJobRepository
+from app.persistence.database import SessionFactory
+from app.persistence.repositories import AnalysisJobRepository
 
 
 def build_worker_id() -> str:

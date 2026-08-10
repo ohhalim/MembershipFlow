@@ -6,10 +6,14 @@ import ulid
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.domain import ClaimedAnalysisJob, CreatedIncident, CreateIncidentCommand
-from app.evidence import EvidenceBundle
-from app.llm import LlmAnalysis
-from app.models import (
+from app.domain.evidence import EvidenceBundle
+from app.domain.incident import (
+    ClaimedAnalysisJob,
+    CreatedIncident,
+    CreateIncidentCommand,
+)
+from app.llm.client import LlmAnalysis
+from app.persistence.models import (
     AnalysisJobModel,
     AnalysisResultModel,
     EvidenceBundleModel,

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
-from app.loki import LokiClient
+from app.collectors.loki import LokiClient
 
 
 @pytest.mark.anyio

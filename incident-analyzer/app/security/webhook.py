@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.domain import CreateIncidentCommand
+from app.domain.incident import CreateIncidentCommand
 
 ALLOWED_LABELS = {"alertname", "service", "environment", "route", "severity"}
 

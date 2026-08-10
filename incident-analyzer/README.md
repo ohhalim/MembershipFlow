@@ -4,6 +4,21 @@
 Gemini 구조화 분석, Evidence·분석 결과 저장까지다. Prometheus Evidence와 Slack 전송은
 포함하지 않는다.
 
+## 디렉터리 구조
+
+```text
+app/
+├── api/             # FastAPI 요청·응답과 라우팅
+├── collectors/      # Loki 등 외부 Evidence 수집
+├── domain/          # 인시던트·Evidence·분석 결과 규칙
+├── llm/             # LLM 공통 계약과 Gemini 구현
+├── persistence/     # DB 연결·SQLAlchemy 모델·저장소
+├── security/        # 웹훅 서명 검증
+├── config.py        # 환경 설정
+├── main.py          # API 실행 진입점
+└── worker.py        # 분석 worker 실행 진입점
+```
+
 ## 로컬 실행
 
 1. database·전용 계정 생성과 migration 적용
