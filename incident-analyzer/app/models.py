@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, UniqueConstraint
-from sqlalchemy.dialects.mysql import DATETIME, JSON
+from sqlalchemy.dialects.mysql import BINARY, DATETIME, JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -12,9 +12,7 @@ class Base(DeclarativeBase):
 
 class IncidentModel(Base):
     __tablename__ = "incidents"
-    __table_args__ = (
-        Index("ix_incidents_dedup_started", "dedup_key", "started_at"),
-    )
+    __table_args__ = (Index("ix_incidents_dedup_started", "dedup_key", "started_at"),)
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True)
     external_fingerprint: Mapped[str | None] = mapped_column(String(255))
@@ -59,3 +57,47 @@ class AnalysisJobModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6), nullable=False)
 
     incident: Mapped[IncidentModel] = relationship(back_populates="jobs")
+
+
+class EvidenceBundleModel(Base):
+    __tablename__ = "evidence_bundles"
+    __table_args__ = (
+        UniqueConstraint(
+            "incident_id", "analysis_revision", name="uq_evidence_bundle_revision"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    incident_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("incidents.id"), nullable=False
+    )
+    analysis_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    collector_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    window_start: Mapped[datetime] = mapped_column(DATETIME(fsp=6), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DATETIME(fsp=6), nullable=False)
+    content_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    content_sha256: Mapped[bytes] = mapped_column(BINARY(32), nullable=False)
+
+
+class AnalysisResultModel(Base):
+    __tablename__ = "analysis_results"
+    __table_args__ = (
+        UniqueConstraint(
+            "incident_id", "analysis_revision", name="uq_analysis_result_revision"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    incident_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("incidents.id"), nullable=False
+    )
+    analysis_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    content_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)

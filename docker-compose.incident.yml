@@ -4,6 +4,11 @@ services:
       - default
       - incident-data
 
+  grafana:
+    networks:
+      - default
+      - incident-ingress
+
   incident-db-bootstrap:
     image: mysql:8.0
     profiles:
@@ -38,6 +43,7 @@ services:
       - upgrade
       - head
     environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
       INCIDENT_DB_HOST: mysql
       INCIDENT_DB_NAME: membershipflow_incident
       INCIDENT_DB_MIGRATION_USERNAME: incident_analyzer_migrator
@@ -53,13 +59,15 @@ services:
     build:
       context: ./incident-analyzer
     environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
       INCIDENT_DB_HOST: mysql
       INCIDENT_DB_NAME: membershipflow_incident
       INCIDENT_DB_USERNAME: incident_analyzer_runtime
       INCIDENT_DB_PASSWORD: ${INCIDENT_DB_RUNTIME_PASSWORD:-local_runtime_password_2026}
       DB_POOL_SIZE: 2
       DB_MAX_OVERFLOW: 0
-      EXPECTED_DB_REVISION: 0001_incident_storage
+      EXPECTED_DB_REVISION: 0002_analysis_storage
+      INCIDENT_WEBHOOK_SECRET: ${INCIDENT_WEBHOOK_SECRET:-local_webhook_secret_change_before_production}
     read_only: true
     tmpfs:
       - /tmp
@@ -78,6 +86,47 @@ services:
         condition: service_healthy
     networks:
       - incident-data
+      - incident-ingress
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  incident-worker:
+    build:
+      context: ./incident-analyzer
+    profiles:
+      - incident-worker
+    command:
+      - python
+      - -m
+      - app.worker
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
+      INCIDENT_DB_HOST: mysql
+      INCIDENT_DB_NAME: membershipflow_incident
+      INCIDENT_DB_USERNAME: incident_analyzer_runtime
+      INCIDENT_DB_PASSWORD: ${INCIDENT_DB_RUNTIME_PASSWORD:-local_runtime_password_2026}
+      DB_POOL_SIZE: 2
+      DB_MAX_OVERFLOW: 0
+      LOKI_BASE_URL: http://loki:3100
+      INCIDENT_WEBHOOK_SECRET: ${INCIDENT_WEBHOOK_SECRET:-local_webhook_secret_change_before_production}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - default
+      - incident-data
     restart: unless-stopped
     logging:
       options:
@@ -86,4 +135,6 @@ services:
 
 networks:
   incident-data:
+    internal: true
+  incident-ingress:
     internal: true

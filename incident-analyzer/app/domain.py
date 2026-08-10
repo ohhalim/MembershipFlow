@@ -17,3 +17,12 @@ class CreatedIncident:
     incident_id: str
     job_id: int
     analysis_revision: int
+
+
+@dataclass(frozen=True)
+class ClaimedAnalysisJob:
+    job_id: int
+    incident_id: str
+    analysis_revision: int
+    started_at: datetime
+    masked_event: dict[str, Any]
