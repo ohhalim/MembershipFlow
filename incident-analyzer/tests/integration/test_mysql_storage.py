@@ -1,19 +1,28 @@
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
-import os
 
+import pytest
 from alembic import command
 from alembic.config import Config
-import pytest
 from sqlalchemy import URL, create_engine, event, func, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.community.mysql import MySqlContainer
 
+import app.worker as worker_module
+from app.analysis import AnalysisResult
+from app.config import Settings
 from app.domain import CreateIncidentCommand
-from app.models import AnalysisJobModel, IncidentModel
-from app.repositories import IncidentRepository
-
+from app.evidence import EvidenceBundle, LogEvidence
+from app.llm import LlmAnalysis
+from app.models import (
+    AnalysisJobModel,
+    AnalysisResultModel,
+    EvidenceBundleModel,
+    IncidentModel,
+)
+from app.repositories import AnalysisJobRepository, IncidentRepository
 
 ROOT_PASSWORD = "root_test_password_2026"
 RUNTIME_PASSWORD = "runtime_test_password_2026"
@@ -114,16 +123,20 @@ def runtime_url(database: dict[str, str | int], name: str) -> URL:
 def test_runtime_user_cannot_access_application_database(mysql_database) -> None:
     application_engine = create_engine(runtime_url(mysql_database, "membershipflow"))
 
-    with pytest.raises(OperationalError):
-        with application_engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
+    with (
+        pytest.raises(OperationalError),
+        application_engine.connect() as connection,
+    ):
+        connection.execute(text("SELECT 1"))
 
     application_engine.dispose()
 
 
 @pytest.mark.integration
 def test_migration_and_incident_job_transaction(mysql_database) -> None:
-    runtime_engine = create_engine(runtime_url(mysql_database, "membershipflow_incident"))
+    runtime_engine = create_engine(
+        runtime_url(mysql_database, "membershipflow_incident")
+    )
     session_factory = sessionmaker(bind=runtime_engine, expire_on_commit=False)
     repository = IncidentRepository()
     command_data = CreateIncidentCommand(
@@ -151,19 +164,177 @@ def test_migration_and_incident_job_transaction(mysql_database) -> None:
         raise RuntimeError("controlled job insert failure")
 
     event.listen(AnalysisJobModel, "before_insert", fail_job_insert, once=True)
-    with session_factory() as session:
-        with pytest.raises(RuntimeError, match="controlled job insert failure"):
-            repository.create_with_job(
-                session,
-                CreateIncidentCommand(
-                    dedup_key="rollback-check",
-                    started_at=datetime.now(UTC),
-                    masked_event={"alertname": "RollbackCheck"},
-                ),
-            )
+    with (
+        session_factory() as session,
+        pytest.raises(RuntimeError, match="controlled job insert failure"),
+    ):
+        repository.create_with_job(
+            session,
+            CreateIncidentCommand(
+                dedup_key="rollback-check",
+                started_at=datetime.now(UTC),
+                masked_event={"alertname": "RollbackCheck"},
+            ),
+        )
 
     with Session(runtime_engine) as session:
         assert session.scalar(select(func.count()).select_from(IncidentModel)) == 1
         assert session.scalar(select(func.count()).select_from(AnalysisJobModel)) == 1
+
+    runtime_engine.dispose()
+
+
+@pytest.mark.integration
+def test_claim_and_complete_analysis_job(mysql_database) -> None:
+    runtime_engine = create_engine(
+        runtime_url(mysql_database, "membershipflow_incident")
+    )
+    session_factory = sessionmaker(bind=runtime_engine, expire_on_commit=False)
+    repository = AnalysisJobRepository()
+
+    with session_factory() as session:
+        claimed = repository.claim_next(session, "integration-worker", 120)
+    assert claimed is not None
+
+    now = datetime.now(UTC)
+    evidence = EvidenceBundle(
+        window_start=now,
+        window_end=now,
+        log_evidence=[
+            LogEvidence(
+                evidence_id="L1",
+                status="OK",
+                signature="request_failed",
+                count=2,
+                samples=["masked sample"],
+            )
+        ],
+    )
+    result = AnalysisResult.model_validate(
+        {
+            "status": "ANALYZED",
+            "facts": [{"statement": "오류 2건 확인", "evidence_ids": ["L1"]}],
+            "hypotheses": [
+                {
+                    "cause": "요청 처리 예외 후보",
+                    "evidence_ids": ["L1"],
+                    "confidence": "MEDIUM",
+                }
+            ],
+            "excludedCandidates": [],
+            "missingEvidence": [],
+            "nextChecks": ["메트릭 확인"],
+            "rootCauseConfirmed": False,
+        }
+    )
+
+    with session_factory() as session:
+        repository.complete(
+            session,
+            claimed,
+            "integration-worker",
+            evidence,
+            LlmAnalysis(
+                result=result,
+                provider="fake",
+                model="fake-model",
+                input_tokens=100,
+                output_tokens=50,
+                latency_ms=12,
+            ),
+        )
+
+    with Session(runtime_engine) as session:
+        job = session.get(AnalysisJobModel, claimed.job_id)
+        assert job is not None
+        assert job.status == "SUCCEEDED"
+        assert job.lease_owner is None
+        assert (
+            session.scalar(select(func.count()).select_from(EvidenceBundleModel)) == 1
+        )
+        assert (
+            session.scalar(select(func.count()).select_from(AnalysisResultModel)) == 1
+        )
+
+    runtime_engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_worker_moves_pending_job_to_succeeded(
+    mysql_database, monkeypatch
+) -> None:
+    runtime_engine = create_engine(
+        runtime_url(mysql_database, "membershipflow_incident")
+    )
+    session_factory = sessionmaker(bind=runtime_engine, expire_on_commit=False)
+    with session_factory() as session:
+        created = IncidentRepository().create_with_job(
+            session,
+            CreateIncidentCommand(
+                dedup_key="worker-vertical-slice",
+                started_at=datetime.now(UTC),
+                masked_event={"labels": {"alertname": "ApplicationErrorBurst"}},
+            ),
+        )
+
+    now = datetime.now(UTC)
+    evidence = EvidenceBundle(
+        window_start=now,
+        window_end=now,
+        log_evidence=[
+            LogEvidence(
+                evidence_id="L1",
+                status="OK",
+                signature="request_failed",
+                count=1,
+                samples=["masked sample"],
+            )
+        ],
+    )
+    result = AnalysisResult.model_validate(
+        {
+            "status": "ANALYZED",
+            "facts": [{"statement": "오류 1건 확인", "evidence_ids": ["L1"]}],
+            "hypotheses": [],
+            "excludedCandidates": [],
+            "missingEvidence": [],
+            "nextChecks": ["메트릭 확인"],
+            "rootCauseConfirmed": False,
+        }
+    )
+
+    class FakeLokiClient:
+        async def collect(self, _started_at):
+            return evidence
+
+    class FakeLlmClient:
+        async def analyze(self, _evidence):
+            return LlmAnalysis(
+                result=result,
+                provider="fake",
+                model="fake-model",
+                input_tokens=10,
+                output_tokens=5,
+                latency_ms=1,
+            )
+
+    monkeypatch.setattr(worker_module, "SessionFactory", session_factory)
+    processed = await worker_module.run_once(
+        Settings(incident_db_password="test-password", _env_file=None),
+        "vertical-slice-worker",
+        FakeLokiClient(),
+        FakeLlmClient(),
+    )
+
+    assert processed is True
+    with Session(runtime_engine) as session:
+        job = session.scalar(
+            select(AnalysisJobModel).where(
+                AnalysisJobModel.incident_id == created.incident_id
+            )
+        )
+        assert job is not None
+        assert job.status == "SUCCEEDED"
 
     runtime_engine.dispose()

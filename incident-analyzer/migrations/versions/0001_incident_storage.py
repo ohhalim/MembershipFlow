@@ -1,9 +1,8 @@
 """Create incident and analysis job storage."""
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import mysql
-
 
 revision = "0001_incident_storage"
 down_revision = None
