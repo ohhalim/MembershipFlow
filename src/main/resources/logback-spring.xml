@@ -7,13 +7,34 @@
     <!-- application.yml의 discord.webhook.error-url → Logback 컨텍스트로 브리지.
          값이 없으면(로컬/CI) DiscordLogbackAppender가 no-op으로 동작한다 (#188). -->
     <springProperty scope="context" name="discordWebhookUrl" source="discord.webhook.error-url" defaultValue="" />
+    <springProperty scope="context" name="applicationName" source="spring.application.name" defaultValue="MembershipFlow" />
+    <springProperty scope="context" name="applicationEnvironment" source="app.logging.environment" defaultValue="local" />
+    <springProperty scope="context" name="jsonLogFile" source="app.logging.json-file" defaultValue="logs/membershipflow.json" />
 
     <appender name="DISCORD" class="com.membershipflow.common.logging.DiscordLogbackAppender">
         <webhookUrl>${discordWebhookUrl}</webhookUrl>
     </appender>
 
+    <!-- Alloy가 파일을 tail해 Loki로 전달하는 구조화 로그. 콘솔·Discord 경로는 유지한다. -->
+    <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${jsonLogFile}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${jsonLogFile}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Logback context에는 webhook URL 같은 설정값이 있으므로 JSON 본문에 포함하지 않는다. -->
+            <includeContext>false</includeContext>
+            <customFields>{"service":"${applicationName}","environment":"${applicationEnvironment}"}</customFields>
+            <includeMdcKeyName>request_id</includeMdcKeyName>
+        </encoder>
+    </appender>
+
     <root level="INFO">
         <appender-ref ref="CONSOLE" />
         <appender-ref ref="DISCORD" />
+        <appender-ref ref="JSON_FILE" />
     </root>
 </configuration>

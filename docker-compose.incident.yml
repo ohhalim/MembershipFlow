@@ -1,0 +1,195 @@
+services:
+  mysql:
+    networks:
+      - default
+      - incident-data
+
+  grafana:
+    networks:
+      - default
+      - incident-ingress
+
+  incident-db-bootstrap:
+    image: mysql:8.0
+    profiles:
+      - incident-setup
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      INCIDENT_DB_NAME: membershipflow_incident
+      INCIDENT_DB_RUNTIME_USERNAME: incident_analyzer_runtime
+      INCIDENT_DB_RUNTIME_PASSWORD: ${INCIDENT_DB_RUNTIME_PASSWORD:-local_runtime_password_2026}
+      INCIDENT_DB_MIGRATION_USERNAME: incident_analyzer_migrator
+      INCIDENT_DB_MIGRATION_PASSWORD: ${INCIDENT_DB_MIGRATION_PASSWORD:-local_migration_password_2026}
+    volumes:
+      - ./incident-analyzer/scripts/bootstrap-database.sh:/usr/local/bin/bootstrap-incident-db:ro
+    entrypoint:
+      - /bin/sh
+      - /usr/local/bin/bootstrap-incident-db
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - incident-data
+    restart: "no"
+
+  incident-migrate:
+    image: ghcr.io/ohhalim/membershipflow-incident-analyzer:${INCIDENT_ANALYZER_IMAGE_TAG:-latest}
+    build:
+      context: ./incident-analyzer
+    profiles:
+      - incident-setup
+    command:
+      - alembic
+      - upgrade
+      - head
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
+      INCIDENT_DB_HOST: mysql
+      INCIDENT_DB_NAME: membershipflow_incident
+      INCIDENT_DB_MIGRATION_USERNAME: incident_analyzer_migrator
+      INCIDENT_DB_MIGRATION_PASSWORD: ${INCIDENT_DB_MIGRATION_PASSWORD:-local_migration_password_2026}
+    depends_on:
+      incident-db-bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - incident-data
+    restart: "no"
+
+  incident-api:
+    image: ghcr.io/ohhalim/membershipflow-incident-analyzer:${INCIDENT_ANALYZER_IMAGE_TAG:-latest}
+    build:
+      context: ./incident-analyzer
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
+      INCIDENT_DB_HOST: mysql
+      INCIDENT_DB_NAME: membershipflow_incident
+      INCIDENT_DB_USERNAME: incident_analyzer_runtime
+      INCIDENT_DB_PASSWORD: ${INCIDENT_DB_RUNTIME_PASSWORD:-local_runtime_password_2026}
+      DB_POOL_SIZE: 2
+      DB_MAX_OVERFLOW: 0
+      EXPECTED_DB_REVISION: 0003_slack_delivery
+      INCIDENT_WEBHOOK_SECRET: ${INCIDENT_WEBHOOK_SECRET:-local_webhook_secret_change_before_production}
+    read_only: true
+    mem_limit: 160m
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.healthcheck", "ready"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - incident-data
+      - incident-ingress
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  incident-worker:
+    image: ghcr.io/ohhalim/membershipflow-incident-analyzer:${INCIDENT_ANALYZER_IMAGE_TAG:-latest}
+    build:
+      context: ./incident-analyzer
+    profiles:
+      - incident-worker
+    command:
+      - python
+      - -m
+      - app.worker
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-local}
+      INCIDENT_DB_HOST: mysql
+      INCIDENT_DB_NAME: membershipflow_incident
+      INCIDENT_DB_USERNAME: incident_analyzer_runtime
+      INCIDENT_DB_PASSWORD: ${INCIDENT_DB_RUNTIME_PASSWORD:-local_runtime_password_2026}
+      DB_POOL_SIZE: 2
+      DB_MAX_OVERFLOW: 0
+      LOKI_BASE_URL: http://loki:3100
+      INCIDENT_WEBHOOK_SECRET: ${INCIDENT_WEBHOOK_SECRET:-local_webhook_secret_change_before_production}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-4096}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    read_only: true
+    mem_limit: 160m
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      mysql:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    networks:
+      - default
+      - incident-data
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  loki:
+    image: grafana/loki:3.7.2
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    environment:
+      GOMEMLIMIT: 144MiB
+    mem_limit: 192m
+    volumes:
+      - ./loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - default
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  alloy:
+    image: grafana/alloy:v1.18.0
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      GOMEMLIMIT: 96MiB
+    mem_limit: 128m
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - backend_logs:/var/log/membershipflow:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
+    networks:
+      - default
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  incident-data:
+    internal: true
+  incident-ingress:
+    internal: true
+
+volumes:
+  loki_data:
+  alloy_data:
