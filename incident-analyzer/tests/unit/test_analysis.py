@@ -126,5 +126,8 @@ async def test_gemini_sdk_request_uses_pinned_model_and_schema(monkeypatch) -> N
     assert captured["model"] == "pinned-test-model"
     config = captured["config"]
     assert config.response_mime_type == "application/json"
-    assert config.response_schema is AnalysisResult
+    assert config.response_schema is None
+    assert config.response_json_schema["title"] == "AnalysisResult"
+    assert "additionalProperties" not in str(config.response_json_schema)
     assert config.max_output_tokens == 800
+    assert config.temperature is None
