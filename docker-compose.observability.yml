@@ -1,0 +1,88 @@
+# 로컬 로그 수집 검증용 오버레이.
+# docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d --build backend loki alloy prometheus grafana
+services:
+  backend:
+    image: ""
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DB_HOST=mysql
+      - DB_USERNAME=${DB_USERNAME:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-root}
+      - JWT_SECRET=${JWT_SECRET:-dev-only-secret-please-change-0123456789-0123456789-0123456789}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - OAUTH2_REDIRECT_URI=${OAUTH2_REDIRECT_URI:-http://localhost:3000/auth/callback}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - COOKIE_SECURE=false
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-dummy-client-id}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-dummy-client-secret}
+      - TOSS_CLIENT_KEY=${TOSS_CLIENT_KEY:-test_ck_dummy}
+      - TOSS_SECRET_KEY=${TOSS_SECRET_KEY:-test_sk_dummy}
+      - BILLING_ENCRYPTION_KEY=${BILLING_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      - APP_ENVIRONMENT=local
+      - JSON_LOG_FILE=/var/log/membershipflow/membershipflow.json
+    volumes:
+      - backend_logs:/var/log/membershipflow
+    ports:
+      - "127.0.0.1:8081:8081"
+
+  mysql:
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-root}
+      - MYSQL_DATABASE=membershipflow
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+
+  loki:
+    image: grafana/loki:3.7.2
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.18.0
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - backend_logs:/var/log/membershipflow:ro
+      - alloy_data:/var/lib/alloy/data
+    ports:
+      - "127.0.0.1:12345:12345"
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  prometheus:
+    volumes:
+      - ./prometheus/prometheus.observability.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    # 기본 Compose의 Linux 전용 node-exporter 의존성을 macOS 로컬 검증에서 제외한다.
+    depends_on: !override
+      - backend
+      - loki
+      - alloy
+
+  grafana:
+    volumes: !override
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning-observability/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on: !override
+      - prometheus
+      - loki
+
+volumes:
+  backend_logs:
+  loki_data:
+  alloy_data:
