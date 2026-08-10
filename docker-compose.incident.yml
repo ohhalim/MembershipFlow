@@ -34,6 +34,7 @@ services:
     restart: "no"
 
   incident-migrate:
+    image: ghcr.io/ohhalim/membershipflow-incident-analyzer:${INCIDENT_ANALYZER_IMAGE_TAG:-latest}
     build:
       context: ./incident-analyzer
     profiles:
@@ -56,6 +57,7 @@ services:
     restart: "no"
 
   incident-api:
+    image: ghcr.io/ohhalim/membershipflow-incident-analyzer:${INCIDENT_ANALYZER_IMAGE_TAG:-latest}
     build:
       context: ./incident-analyzer
     environment:
@@ -69,6 +71,7 @@ services:
       EXPECTED_DB_REVISION: 0002_analysis_storage
       INCIDENT_WEBHOOK_SECRET: ${INCIDENT_WEBHOOK_SECRET:-local_webhook_secret_change_before_production}
     read_only: true
+    mem_limit: 160m
     tmpfs:
       - /tmp
     cap_drop:
@@ -94,6 +97,7 @@ services:
         max-file: "3"
 
   incident-worker:
+    image: ghcr.io/ohhalim/membershipflow-incident-analyzer:${INCIDENT_ANALYZER_IMAGE_TAG:-latest}
     build:
       context: ./incident-analyzer
     profiles:
@@ -114,7 +118,9 @@ services:
       INCIDENT_WEBHOOK_SECRET: ${INCIDENT_WEBHOOK_SECRET:-local_webhook_secret_change_before_production}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
+      LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-4096}
     read_only: true
+    mem_limit: 160m
     tmpfs:
       - /tmp
     cap_drop:
@@ -124,9 +130,53 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      loki:
+        condition: service_started
     networks:
       - default
       - incident-data
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  loki:
+    image: grafana/loki:3.7.2
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    environment:
+      GOMEMLIMIT: 144MiB
+    mem_limit: 192m
+    volumes:
+      - ./loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - default
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  alloy:
+    image: grafana/alloy:v1.18.0
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      GOMEMLIMIT: 96MiB
+    mem_limit: 128m
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - backend_logs:/var/log/membershipflow:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
+    networks:
+      - default
     restart: unless-stopped
     logging:
       options:
@@ -138,3 +188,7 @@ networks:
     internal: true
   incident-ingress:
     internal: true
+
+volumes:
+  loki_data:
+  alloy_data:

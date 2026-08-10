@@ -8,6 +8,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/membershipflow-backend
+  INCIDENT_IMAGE_NAME: ${{ github.repository_owner }}/membershipflow-incident-analyzer
 
 jobs:
   build-and-push:
@@ -35,6 +36,15 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Build and push incident analyzer image
+        uses: docker/build-push-action@v5
+        with:
+          context: incident-analyzer
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.INCIDENT_IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.INCIDENT_IMAGE_NAME }}:${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -89,6 +99,15 @@ jobs:
           source: docker-compose.yml
           target: /opt/membershipflow/
 
+      - name: Copy incident deployment files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.incident.yml,incident-analyzer/scripts/bootstrap-database.sh,loki/,alloy/"
+          target: /opt/membershipflow/
+
       - name: Copy backend health gate to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -96,6 +115,16 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           source: .github/scripts/wait-for-backend-health.sh
+          target: /opt/membershipflow/
+          strip_components: 2
+
+      - name: Copy incident health gate to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: .github/scripts/wait-for-incident-health.sh
           target: /opt/membershipflow/
           strip_components: 2
 
@@ -151,4 +180,27 @@ jobs:
               echo "Grafana poll ${check}: ${grafana_status}"
               test "${grafana_status}" = "running false"
             done
+
+            for required_key in \
+              INCIDENT_DB_RUNTIME_PASSWORD \
+              INCIDENT_DB_MIGRATION_PASSWORD \
+              INCIDENT_WEBHOOK_SECRET \
+              GEMINI_API_KEY \
+              LLM_MODEL; do
+              if ! grep -Eq "^${required_key}=.+$" .env; then
+                echo "ERROR: ${required_key} is not configured in /opt/membershipflow/.env"
+                exit 1
+              fi
+            done
+
+            export INCIDENT_ANALYZER_IMAGE_TAG=${{ github.sha }}
+            incident_compose="docker compose -f docker-compose.yml -f docker-compose.incident.yml"
+            ${incident_compose} config -q
+            ${incident_compose} pull incident-api incident-worker incident-migrate
+            ${incident_compose} --profile incident-setup run --rm incident-db-bootstrap
+            ${incident_compose} --profile incident-setup run --rm --no-deps incident-migrate
+            ${incident_compose} up -d --no-deps loki alloy
+            ${incident_compose} up -d --no-deps grafana
+            ${incident_compose} --profile incident-worker up -d --no-deps incident-api incident-worker
+            bash wait-for-incident-health.sh
             docker image prune -f

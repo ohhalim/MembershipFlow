@@ -52,6 +52,10 @@ services:
       - TOSS_SECRET_KEY=${TOSS_SECRET_KEY}
       - BILLING_ENCRYPTION_KEY=${BILLING_ENCRYPTION_KEY}
       - DISCORD_ERROR_WEBHOOK_URL=${DISCORD_ERROR_WEBHOOK_URL:-}
+      - APP_ENVIRONMENT=${APP_ENVIRONMENT:-production}
+      - JSON_LOG_FILE=/var/log/membershipflow/membershipflow.json
+    volumes:
+      - backend_logs:/var/log/membershipflow
     depends_on:
       mysql:
         condition: service_healthy
@@ -131,5 +135,6 @@ volumes:
   mysql_data:
   prometheus_data:
   grafana_data:
+  backend_logs:
   certbot_www:
   certbot_conf:
