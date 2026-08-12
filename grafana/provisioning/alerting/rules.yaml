@@ -33,7 +33,11 @@ groups:
         execErrState: Alerting
         for: 5m
         labels:
+          ai_analyze: "true"
+          service: MembershipFlow
+          environment: production
           severity: critical
+          route: collect-batch
         annotations:
           summary: "collect_last_run_timestamp_seconds 26시간 초과 미갱신"
 
@@ -64,6 +68,10 @@ groups:
         execErrState: Alerting
         for: 5m
         labels:
+          ai_analyze: "true"
+          service: MembershipFlow
+          environment: production
           severity: critical
+          route: billing-batch
         annotations:
           summary: "billing_last_run_timestamp_seconds 26시간 초과 미갱신"
