@@ -42,16 +42,29 @@ def verify_webhook_signature(
     tolerance_seconds: int,
     now: int | None = None,
 ) -> None:
+    if (
+        not timestamp.isascii()
+        or not timestamp.isdigit()
+        or len(timestamp) not in {10, 13}
+    ):
+        raise ValueError("invalid webhook timestamp")
+
     try:
-        sent_at = int(timestamp)
+        sent_at_raw = int(timestamp)
     except ValueError as exc:
         raise ValueError("invalid webhook timestamp") from exc
+
+    # Grafana versions can provide a Unix timestamp in seconds or milliseconds.
+    # The original header value remains part of the HMAC input.
+    sent_at = sent_at_raw // 1000 if len(timestamp) == 13 else sent_at_raw
 
     current = int(time.time()) if now is None else now
     if abs(current - sent_at) > tolerance_seconds:
         raise ValueError("expired webhook timestamp")
 
-    signed = timestamp.encode() + b"." + raw_body
+    # Grafana webhook HMAC contract: HMAC-SHA256(timestamp + ":" + raw body).
+    # The timestamp header is included to reject replayed notifications.
+    signed = timestamp.encode() + b":" + raw_body
     expected = hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, signature.lower()):
         raise ValueError("invalid webhook signature")

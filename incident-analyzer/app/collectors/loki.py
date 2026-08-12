@@ -9,7 +9,8 @@ import httpx
 
 from app.domain.evidence import EvidenceBundle, LogEvidence
 
-LOKI_QUERY = '{service="membershipflow-backend"} | json | level=~"WARN|ERROR"'
+BACKEND_SERVICE_LABEL = "MembershipFlow"
+LOKI_QUERY = f'{{service="{BACKEND_SERVICE_LABEL}"}} | json | level=~"WARN|ERROR"'
 MAX_EVIDENCE_BYTES = 16 * 1024
 SENSITIVE_PATTERNS = (
     re.compile(r"AIza[0-9A-Za-z_-]{20,}"),

@@ -24,6 +24,7 @@ async def test_loki_groups_logs_and_drops_sensitive_fields() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["direction"] == "forward"
         assert request.url.params["limit"] == "200"
+        assert '{service="MembershipFlow"}' in request.url.params["query"]
         return httpx.Response(
             200,
             json={
@@ -31,7 +32,7 @@ async def test_loki_groups_logs_and_drops_sensitive_fields() -> None:
                 "data": {
                     "result": [
                         {
-                            "stream": {"service": "membershipflow-backend"},
+                            "stream": {"service": "MembershipFlow"},
                             "values": [["1", line], ["2", line]],
                         }
                     ]
