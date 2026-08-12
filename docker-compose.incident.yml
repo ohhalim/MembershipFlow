@@ -8,6 +8,11 @@ services:
     networks:
       - default
       - incident-ingress
+    depends_on:
+      loki:
+        condition: service_started
+      incident-api:
+        condition: service_healthy
 
   incident-db-bootstrap:
     image: mysql:8.0

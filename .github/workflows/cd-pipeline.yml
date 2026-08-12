@@ -138,22 +138,6 @@ jobs:
           target: /opt/membershipflow/
           strip_components: 0
 
-      - name: Guard optional Discord alert provisioning
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd /opt/membershipflow
-            if ! grep -Eq '^DISCORD_ERROR_WEBHOOK_URL=.+$' .env; then
-              rm -f \
-                grafana/provisioning/alerting/contactpoints.yaml \
-                grafana/provisioning/alerting/notification-policies.yaml \
-                grafana/provisioning/alerting/rules.yaml
-              echo "Discord webhook not configured; batch heartbeat alert provisioning skipped"
-            fi
-
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -171,15 +155,7 @@ jobs:
             bash wait-for-backend-health.sh
             docker compose up -d node-exporter
             docker compose up -d --no-deps --force-recreate prometheus
-            docker compose restart nginx grafana
-            grafana_container=$(docker compose ps -q grafana)
-            test -n "${grafana_container}"
-            for check in 1 2 3; do
-              sleep 10
-              grafana_status=$(docker inspect --format '{{.State.Status}} {{.State.Restarting}}' "${grafana_container}")
-              echo "Grafana poll ${check}: ${grafana_status}"
-              test "${grafana_status}" = "running false"
-            done
+            docker compose restart nginx
 
             for required_key in \
               INCIDENT_DB_RUNTIME_PASSWORD \
@@ -197,11 +173,24 @@ jobs:
             export INCIDENT_ANALYZER_IMAGE_TAG=${{ github.sha }}
             incident_compose="docker compose -f docker-compose.yml -f docker-compose.incident.yml"
             ${incident_compose} config -q
-            ${incident_compose} pull incident-api incident-worker incident-migrate
+            ${incident_compose} pull incident-api incident-worker incident-migrate grafana
             ${incident_compose} --profile incident-setup run --rm incident-db-bootstrap
             ${incident_compose} --profile incident-setup run --rm --no-deps incident-migrate
             ${incident_compose} up -d --no-deps loki alloy
-            ${incident_compose} up -d --no-deps grafana
             ${incident_compose} --profile incident-worker up -d --no-deps incident-api incident-worker
             bash wait-for-incident-health.sh
+            ${incident_compose} up -d --no-deps grafana
+            grafana_container=$(${incident_compose} ps -q grafana)
+            test -n "${grafana_container}"
+            for check in 1 2 3; do
+              sleep 10
+              grafana_status=$(docker inspect --format '{{.State.Status}} {{.State.Restarting}}' "${grafana_container}")
+              echo "Grafana poll ${check}: ${grafana_status}"
+              test "${grafana_status}" = "running false"
+            done
+            if ${incident_compose} logs --since 2m grafana | grep -Eiq 'logger=provisioning.alerting.*level=error|failed to provision alerting'; then
+              echo "ERROR: Grafana provisioning failure detected"
+              ${incident_compose} logs --since 2m grafana
+              exit 1
+            fi
             docker image prune -f
