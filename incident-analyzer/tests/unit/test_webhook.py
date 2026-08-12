@@ -21,17 +21,30 @@ SECRET = "test_webhook_secret_at_least_32_characters"
 
 def sign(body: bytes, timestamp: str) -> str:
     return hmac.new(
-        SECRET.encode(), timestamp.encode() + b"." + body, hashlib.sha256
+        SECRET.encode(), timestamp.encode() + b":" + body, hashlib.sha256
     ).hexdigest()
 
 
-def test_signature_accepts_current_untampered_body() -> None:
+@pytest.mark.parametrize(
+    ("timestamp", "now"),
+    [("1700000000", 1700000000), ("1700000000000", 1700000000)],
+)
+def test_signature_accepts_current_untampered_body(timestamp: str, now: int) -> None:
     body = b'{"status":"firing"}'
-    timestamp = "1700000000"
 
     verify_webhook_signature(
-        body, timestamp, sign(body, timestamp), SECRET, 300, now=1700000000
+        body, timestamp, sign(body, timestamp), SECRET, 300, now=now
     )
+
+
+@pytest.mark.parametrize("timestamp", ["", "17000000000", "not-a-timestamp"])
+def test_signature_rejects_invalid_timestamp_format(timestamp: str) -> None:
+    body = b'{"status":"firing"}'
+
+    with pytest.raises(ValueError, match="invalid webhook timestamp"):
+        verify_webhook_signature(
+            body, timestamp, sign(body, timestamp), SECRET, 300, now=1700000000
+        )
 
 
 @pytest.mark.parametrize("tamper", ["body", "signature", "expired"])

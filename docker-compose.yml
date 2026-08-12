@@ -107,7 +107,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.1.0
     ports:
       - "127.0.0.1:3001:3000"
     volumes:
@@ -118,7 +118,7 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_ENABLE_ENVIRONMENT_VARIABLE_EXPANSION=true
-      - DISCORD_ERROR_WEBHOOK_URL=${DISCORD_ERROR_WEBHOOK_URL:-}
+      - INCIDENT_WEBHOOK_SECRET=${INCIDENT_WEBHOOK_SECRET:-local_webhook_secret_change_before_production}
     depends_on:
       - prometheus
     restart: unless-stopped
