@@ -33,11 +33,20 @@ loki.process "membershipflow_backend" {
     }
   }
 
-  forward_to = [loki.write.local.receiver]
+  forward_to = [
+    loki.write.local.receiver,
+    loki.write.remote.receiver,
+  ]
 }
 
 loki.write "local" {
   endpoint {
     url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+loki.write "remote" {
+  endpoint {
+    url = sys.env("LOKI_REMOTE_WRITE_URL")
   }
 }
