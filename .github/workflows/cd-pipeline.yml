@@ -158,6 +158,8 @@ jobs:
             docker compose restart nginx
 
             for required_key in \
+              OBSERVABILITY_BIND_ADDRESS \
+              LOKI_REMOTE_WRITE_URL \
               INCIDENT_DB_RUNTIME_PASSWORD \
               INCIDENT_DB_MIGRATION_PASSWORD \
               INCIDENT_WEBHOOK_SECRET \
@@ -169,6 +171,11 @@ jobs:
                 exit 1
               fi
             done
+
+            if grep -Eq '^OBSERVABILITY_BIND_ADDRESS=0\.0\.0\.0$' .env; then
+              echo "ERROR: OBSERVABILITY_BIND_ADDRESS must not expose metrics on all interfaces"
+              exit 1
+            fi
 
             export INCIDENT_ANALYZER_IMAGE_TAG=${{ github.sha }}
             incident_compose="docker compose -f docker-compose.yml -f docker-compose.incident.yml"
