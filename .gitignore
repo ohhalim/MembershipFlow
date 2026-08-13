@@ -33,3 +33,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 .coverage
+
+### k6 local credentials / outputs ###
+k6/payment-test-users.json
+k6/results/
