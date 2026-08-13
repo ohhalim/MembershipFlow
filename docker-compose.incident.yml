@@ -174,6 +174,7 @@ services:
       - /etc/alloy/config.alloy
     environment:
       GOMEMLIMIT: 96MiB
+      LOKI_REMOTE_WRITE_URL: ${LOKI_REMOTE_WRITE_URL:-http://loki:3100/loki/api/v1/push}
     mem_limit: 128m
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
