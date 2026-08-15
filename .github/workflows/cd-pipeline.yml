@@ -8,7 +8,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/membershipflow-backend
-  INCIDENT_IMAGE_NAME: ${{ github.repository_owner }}/membershipflow-incident-analyzer
 
 jobs:
   build-and-push:
@@ -37,15 +36,6 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Build and push incident analyzer image
-        uses: docker/build-push-action@v5
-        with:
-          context: incident-analyzer
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.INCIDENT_IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.INCIDENT_IMAGE_NAME }}:${{ github.sha }}
-
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -65,31 +55,6 @@ jobs:
           target: /opt/membershipflow/nginx/
           strip_components: 1
 
-      - name: Prepare Grafana directories on EC2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            # scp는 덮어쓰기만 하고 삭제된/변경된 파일을 지우지 않아 git과 서버가
-            # 어긋날 수 있음(#191) — 매 배포마다 클린 싱크가 되도록 완전히 비우고 재생성.
-            # grafana_data(실제 DB) 볼륨은 별개라 영향 없음
-            sudo rm -rf /opt/membershipflow/grafana/provisioning
-            sudo mkdir -p /opt/membershipflow/grafana/provisioning/datasources
-            sudo mkdir -p /opt/membershipflow/grafana/provisioning/dashboards
-            sudo chown -R ubuntu:ubuntu /opt/membershipflow/grafana
-
-      - name: Copy Grafana provisioning to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "grafana/provisioning/"
-          target: /opt/membershipflow/
-          strip_components: 0
-
       - name: Copy docker-compose.yml to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -99,13 +64,13 @@ jobs:
           source: docker-compose.yml
           target: /opt/membershipflow/
 
-      - name: Copy incident deployment files to EC2
+      - name: Copy telemetry agent files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.incident.yml,incident-analyzer/scripts/bootstrap-database.sh,loki/,alloy/"
+          source: "docker-compose.telemetry.yml,alloy/"
           target: /opt/membershipflow/
 
       - name: Copy backend health gate to EC2
@@ -118,26 +83,6 @@ jobs:
           target: /opt/membershipflow/
           strip_components: 2
 
-      - name: Copy incident health gate to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: .github/scripts/wait-for-incident-health.sh
-          target: /opt/membershipflow/
-          strip_components: 2
-
-      - name: Copy Prometheus configuration to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "prometheus/"
-          target: /opt/membershipflow/
-          strip_components: 0
-
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -147,25 +92,14 @@ jobs:
           script: |
             cd /opt/membershipflow
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker run --rm --entrypoint /bin/promtool \
-              -v "$PWD/prometheus:/etc/prometheus:ro" \
-              prom/prometheus:latest \
-              check config /etc/prometheus/prometheus.yml
             docker compose pull backend
             bash wait-for-backend-health.sh
             docker compose up -d node-exporter
-            docker compose up -d --no-deps --force-recreate prometheus
             docker compose restart nginx
 
             for required_key in \
               OBSERVABILITY_BIND_ADDRESS \
-              LOKI_REMOTE_WRITE_URL \
-              INCIDENT_DB_RUNTIME_PASSWORD \
-              INCIDENT_DB_MIGRATION_PASSWORD \
-              INCIDENT_WEBHOOK_SECRET \
-              GEMINI_API_KEY \
-              LLM_MODEL \
-              SLACK_WEBHOOK_URL; do
+              LOKI_REMOTE_WRITE_URL; do
               if ! grep -Eq "^${required_key}=.+$" .env; then
                 echo "ERROR: ${required_key} is not configured in /opt/membershipflow/.env"
                 exit 1
@@ -177,27 +111,29 @@ jobs:
               exit 1
             fi
 
-            export INCIDENT_ANALYZER_IMAGE_TAG=${{ github.sha }}
-            incident_compose="docker compose -f docker-compose.yml -f docker-compose.incident.yml"
-            ${incident_compose} config -q
-            ${incident_compose} pull incident-api incident-worker incident-migrate grafana
-            ${incident_compose} --profile incident-setup run --rm incident-db-bootstrap
-            ${incident_compose} --profile incident-setup run --rm --no-deps incident-migrate
-            ${incident_compose} up -d --no-deps loki alloy
-            ${incident_compose} --profile incident-worker up -d --no-deps incident-api incident-worker
-            bash wait-for-incident-health.sh
-            ${incident_compose} up -d --no-deps grafana
-            grafana_container=$(${incident_compose} ps -q grafana)
-            test -n "${grafana_container}"
-            for check in 1 2 3; do
-              sleep 10
-              grafana_status=$(docker inspect --format '{{.State.Status}} {{.State.Restarting}}' "${grafana_container}")
-              echo "Grafana poll ${check}: ${grafana_status}"
-              test "${grafana_status}" = "running false"
-            done
-            if ${incident_compose} logs --since 2m grafana | grep -Eiq 'logger=provisioning.alerting.*level=error|failed to provision alerting'; then
-              echo "ERROR: Grafana provisioning failure detected"
-              ${incident_compose} logs --since 2m grafana
+            telemetry_compose="docker compose -f docker-compose.yml -f docker-compose.telemetry.yml"
+            ${telemetry_compose} config -q
+            ${telemetry_compose} pull alloy
+            ${telemetry_compose} up -d --no-deps --force-recreate alloy
+            alloy_container=$(${telemetry_compose} ps -q alloy)
+            test -n "${alloy_container}"
+            sleep 10
+            alloy_status=$(docker inspect --format '{{.State.Status}} {{.State.Restarting}}' "${alloy_container}")
+            echo "Alloy state: ${alloy_status}"
+            test "${alloy_status}" = "running false"
+            if ${telemetry_compose} logs --since 2m alloy | grep -Eiq 'level=error|final error sending batch'; then
+              echo "ERROR: Alloy remote write failure detected"
+              ${telemetry_compose} logs --since 2m alloy
               exit 1
             fi
+
+            for legacy_service in grafana prometheus loki incident-api incident-worker; do
+              legacy_container=$(docker ps -q \
+                --filter "label=com.docker.compose.project=membershipflow" \
+                --filter "label=com.docker.compose.service=${legacy_service}")
+              if [ -n "${legacy_container}" ]; then
+                echo "Stopping legacy observability service: ${legacy_service}"
+                docker stop ${legacy_container}
+              fi
+            done
             docker image prune -f
