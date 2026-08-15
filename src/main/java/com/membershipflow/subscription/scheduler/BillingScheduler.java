@@ -1,5 +1,6 @@
 package com.membershipflow.subscription.scheduler;
 
+import com.membershipflow.common.monitoring.BatchHeartbeatService;
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.entity.SubscriptionStatus;
 import com.membershipflow.subscription.repository.SubscriptionRepository;
@@ -25,6 +26,7 @@ public class BillingScheduler {
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService    subscriptionService;
     private final MeterRegistry          meterRegistry;
+    private final BatchHeartbeatService  batchHeartbeatService;
 
     // 배치 하트비트 (#188): processDueBillings()가 끝까지 실행 완료된 시각(epoch seconds).
     // be#178(트랜잭션 없는 락 쿼리로 배치가 매일 즉사)이 재발하면 이 값이 멈춘다
@@ -32,6 +34,8 @@ public class BillingScheduler {
 
     @PostConstruct
     void registerMetrics() {
+        billingLastRunTimestamp.set(batchHeartbeatService.lastSuccessEpochSeconds(
+                BatchHeartbeatService.BILLING_BATCH));
         Gauge.builder("billing_last_run_timestamp_seconds", billingLastRunTimestamp, AtomicLong::get)
                 .description("마지막으로 processDueBillings()가 끝까지 실행 완료된 시각(epoch seconds)")
                 .register(meterRegistry);
@@ -54,6 +58,8 @@ public class BillingScheduler {
             }
         }
 
-        billingLastRunTimestamp.set(Instant.now().getEpochSecond());
+        long completedAt = Instant.now().getEpochSecond();
+        batchHeartbeatService.recordSuccess(BatchHeartbeatService.BILLING_BATCH, completedAt);
+        billingLastRunTimestamp.set(completedAt);
     }
 }

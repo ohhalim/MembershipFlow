@@ -9,6 +9,7 @@ import com.membershipflow.collect.collector.PriceCollector;
 import com.membershipflow.collect.entity.CollectRun;
 import com.membershipflow.collect.entity.CrawlSource;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
+import com.membershipflow.common.monitoring.BatchHeartbeatService;
 import com.membershipflow.watchlist.service.AlertService;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -33,6 +34,7 @@ public class CollectService {
     private final DongaInfoCollector dongaInfoCollector;
     private final CollectPersistenceService persistenceService;
     private final MeterRegistry meterRegistry;
+    private final BatchHeartbeatService batchHeartbeatService;
 
     // 배치 하트비트 (#188): collectAll()이 끝까지 실행 완료된 시각(epoch seconds).
     // Grafana에서 이 값이 오래되면(스케줄러가 안 돌았거나 도중에 죽었으면) 알림
@@ -40,6 +42,8 @@ public class CollectService {
 
     @PostConstruct
     void registerMetrics() {
+        collectLastRunTimestamp.set(batchHeartbeatService.lastSuccessEpochSeconds(
+                BatchHeartbeatService.COLLECT_BATCH));
         Gauge.builder("collect_last_run_timestamp_seconds", collectLastRunTimestamp, AtomicLong::get)
                 .description("마지막으로 collectAll()이 끝까지 실행 완료된 시각(epoch seconds)")
                 .register(meterRegistry);
@@ -55,7 +59,9 @@ public class CollectService {
         }
         // 전체 소스 수집 완료 후 거래소간 가격 이상치 탐지 (#159)
         anomalyDetectionService.checkPriceOutliers();
-        collectLastRunTimestamp.set(Instant.now().getEpochSecond());
+        long completedAt = Instant.now().getEpochSecond();
+        batchHeartbeatService.recordSuccess(BatchHeartbeatService.COLLECT_BATCH, completedAt);
+        collectLastRunTimestamp.set(completedAt);
     }
 
     public void collectOne(CrawlSource source, PriceCollector collector) {
