@@ -231,7 +231,7 @@ CI에서 `./gradlew test`로 전체 테스트 수행, 실패 시 PR 머지 차�
 ### 3.1 배포 환경
 
 ```
-[User] → membershipflow.site → EC2 t3.small (Ubuntu 22.04)
+[User] → membershipflow.site → Application EC2
                                   ├── nginx (80 → 443 HTTPS)
                                   │     ├── /api/*       → backend:8081
                                   │     ├── /oauth2/*    → backend:8081
@@ -240,13 +240,18 @@ CI에서 `./gradlew test`로 전체 테스트 수행, 실패 시 PR 머지 차�
                                   ├── frontend  (Next.js, Docker)
                                   ├── backend   (Spring Boot, Docker)
                                   ├── mysql     (Docker, 로컬 볼륨)
-                                  ├── prometheus (127.0.0.1:9090)
-                                  └── grafana   (127.0.0.1:3001)
+                                  ├── node-exporter
+                                  └── alloy ───────────────┐
+                                                           │
+                                Observability EC2 ←────────┘
+                                  ├── Prometheus + Grafana + Loki
+                                  └── Incident API/Worker + MySQL
 ```
 
 - **도메인:** membershipflow.site (가비아 DNS → EC2 Elastic IP)
 - **SSL:** Let's Encrypt (certbot, 자동 갱신 cron)
-- **모니터링:** Prometheus + Grafana (로컬호스트 전용, 외부 미노출)
+- **모니터링:** 독립 관찰 서버의 Prometheus + Grafana + Loki
+- **수집 에이전트:** 애플리케이션 서버의 node-exporter + Alloy
 
 ### 3.2 CI/CD
 

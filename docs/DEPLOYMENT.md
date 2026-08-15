@@ -3,7 +3,7 @@
 ## 아키텍처
 
 ```
-[User] → membershipflow.site → [EC2]
+[User] → membershipflow.site → [Application EC2]
                                   ├── nginx (80/443)
                                   │     ├── /api/*  → backend:8081
                                   │     ├── /oauth2/* → backend:8081
@@ -11,8 +11,15 @@
                                   ├── frontend (Next.js)
                                   ├── backend (Spring Boot)
                                   ├── mysql
-                                  ├── prometheus (127.0.0.1:9090)
-                                  └── grafana (127.0.0.1:3001)
+                                  ├── node-exporter
+                                  └── alloy ───────────────┐
+                                                           │
+                                [Observability EC2] ←───────┘
+                                  ├── prometheus
+                                  ├── grafana
+                                  ├── loki
+                                  ├── incident-api/worker
+                                  └── incident mysql
 ```
 
 ## CI/CD 흐름
@@ -21,9 +28,10 @@
 push to main
   → GitHub Actions CI (test)
   → build Docker image
-  → push to ghcr.io/ohhalim/membershipflow-{backend,front}:latest
+  → push to ghcr.io/ohhalim/membershipflow-backend:latest
   → SSH to EC2
-  → docker compose pull && docker compose up -d --no-deps {service}
+  → backend 배포 및 health gate
+  → node-exporter·Alloy 배포
 ```
 
 ## 1. EC2 생성
@@ -75,12 +83,15 @@ docker compose --profile certbot run certbot certonly \
 docker compose restart nginx
 ```
 
-## 6. 전체 서비스 시작
+## 6. 애플리케이션 서비스 시작
 
 ```bash
 cd /opt/membershipflow
 docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.telemetry.yml up -d alloy
 ```
+
+`LOKI_REMOTE_WRITE_URL`은 독립 관찰 서버의 private Loki 주소로 설정한다.
 
 ## 7. GitHub Actions Secrets 설정
 
