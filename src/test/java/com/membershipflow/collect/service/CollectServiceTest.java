@@ -16,6 +16,7 @@ import com.membershipflow.collect.repository.CollectRunRepository;
 import com.membershipflow.collect.repository.CourseAliasRepository;
 import com.membershipflow.collect.repository.CourseSourceMappingRepository;
 import com.membershipflow.collect.repository.CrawlSourceRepository;
+import com.membershipflow.common.monitoring.BatchHeartbeatService;
 import com.membershipflow.course.entity.CourseInfo;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
@@ -61,6 +62,7 @@ class CollectServiceTest {
     @Mock AnomalyDetectionService     anomalyDetectionService;
     @Mock DongaHistoryCollector       dongaHistoryCollector;
     @Mock DongaInfoCollector          dongaInfoCollector;
+    @Mock BatchHeartbeatService       batchHeartbeatService;
 
     CollectPersistenceService persistenceService;
     CollectService collectService;
@@ -87,7 +89,8 @@ class CollectServiceTest {
                 dongaHistoryCollector,
                 dongaInfoCollector,
                 persistenceService,
-                meterRegistry);
+                meterRegistry,
+                batchHeartbeatService);
         collectService.registerMetrics();
 
         source = CrawlSource.builder()
@@ -610,5 +613,36 @@ class CollectServiceTest {
         // then
         double gaugeValue = meterRegistry.get("collect_last_run_timestamp_seconds").gauge().value();
         assertThat(gaugeValue).isGreaterThanOrEqualTo(before);
+        then(batchHeartbeatService).should().recordSuccess(
+                org.mockito.ArgumentMatchers.eq(BatchHeartbeatService.COLLECT_BATCH),
+                org.mockito.ArgumentMatchers.longThat(value -> value >= before));
+    }
+
+    @Test
+    @DisplayName("시작 시 저장된 수집 성공 시각을 하트비트 게이지에 복원한다 (#303)")
+    void registerMetrics_restoresPersistedHeartbeat() {
+        // given
+        long persisted = 1_786_744_815L;
+        io.micrometer.core.instrument.simple.SimpleMeterRegistry restoredRegistry =
+                new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        given(batchHeartbeatService.lastSuccessEpochSeconds(
+                BatchHeartbeatService.COLLECT_BATCH)).willReturn(persisted);
+        CollectService restored = new CollectService(
+                crawlSourceRepository,
+                collectorRegistry,
+                alertService,
+                anomalyDetectionService,
+                dongaHistoryCollector,
+                dongaInfoCollector,
+                persistenceService,
+                restoredRegistry,
+                batchHeartbeatService);
+
+        // when
+        restored.registerMetrics();
+
+        // then
+        assertThat(restoredRegistry.get("collect_last_run_timestamp_seconds").gauge().value())
+                .isEqualTo(persisted);
     }
 }

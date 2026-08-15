@@ -1,5 +1,6 @@
 package com.membershipflow.subscription.scheduler;
 
+import com.membershipflow.common.monitoring.BatchHeartbeatService;
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.repository.SubscriptionRepository;
 import com.membershipflow.subscription.service.SubscriptionService;
@@ -26,6 +27,7 @@ class BillingSchedulerTest {
 
     @Mock SubscriptionRepository subscriptionRepository;
     @Mock SubscriptionService    subscriptionService;
+    @Mock BatchHeartbeatService  batchHeartbeatService;
 
     SimpleMeterRegistry meterRegistry;
     BillingScheduler billingScheduler;
@@ -33,7 +35,8 @@ class BillingSchedulerTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        billingScheduler = new BillingScheduler(subscriptionRepository, subscriptionService, meterRegistry);
+        billingScheduler = new BillingScheduler(
+                subscriptionRepository, subscriptionService, meterRegistry, batchHeartbeatService);
         billingScheduler.registerMetrics();
     }
 
@@ -92,5 +95,27 @@ class BillingSchedulerTest {
         // then
         double gaugeValue = meterRegistry.get("billing_last_run_timestamp_seconds").gauge().value();
         assertThat(gaugeValue).isGreaterThanOrEqualTo(before);
+        then(batchHeartbeatService).should().recordSuccess(
+                org.mockito.ArgumentMatchers.eq(BatchHeartbeatService.BILLING_BATCH),
+                org.mockito.ArgumentMatchers.longThat(value -> value >= before));
+    }
+
+    @Test
+    @DisplayName("시작 시 저장된 정기결제 성공 시각을 하트비트 게이지에 복원한다 (#303)")
+    void registerMetrics_restoresPersistedHeartbeat() {
+        // given
+        long persisted = 1_786_719_600L;
+        given(batchHeartbeatService.lastSuccessEpochSeconds(
+                BatchHeartbeatService.BILLING_BATCH)).willReturn(persisted);
+        SimpleMeterRegistry restoredRegistry = new SimpleMeterRegistry();
+        BillingScheduler restored = new BillingScheduler(
+                subscriptionRepository, subscriptionService, restoredRegistry, batchHeartbeatService);
+
+        // when
+        restored.registerMetrics();
+
+        // then
+        assertThat(restoredRegistry.get("billing_last_run_timestamp_seconds").gauge().value())
+                .isEqualTo(persisted);
     }
 }
