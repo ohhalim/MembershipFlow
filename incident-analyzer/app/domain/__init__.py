@@ -1,1 +1,0 @@
-"""Incident analysis domain models."""
