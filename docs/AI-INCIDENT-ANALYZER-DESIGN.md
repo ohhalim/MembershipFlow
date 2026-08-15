@@ -1,8 +1,11 @@
 # AI 인시던트 분석기 설계
 
-> 상태: Implementation Ready / 미구현
+> 현재 구현과 운영 설정은 독립 `MembershipFlow-observability` 저장소에서 관리한다.
+> 이 문서는 최초 설계와 의사결정 기록으로 보존한다.
+
+> 상태: 최초 설계 기록 / 구현과 운영 설정은 독립 저장소로 이전
 > 작성일: 2026-08-10
-> 대상 저장소: MembershipFlow
+> 최초 대상 저장소: MembershipFlow
 > 첫 검증 시나리오: `/api/v1/courses` 429 증가
 > 운영 목표: 단일 EC2 환경에서 안전하게 실행 가능한 1차 운영 버전
 

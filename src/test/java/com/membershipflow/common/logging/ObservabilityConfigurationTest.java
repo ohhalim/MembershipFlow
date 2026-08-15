@@ -39,17 +39,22 @@ class ObservabilityConfigurationTest {
     }
 
     @Test
-    @DisplayName("Alloy는 전환 기간 동안 로컬 Loki와 원격 Loki에 로그를 함께 전송한다")
-    void alloy_forwardsLogsToLocalAndRemoteLoki() throws IOException {
+    @DisplayName("Alloy는 독립 관찰 서버의 Loki에만 로그를 전송한다")
+    void alloy_forwardsLogsOnlyToRemoteLoki() throws IOException {
         String alloy = read("alloy/config.alloy");
-        String compose = read("docker-compose.incident.yml");
+        String compose = read("docker-compose.telemetry.yml");
 
         assertThat(alloy)
-                .contains("loki.write.local.receiver")
                 .contains("loki.write.remote.receiver")
-                .contains("url = sys.env(\"LOKI_REMOTE_WRITE_URL\")");
+                .contains("url = sys.env(\"LOKI_REMOTE_WRITE_URL\")")
+                .doesNotContain("loki.write.local")
+                .doesNotContain("http://loki:3100");
         assertThat(compose)
-                .contains("LOKI_REMOTE_WRITE_URL: ${LOKI_REMOTE_WRITE_URL:-http://loki:3100/loki/api/v1/push}");
+                .contains("LOKI_REMOTE_WRITE_URL: ${LOKI_REMOTE_WRITE_URL:?LOKI_REMOTE_WRITE_URL is required}")
+                .doesNotContain("\n  incident-api:")
+                .doesNotContain("\n  incident-worker:")
+                .doesNotContain("\n  grafana:")
+                .doesNotContain("\n  prometheus:");
     }
 
     @Test
@@ -67,15 +72,23 @@ class ObservabilityConfigurationTest {
     }
 
     @Test
-    @DisplayName("로컬 관측 구성은 Docker socket 없이 loopback 포트만 노출한다")
-    void compose_usesLoopbackPortsWithoutDockerSocket() throws IOException {
-        String compose = read("docker-compose.observability.yml");
+    @DisplayName("애플리케이션 배포에는 관찰 제어면 서비스를 포함하지 않는다")
+    void deployment_excludesLegacyObservabilityControlPlane() throws IOException {
+        String compose = read("docker-compose.yml");
+        String deployment = read(".github/workflows/cd-pipeline.yml");
 
         assertThat(compose)
-                .contains("127.0.0.1:8081:8081")
-                .contains("127.0.0.1:3100:3100")
-                .contains("127.0.0.1:12345:12345")
-                .doesNotContain("/var/run/docker.sock");
+                .doesNotContain("\n  prometheus:")
+                .doesNotContain("\n  grafana:")
+                .doesNotContain("\n  loki:")
+                .doesNotContain("\n  incident-api:")
+                .doesNotContain("\n  incident-worker:");
+        assertThat(deployment)
+                .doesNotContain("membershipflow-incident-analyzer")
+                .doesNotContain("incident-migrate")
+                .doesNotContain("wait-for-incident-health")
+                .contains("docker-compose.telemetry.yml")
+                .contains("Stopping legacy observability service");
     }
 
     private String read(String relativePath) throws IOException {

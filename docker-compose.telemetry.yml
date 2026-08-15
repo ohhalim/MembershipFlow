@@ -1,0 +1,24 @@
+services:
+  alloy:
+    image: grafana/alloy:v1.18.0
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      GOMEMLIMIT: 96MiB
+      LOKI_REMOTE_WRITE_URL: ${LOKI_REMOTE_WRITE_URL:?LOKI_REMOTE_WRITE_URL is required}
+    mem_limit: 128m
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - backend_logs:/var/log/membershipflow:ro
+      - alloy_data:/var/lib/alloy/data
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  alloy_data:

@@ -22,32 +22,13 @@ jobs:
         run: bash .github/scripts/validate-pr-flow.sh "${{ github.base_ref }}" "${{ github.head_ref }}"
 
       - name: Backend health gate 테스트
+        run: bash .github/scripts/wait-for-backend-health-test.sh
+
+      - name: Telemetry agent 배포 설정 검증
+        env:
+          LOKI_REMOTE_WRITE_URL: http://observability:3100/loki/api/v1/push
         run: |
-          bash .github/scripts/wait-for-backend-health-test.sh
-          bash .github/scripts/wait-for-incident-health-test.sh
-
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-          cache: 'pip'
-          cache-dependency-path: incident-analyzer/requirements-dev.lock
-
-      - name: Incident analyzer 의존성 설치
-        working-directory: incident-analyzer
-        run: pip install --require-hashes -r requirements-dev.lock
-
-      - name: Incident analyzer 단위·MySQL 통합 테스트
-        working-directory: incident-analyzer
-        run: |
-          ruff check app tests migrations
-          ruff format --check app tests migrations
-          pytest
-
-      - name: Incident analyzer 배포 설정 검증
-        run: |
-          docker compose -f docker-compose.yml -f docker-compose.incident.yml config -q
-          docker build -t membershipflow-incident-analyzer:ci incident-analyzer
+          docker compose -f docker-compose.yml -f docker-compose.telemetry.yml config -q
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
