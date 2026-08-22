@@ -1,9 +1,11 @@
 package com.membershipflow.subscription.controller;
 
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
+import com.membershipflow.common.exception.BusinessException;
 import com.membershipflow.subscription.dto.*;
 import com.membershipflow.subscription.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -13,7 +15,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.List;
+import org.springframework.web.util.UriComponentsBuilder;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/subscriptions")
 @RequiredArgsConstructor
@@ -48,11 +52,25 @@ public class SubscriptionController {
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(frontendUrl + "/my/subscription?success=1"))
                     .build();
-        } catch (Exception e) {
+        } catch (BusinessException e) {
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(URI.create(frontendUrl + "/my/subscription?error=1"))
+                    .location(failureRedirect(e.getErrorCode().getCode()))
+                    .build();
+        } catch (Exception e) {
+            log.error("최초 구독 결제 콜백 처리 실패: customerKey={}", customerKey, e);
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(failureRedirect("INTERNAL_ERROR"))
                     .build();
         }
+    }
+
+    private URI failureRedirect(String errorCode) {
+        return UriComponentsBuilder.fromUriString(frontendUrl)
+                .path("/my/subscription")
+                .queryParam("error", errorCode)
+                .build()
+                .encode()
+                .toUri();
     }
 
     /** 내 구독 조회 */
