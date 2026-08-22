@@ -27,8 +27,35 @@ jobs:
       - name: Telemetry agent 배포 설정 검증
         env:
           LOKI_REMOTE_WRITE_URL: http://observability:3100/loki/api/v1/push
+          MYSQL_MONITORING_USERNAME: membershipflow_monitor
+          MYSQL_MONITORING_PASSWORD: ci-monitoring-password-32-characters
+          DB_PASSWORD: ci-database-password
         run: |
           docker compose -f docker-compose.yml -f docker-compose.telemetry.yml config -q
+
+      - name: Alloy 설정 검증
+        env:
+          LOKI_REMOTE_WRITE_URL: http://observability:3100/loki/api/v1/push
+          MYSQL_MONITORING_USERNAME: membershipflow_monitor
+          MYSQL_MONITORING_PASSWORD: ci-monitoring-password-32-characters
+          APP_ENVIRONMENT: test
+        run: |
+          docker run --rm \
+            -e LOKI_REMOTE_WRITE_URL \
+            -e MYSQL_MONITORING_USERNAME \
+            -e MYSQL_MONITORING_PASSWORD \
+            -e APP_ENVIRONMENT \
+            -v "${PWD}/alloy/config.alloy:/etc/alloy/config.alloy:ro" \
+            grafana/alloy:v1.18.0 \
+            fmt --test /etc/alloy/config.alloy
+          docker run --rm \
+            -e LOKI_REMOTE_WRITE_URL \
+            -e MYSQL_MONITORING_USERNAME \
+            -e MYSQL_MONITORING_PASSWORD \
+            -e APP_ENVIRONMENT \
+            -v "${PWD}/alloy/config.alloy:/etc/alloy/config.alloy:ro" \
+            grafana/alloy:v1.18.0 \
+            validate --stability.level=public-preview /etc/alloy/config.alloy
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4

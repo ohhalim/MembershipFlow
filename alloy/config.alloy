@@ -36,6 +36,39 @@ loki.process "membershipflow_backend" {
 	forward_to = [loki.write.remote.receiver]
 }
 
+database_observability.mysql "membershipflow" {
+	data_source_name = sys.env("MYSQL_MONITORING_USERNAME") + ":" + sys.env("MYSQL_MONITORING_PASSWORD") + "@tcp(mysql:3306)/"
+	forward_to       = [loki.process.membershipflow_mysql.receiver]
+
+	disable_collectors = [
+		"query_details",
+		"schema_details",
+		"query_samples",
+		"setup_consumers",
+		"setup_actors",
+		"explain_plans",
+	]
+	enable_collectors = ["locks"]
+
+	locks {
+		collect_interval = "5s"
+		// Alloy 1.18은 누적 TIMER_WAIT가 아닌 statement LOCK_TIME과 비교한다.
+		// 조회 자체가 data_lock_waits로 제한되므로 활성 blocker/waiter를 모두 수집한다.
+		threshold = "0s"
+	}
+}
+
+loki.process "membershipflow_mysql" {
+	stage.static_labels {
+		values = {
+			environment = sys.env("APP_ENVIRONMENT"),
+			service     = "MembershipFlow-MySQL",
+		}
+	}
+
+	forward_to = [loki.write.remote.receiver]
+}
+
 loki.write "remote" {
 	endpoint {
 		url = sys.env("LOKI_REMOTE_WRITE_URL")
