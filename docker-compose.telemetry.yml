@@ -3,13 +3,17 @@ services:
     image: grafana/alloy:v1.18.0
     command:
       - run
+      - --stability.level=public-preview
       - --server.http.listen-addr=0.0.0.0:12345
       - --storage.path=/var/lib/alloy/data
       - /etc/alloy/config.alloy
     environment:
-      GOMEMLIMIT: 96MiB
+      GOMEMLIMIT: 144MiB
       LOKI_REMOTE_WRITE_URL: ${LOKI_REMOTE_WRITE_URL:?LOKI_REMOTE_WRITE_URL is required}
-    mem_limit: 128m
+      MYSQL_MONITORING_USERNAME: ${MYSQL_MONITORING_USERNAME:?MYSQL_MONITORING_USERNAME is required}
+      MYSQL_MONITORING_PASSWORD: ${MYSQL_MONITORING_PASSWORD:?MYSQL_MONITORING_PASSWORD is required}
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-production}
+    mem_limit: 192m
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - backend_logs:/var/log/membershipflow:ro
@@ -19,6 +23,46 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.17.2
+    command:
+      - --mysqld.address=mysql:3306
+      - --mysqld.username=${MYSQL_MONITORING_USERNAME:?MYSQL_MONITORING_USERNAME is required}
+      - --collect.info_schema.innodb_metrics
+      - --collect.info_schema.processlist
+      - --collect.perf_schema.tablelocks
+      - --exporter.lock_wait_timeout=2
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: ${MYSQL_MONITORING_PASSWORD:?MYSQL_MONITORING_PASSWORD is required}
+    ports:
+      - "${OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:9104:9104"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    mem_limit: 96m
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mysql-observability-bootstrap:
+    image: mysql:8.0
+    profiles:
+      - bootstrap
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MYSQL_MONITORING_USERNAME: ${MYSQL_MONITORING_USERNAME:?MYSQL_MONITORING_USERNAME is required}
+      MYSQL_MONITORING_PASSWORD: ${MYSQL_MONITORING_PASSWORD:?MYSQL_MONITORING_PASSWORD is required}
+    volumes:
+      - ./alloy/bootstrap-mysql-monitoring.sh:/bootstrap-mysql-monitoring.sh:ro
+    entrypoint:
+      - /bin/bash
+      - /bootstrap-mysql-monitoring.sh
+    depends_on:
+      mysql:
+        condition: service_healthy
 
 volumes:
   alloy_data:
