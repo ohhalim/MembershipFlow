@@ -99,7 +99,9 @@ jobs:
 
             for required_key in \
               OBSERVABILITY_BIND_ADDRESS \
-              LOKI_REMOTE_WRITE_URL; do
+              LOKI_REMOTE_WRITE_URL \
+              MYSQL_MONITORING_USERNAME \
+              MYSQL_MONITORING_PASSWORD; do
               if ! grep -Eq "^${required_key}=.+$" .env; then
                 echo "ERROR: ${required_key} is not configured in /opt/membershipflow/.env"
                 exit 1
@@ -113,14 +115,24 @@ jobs:
 
             telemetry_compose="docker compose -f docker-compose.yml -f docker-compose.telemetry.yml"
             ${telemetry_compose} config -q
-            ${telemetry_compose} pull alloy
-            ${telemetry_compose} up -d --no-deps --force-recreate alloy
+            ${telemetry_compose} pull alloy mysqld-exporter mysql-observability-bootstrap
+            ${telemetry_compose} --profile bootstrap run --rm mysql-observability-bootstrap
+            ${telemetry_compose} up -d --no-deps --force-recreate alloy mysqld-exporter
             alloy_container=$(${telemetry_compose} ps -q alloy)
+            exporter_container=$(${telemetry_compose} ps -q mysqld-exporter)
+            backend_container=$(${telemetry_compose} ps -q backend)
             test -n "${alloy_container}"
+            test -n "${exporter_container}"
+            test -n "${backend_container}"
             sleep 10
             alloy_status=$(docker inspect --format '{{.State.Status}} {{.State.Restarting}}' "${alloy_container}")
+            exporter_status=$(docker inspect --format '{{.State.Status}} {{.State.Restarting}}' "${exporter_container}")
             echo "Alloy state: ${alloy_status}"
+            echo "mysqld_exporter state: ${exporter_status}"
             test "${alloy_status}" = "running false"
+            test "${exporter_status}" = "running false"
+            docker exec "${backend_container}" \
+              wget -qO- http://mysqld-exporter:9104/metrics | grep -q '^mysql_up 1'
             if ${telemetry_compose} logs --since 2m alloy | grep -Eiq 'level=error|final error sending batch'; then
               echo "ERROR: Alloy remote write failure detected"
               ${telemetry_compose} logs --since 2m alloy
