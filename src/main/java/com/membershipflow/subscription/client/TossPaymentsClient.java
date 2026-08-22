@@ -3,6 +3,7 @@ package com.membershipflow.subscription.client;
 import com.membershipflow.common.exception.BusinessException;
 import com.membershipflow.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -23,6 +24,7 @@ public class TossPaymentsClient {
     private final RestClient restClient;
     private final String secretKey;
 
+    @Autowired
     public TossPaymentsClient(
             RestClient.Builder restClientBuilder,
             @Value("${toss.api-base-url}") String baseUrl,

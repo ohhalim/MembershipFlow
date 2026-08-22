@@ -11,8 +11,12 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.convert.ApplicationConversionService;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -121,6 +125,27 @@ class TossPaymentsClientTest {
                 Duration.ofSeconds(65)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("connect timeout must be positive");
+    }
+
+    @Test
+    void springContext_createsClientWithProductionConstructor() {
+        try (AnnotationConfigApplicationContext context =
+                     new AnnotationConfigApplicationContext()) {
+            context.getBeanFactory().setConversionService(
+                    ApplicationConversionService.getSharedInstance());
+            context.getEnvironment().getPropertySources().addFirst(
+                    new MapPropertySource("toss-test", Map.of(
+                            "toss.api-base-url", "https://api.tosspayments.com",
+                            "toss.secret-key", "test-secret-key",
+                            "toss.connect-timeout", "5s",
+                            "toss.read-timeout", "65s")));
+            context.registerBean(RestClient.Builder.class, () -> RestClient.builder());
+            context.register(TossPaymentsClient.class);
+
+            context.refresh();
+
+            assertThat(context.getBean(TossPaymentsClient.class)).isNotNull();
+        }
     }
 
     private String basicAuth() {
