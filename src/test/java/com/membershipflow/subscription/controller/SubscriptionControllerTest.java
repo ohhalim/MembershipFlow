@@ -163,6 +163,21 @@ class SubscriptionControllerTest {
     }
 
     @Test
+    @DisplayName("GET /api/v1/subscriptions/callback — 결제 실패 코드를 프론트로 전달한다")
+    void callback_businessFailure_redirectsWithSafeErrorCode() throws Exception {
+        given(subscriptionService.handleCallback(eq("customer-uuid"), eq("auth-key")))
+                .willThrow(new BusinessException(ErrorCode.BILLING_KEY_ISSUE_FAILED));
+
+        mockMvc.perform(get("/api/v1/subscriptions/callback")
+                        .param("customerKey", "customer-uuid")
+                        .param("authKey", "auth-key"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string(
+                        "Location",
+                        containsString("/my/subscription?error=BILLING_KEY_ISSUE_FAILED")));
+    }
+
+    @Test
     @DisplayName("GET /api/v1/subscriptions/me — 내 구독 정보를 반환한다")
     void getMySubscription_returnsSubscription() throws Exception {
         // given

@@ -63,6 +63,9 @@ toss:
   client-key: ${TOSS_CLIENT_KEY:test_ck_dummy}
   secret-key: ${TOSS_SECRET_KEY:test_sk_dummy}
   api-base-url: https://api.tosspayments.com
+  connect-timeout: ${TOSS_CONNECT_TIMEOUT:5s}
+  # 자동결제 승인은 최대 60초가 소요될 수 있어 공식 권장값보다 여유 있게 설정
+  read-timeout: ${TOSS_READ_TIMEOUT:65s}
 
 # 에러 알림 (#188). 비어있으면 DiscordLogbackAppender가 no-op으로 동작
 discord:
