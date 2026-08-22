@@ -23,6 +23,7 @@ CREATE USER IF NOT EXISTS '${monitor_user}'@'%' IDENTIFIED BY '${monitor_passwor
 ALTER USER '${monitor_user}'@'%' IDENTIFIED BY '${monitor_password}'
   WITH MAX_USER_CONNECTIONS 3;
 GRANT PROCESS, REPLICATION CLIENT ON *.* TO '${monitor_user}'@'%';
+GRANT SHOW VIEW ON *.* TO '${monitor_user}'@'%';
 GRANT SELECT ON performance_schema.* TO '${monitor_user}'@'%';
 FLUSH PRIVILEGES;
 SQL
