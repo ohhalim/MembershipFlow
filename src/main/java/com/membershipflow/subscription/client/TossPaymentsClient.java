@@ -5,11 +5,13 @@ import com.membershipflow.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.HttpClientErrorException;
 
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
@@ -24,11 +26,34 @@ public class TossPaymentsClient {
     public TossPaymentsClient(
             RestClient.Builder restClientBuilder,
             @Value("${toss.api-base-url}") String baseUrl,
-            @Value("${toss.secret-key}") String secretKey) {
+            @Value("${toss.secret-key}") String secretKey,
+            @Value("${toss.connect-timeout}") Duration connectTimeout,
+            @Value("${toss.read-timeout}") Duration readTimeout) {
+        validateTimeouts(connectTimeout, readTimeout);
+
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
+
         this.secretKey  = secretKey;
         this.restClient = restClientBuilder
                 .baseUrl(baseUrl)
+                .requestFactory(requestFactory)
                 .build();
+    }
+
+    TossPaymentsClient(RestClient restClient, String secretKey) {
+        this.restClient = restClient;
+        this.secretKey = secretKey;
+    }
+
+    private static void validateTimeouts(Duration connectTimeout, Duration readTimeout) {
+        if (connectTimeout.isZero() || connectTimeout.isNegative()) {
+            throw new IllegalArgumentException("Toss connect timeout must be positive");
+        }
+        if (readTimeout.compareTo(Duration.ofSeconds(60)) < 0) {
+            throw new IllegalArgumentException("Toss read timeout must be at least 60 seconds");
+        }
     }
 
     /** 빌링 키 발급 */
