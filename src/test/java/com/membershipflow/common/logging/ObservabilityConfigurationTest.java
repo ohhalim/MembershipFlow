@@ -97,6 +97,7 @@ class ObservabilityConfigurationTest {
 
         assertThat(bootstrap)
                 .contains("GRANT PROCESS, REPLICATION CLIENT ON *.*")
+                .contains("GRANT SHOW VIEW ON *.*")
                 .contains("GRANT SELECT ON performance_schema.*")
                 .contains("MAX_USER_CONNECTIONS 3")
                 .doesNotContain("GRANT SELECT ON membershipflow.*")
