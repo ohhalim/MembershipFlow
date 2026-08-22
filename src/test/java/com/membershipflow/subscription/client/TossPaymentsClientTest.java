@@ -1,6 +1,7 @@
 package com.membershipflow.subscription.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,7 +29,8 @@ class TossPaymentsClientTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         client = new TossPaymentsClient(
-                builder, "https://api.tosspayments.com", "test-secret-key");
+                builder.baseUrl("https://api.tosspayments.com").build(),
+                "test-secret-key");
     }
 
     @Test
@@ -94,6 +97,30 @@ class TossPaymentsClientTest {
         assertThat(response.status()).isEqualTo("DONE");
         assertThat(response.type()).isEqualTo("BILLING");
         server.verify();
+    }
+
+    @Test
+    void constructor_rejectsReadTimeoutShorterThanTossMinimum() {
+        assertThatThrownBy(() -> new TossPaymentsClient(
+                RestClient.builder(),
+                "https://api.tosspayments.com",
+                "test-secret-key",
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(59)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("at least 60 seconds");
+    }
+
+    @Test
+    void constructor_rejectsNonPositiveConnectTimeout() {
+        assertThatThrownBy(() -> new TossPaymentsClient(
+                RestClient.builder(),
+                "https://api.tosspayments.com",
+                "test-secret-key",
+                Duration.ZERO,
+                Duration.ofSeconds(65)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("connect timeout must be positive");
     }
 
     private String basicAuth() {
