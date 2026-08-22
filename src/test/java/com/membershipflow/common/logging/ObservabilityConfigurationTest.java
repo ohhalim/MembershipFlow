@@ -58,6 +58,20 @@ class ObservabilityConfigurationTest {
     }
 
     @Test
+    @DisplayName("MySQL 관찰은 락 근거만 Loki로 보내고 쿼리 샘플 수집을 비활성화한다")
+    void mysqlObservability_collectsLocksWithoutQuerySamples() throws IOException {
+        String alloy = read("alloy/config.alloy");
+
+        assertThat(alloy)
+                .contains("database_observability.mysql \"membershipflow\"")
+                .contains("enable_collectors = [\"locks\"]")
+                .contains("\"query_samples\"")
+                .contains("threshold = \"0s\"")
+                .contains("service     = \"MembershipFlow-MySQL\"")
+                .doesNotContain("disable_query_redaction = true");
+    }
+
+    @Test
     @DisplayName("운영 메트릭 포트는 지정한 사설 주소에만 바인딩한다")
     void compose_bindsMetricsPortsToConfiguredAddress() throws IOException {
         String compose = read("docker-compose.yml");
@@ -66,9 +80,27 @@ class ObservabilityConfigurationTest {
         assertThat(compose)
                 .contains("${OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:8081:8081")
                 .contains("${OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:9100:9100");
+        String telemetryCompose = read("docker-compose.telemetry.yml");
+        assertThat(telemetryCompose)
+                .contains("${OBSERVABILITY_BIND_ADDRESS:-127.0.0.1}:9104:9104")
+                .contains("--exporter.lock_wait_timeout=2");
         assertThat(environmentExample)
                 .contains("OBSERVABILITY_BIND_ADDRESS=127.0.0.1")
+                .contains("MYSQL_MONITORING_USERNAME=membershipflow_monitor")
                 .doesNotContain("OBSERVABILITY_BIND_ADDRESS=0.0.0.0");
+    }
+
+    @Test
+    @DisplayName("MySQL 관찰 계정은 애플리케이션 테이블 권한 없이 생성한다")
+    void mysqlObservabilityUser_hasOnlyMonitoringGrants() throws IOException {
+        String bootstrap = read("alloy/bootstrap-mysql-monitoring.sh");
+
+        assertThat(bootstrap)
+                .contains("GRANT PROCESS, REPLICATION CLIENT ON *.*")
+                .contains("GRANT SELECT ON performance_schema.*")
+                .contains("MAX_USER_CONNECTIONS 3")
+                .doesNotContain("GRANT SELECT ON membershipflow.*")
+                .doesNotContain("GRANT ALL");
     }
 
     @Test
