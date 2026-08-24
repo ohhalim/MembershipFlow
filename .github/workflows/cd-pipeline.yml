@@ -133,7 +133,8 @@ jobs:
             test "${alloy_status}" = "running false"
             test "${exporter_status}" = "running false"
             docker exec "${backend_container}" \
-              wget -qO- http://mysqld-exporter:9104/metrics | grep -q '^mysql_up 1'
+              wget -qO- http://mysqld-exporter:9104/metrics \
+              | awk '$1 == "mysql_up" && $2 == "1" { found=1 } END { exit !found }'
             if ${telemetry_compose} logs --since 2m alloy | grep -Eiq 'level=error|final error sending batch'; then
               echo "ERROR: Alloy remote write failure detected"
               ${telemetry_compose} logs --since 2m alloy
