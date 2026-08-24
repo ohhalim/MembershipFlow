@@ -18,6 +18,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @Component
@@ -70,6 +71,15 @@ public class PaddlePaymentsClient {
             return transactionId;
         } catch (BusinessException e) {
             throw e;
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().is4xxClientError()) {
+                log.warn("Paddle 거래 생성 거절: attemptId={}, status={}",
+                        attemptId, e.getStatusCode().value());
+                throw new PaddleTransactionRejectedException(e);
+            }
+            log.error("Paddle 거래 생성 응답 실패: attemptId={}, status={}",
+                    attemptId, e.getStatusCode().value(), e);
+            throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
         } catch (RestClientException e) {
             log.error("Paddle 거래 생성 실패: attemptId={}", attemptId, e);
             throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);

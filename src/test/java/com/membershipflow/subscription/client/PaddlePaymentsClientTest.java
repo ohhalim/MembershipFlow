@@ -1,11 +1,15 @@
 package com.membershipflow.subscription.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServiceUnavailable;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.membershipflow.common.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -49,6 +53,31 @@ class PaddlePaymentsClientTest {
                 "pri_monthly", "attempt-id", 10L, 20L);
 
         assertThat(transactionId).isEqualTo("txn_01m0testtransaction000000000");
+        server.verify();
+    }
+
+    @Test
+    void createTransaction_classifiesClientRejectionAsRetrySafeFailure() {
+        server.expect(requestTo("https://sandbox-api.paddle.com/transactions"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withBadRequest());
+
+        assertThatThrownBy(() -> client.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .isInstanceOf(PaddleTransactionRejectedException.class);
+        server.verify();
+    }
+
+    @Test
+    void createTransaction_keepsServerFailureAsUncertainResult() {
+        server.expect(requestTo("https://sandbox-api.paddle.com/transactions"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withServiceUnavailable());
+
+        assertThatThrownBy(() -> client.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .isInstanceOf(BusinessException.class)
+                .isNotInstanceOf(PaddleTransactionRejectedException.class);
         server.verify();
     }
 

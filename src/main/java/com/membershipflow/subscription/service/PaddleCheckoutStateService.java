@@ -59,6 +59,16 @@ public class PaddleCheckoutStateService {
         attempt.attachTransaction(transactionId);
     }
 
+    @Transactional
+    public void failRejectedTransaction(String attemptId) {
+        PaddleCheckoutAttempt attempt = attemptRepository.findByIdForUpdate(attemptId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SUBSCRIPTION_NOT_FOUND));
+        if (attempt.getStatus() == PaddleCheckoutAttemptStatus.PENDING
+                && attempt.getExternalTransactionId() == null) {
+            attempt.fail(LocalDateTime.now());
+        }
+    }
+
     public record CheckoutContext(
             String attemptId,
             Long memberId,
