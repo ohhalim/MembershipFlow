@@ -192,6 +192,22 @@ class SubscriptionControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/v1/subscriptions/paddle/webhook — 처리 순서가 맞지 않으면 503을 반환한다")
+    void paddleWebhook_outOfOrderEvent_returns503() throws Exception {
+        String body = "{\"event_type\":\"subscription.updated\"}";
+        org.mockito.BDDMockito.willThrow(
+                        new BusinessException(ErrorCode.PAYMENT_WEBHOOK_RETRY_REQUIRED))
+                .given(paddleWebhookService).handle(body, "ts=1;h1=signature");
+
+        mockMvc.perform(post("/api/v1/subscriptions/paddle/webhook")
+                        .header("Paddle-Signature", "ts=1;h1=signature")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("PAYMENT_WEBHOOK_RETRY_REQUIRED"));
+    }
+
+    @Test
     @DisplayName("GET /api/v1/subscriptions/callback — 콜백 성공 시 프론트로 302 리다이렉트한다")
     void callback_redirectsOnSuccess() throws Exception {
         // given

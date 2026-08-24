@@ -207,9 +207,9 @@ public class PaddleWebhookService {
                 .findByExternalSubscriptionIdForUpdate(subscriptionId)
                 .orElse(null);
         if (subscription == null) {
-            log.info("Paddle 최초 결제 확정 전 구독 이벤트 보류: subscriptionId={}",
+            log.warn("Paddle 최초 결제 확정 전 구독 이벤트 재시도 요청: subscriptionId={}",
                     subscriptionId);
-            return;
+            throw new BusinessException(ErrorCode.PAYMENT_WEBHOOK_RETRY_REQUIRED);
         }
         validateSubscription(data, subscription);
 

@@ -1,14 +1,18 @@
 package com.membershipflow.subscription.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.membershipflow.common.exception.BusinessException;
+import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.subscription.entity.BillingCycle;
 import com.membershipflow.subscription.entity.PaddleCheckoutAttempt;
@@ -137,6 +141,20 @@ class PaddleWebhookServiceTest {
         assertThat(paddleSubscription.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
         assertThat(paddleSubscription.getNextBillingAt())
                 .isEqualTo(LocalDateTime.of(2026, 9, 24, 10, 0));
+    }
+
+    @Test
+    void subscriptionEventBeforeInitialPayment_requestsRetryWithoutRecordingEvent() {
+        given(webhookEventRepository.existsByPaymentProviderAndExternalEventId(
+                PaymentProvider.PADDLE, "evt_subscription_updated")).willReturn(false);
+        given(subscriptionRepository.findByExternalSubscriptionIdForUpdate("sub_test"))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.handle(subscriptionUpdatedEvent(), "signed-header"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.PAYMENT_WEBHOOK_RETRY_REQUIRED));
+        then(webhookEventRepository).should(never()).save(any());
     }
 
     private String completedEvent() {
