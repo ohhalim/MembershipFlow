@@ -22,6 +22,15 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     @Query("SELECT s FROM Subscription s WHERE s.id = :id")
     Optional<Subscription> findByIdForUpdate(@Param("id") Long id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Subscription s WHERE s.member.id = :memberId")
+    Optional<Subscription> findByMemberIdForUpdate(@Param("memberId") Long memberId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Subscription s WHERE s.externalSubscriptionId = :externalSubscriptionId")
+    Optional<Subscription> findByExternalSubscriptionIdForUpdate(
+            @Param("externalSubscriptionId") String externalSubscriptionId);
+
     @Query("""
             SELECT s.member.id FROM Subscription s
             WHERE s.member.id IN :memberIds

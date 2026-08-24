@@ -2,6 +2,7 @@ ALTER TABLE subscription
     ADD COLUMN payment_provider VARCHAR(20) NOT NULL DEFAULT 'TOSS' AFTER status,
     ADD COLUMN external_customer_id VARCHAR(64) NULL AFTER customer_key,
     ADD COLUMN external_subscription_id VARCHAR(64) NULL AFTER external_customer_id,
+    ADD COLUMN external_updated_at DATETIME(6) NULL AFTER external_subscription_id,
     MODIFY COLUMN billing_key VARCHAR(500) NULL,
     MODIFY COLUMN customer_key VARCHAR(300) NULL,
     ADD UNIQUE KEY uk_subscription_external_subscription (external_subscription_id),
@@ -34,7 +35,7 @@ CREATE TABLE paddle_checkout_attempt
     CONSTRAINT fk_paddle_attempt_member FOREIGN KEY (member_id) REFERENCES member (id),
     CONSTRAINT fk_paddle_attempt_plan FOREIGN KEY (plan_id) REFERENCES subscription_plan (id),
     CONSTRAINT chk_paddle_attempt_status
-        CHECK (status IN ('PENDING', 'COMPLETED', 'EXPIRED'))
+        CHECK (status IN ('PENDING', 'COMPLETED', 'FAILED', 'EXPIRED'))
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
 

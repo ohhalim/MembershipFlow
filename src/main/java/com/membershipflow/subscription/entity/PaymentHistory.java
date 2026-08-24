@@ -70,4 +70,13 @@ public class PaymentHistory {
         this.billedAt       = billedAt;
         this.failReason     = failReason;
     }
+
+    public void completePaddle(LocalDateTime billedAt) {
+        if (paymentProvider != PaymentProvider.PADDLE) {
+            throw new IllegalStateException("Paddle 결제 이력만 완료 처리할 수 있습니다.");
+        }
+        this.status = PaymentStatus.SUCCESS;
+        this.billedAt = billedAt;
+        this.failReason = null;
+    }
 }

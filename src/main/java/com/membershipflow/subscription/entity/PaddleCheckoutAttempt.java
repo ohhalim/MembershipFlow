@@ -77,4 +77,10 @@ public class PaddleCheckoutAttempt {
         this.completedAt = completedAt;
         this.updatedAt = LocalDateTime.now();
     }
+
+    public void fail(LocalDateTime failedAt) {
+        this.status = PaddleCheckoutAttemptStatus.FAILED;
+        this.completedAt = failedAt;
+        this.updatedAt = LocalDateTime.now();
+    }
 }

@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.membershipflow.common.exception.BusinessException;
 import com.membershipflow.common.exception.ErrorCode;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -70,4 +73,38 @@ public class PaddlePaymentsClient {
             throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
         }
     }
+
+    public CancellationResult cancelSubscription(String subscriptionId) {
+        try {
+            JsonNode response = restClient.post()
+                    .uri("/subscriptions/{subscriptionId}/cancel", subscriptionId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("effective_from", "next_billing_period"))
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode data = response == null ? null : response.path("data");
+            JsonNode scheduledChange = data == null ? null : data.path("scheduled_change");
+            String returnedId = data == null ? null : data.path("id").asText(null);
+            String action = scheduledChange == null ? null
+                    : scheduledChange.path("action").asText(null);
+            String effectiveAt = scheduledChange == null ? null
+                    : scheduledChange.path("effective_at").asText(null);
+            if (!subscriptionId.equals(returnedId)
+                    || !"cancel".equals(action)
+                    || effectiveAt == null) {
+                throw new BusinessException(ErrorCode.PAYMENT_STATUS_CHECK_FAILED);
+            }
+            return new CancellationResult(
+                    OffsetDateTime.parse(effectiveAt)
+                            .atZoneSameInstant(ZoneId.systemDefault())
+                            .toLocalDateTime());
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RestClientException | java.time.format.DateTimeParseException e) {
+            log.error("Paddle 구독 해지 예약 실패: subscriptionId={}", subscriptionId, e);
+            throw new BusinessException(ErrorCode.PAYMENT_STATUS_CHECK_FAILED);
+        }
+    }
+
+    public record CancellationResult(LocalDateTime effectiveAt) {}
 }

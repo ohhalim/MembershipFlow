@@ -6,6 +6,7 @@ import com.membershipflow.common.util.BillingKeyEncryptor;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
+import com.membershipflow.subscription.client.PaddlePaymentsClient;
 import com.membershipflow.subscription.dto.*;
 import com.membershipflow.subscription.entity.*;
 import com.membershipflow.subscription.repository.*;
@@ -41,6 +42,8 @@ public class SubscriptionService {
     private final TossPaymentsClient            tossPaymentsClient;
     private final BillingKeyEncryptor           billingKeyEncryptor;
     private final InitialPaymentStateService    initialPaymentStateService;
+    private final PaddlePaymentsClient           paddlePaymentsClient;
+    private final SubscriptionCancellationStateService cancellationStateService;
 
     @Value("${toss.client-key}")
     private String tossClientKey;
@@ -181,11 +184,18 @@ public class SubscriptionService {
     }
 
     /** 구독 해지 (기간 만료 시 실제 해지) */
-    @Transactional
     public CancelResponse cancel(Long memberId) {
-        Subscription sub = findActiveSubscription(memberId);
-        sub.cancel();
-        return CancelResponse.from(sub);
+        SubscriptionCancellationStateService.CancellationContext context =
+                cancellationStateService.prepare(memberId);
+        if (context.paymentProvider() == PaymentProvider.PADDLE) {
+            if (context.externalSubscriptionId() == null) {
+                throw new BusinessException(ErrorCode.PAYMENT_DATA_MISMATCH);
+            }
+            PaddlePaymentsClient.CancellationResult result =
+                    paddlePaymentsClient.cancelSubscription(context.externalSubscriptionId());
+            return cancellationStateService.completePaddle(memberId, result.effectiveAt());
+        }
+        return cancellationStateService.completeToss(memberId);
     }
 
     /** 결제 내역 조회 */
