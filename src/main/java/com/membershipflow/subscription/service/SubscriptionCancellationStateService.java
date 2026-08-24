@@ -7,6 +7,7 @@ import com.membershipflow.subscription.entity.PaymentProvider;
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.repository.SubscriptionRepository;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SubscriptionCancellationStateService {
 
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
     private final SubscriptionRepository subscriptionRepository;
 
     @Transactional(readOnly = true)
@@ -41,7 +43,7 @@ public class SubscriptionCancellationStateService {
             throw new BusinessException(ErrorCode.PAYMENT_DATA_MISMATCH);
         }
         subscription.schedulePaddleCancellation(
-                serviceEndsAt, LocalDateTime.now());
+                serviceEndsAt, LocalDateTime.now(SERVICE_ZONE));
         return CancelResponse.from(subscription);
     }
 

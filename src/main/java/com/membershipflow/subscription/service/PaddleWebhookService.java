@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PaddleWebhookService {
 
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
     private static final String TRANSACTION_COMPLETED = "transaction.completed";
     private static final String TRANSACTION_PAYMENT_FAILED = "transaction.payment_failed";
     private static final String SUBSCRIPTION_CREATED = "subscription.created";
@@ -53,7 +54,7 @@ public class PaddleWebhookService {
         String eventId = requiredText(event, "event_id");
         String eventType = requiredText(event, "event_type");
         LocalDateTime occurredAt = OffsetDateTime.parse(requiredText(event, "occurred_at"))
-                .atZoneSameInstant(ZoneId.systemDefault())
+                .atZoneSameInstant(SERVICE_ZONE)
                 .toLocalDateTime();
 
         if (webhookEventRepository.existsByPaymentProviderAndExternalEventId(
@@ -302,7 +303,7 @@ public class PaddleWebhookService {
 
     private LocalDateTime parseDateTime(String value) {
         return OffsetDateTime.parse(value)
-                .atZoneSameInstant(ZoneId.systemDefault())
+                .atZoneSameInstant(SERVICE_ZONE)
                 .toLocalDateTime();
     }
 

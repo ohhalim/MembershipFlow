@@ -23,6 +23,8 @@ import org.springframework.web.client.RestClientException;
 @Component
 public class PaddlePaymentsClient {
 
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
+
     private final RestClient restClient;
 
     @Autowired
@@ -96,7 +98,7 @@ public class PaddlePaymentsClient {
             }
             return new CancellationResult(
                     OffsetDateTime.parse(effectiveAt)
-                            .atZoneSameInstant(ZoneId.systemDefault())
+                            .atZoneSameInstant(SERVICE_ZONE)
                             .toLocalDateTime());
         } catch (BusinessException e) {
             throw e;
