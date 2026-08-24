@@ -37,16 +37,23 @@ public class PaddleCheckoutStateService {
                 });
 
         LocalDateTime now = LocalDateTime.now();
-        boolean pending = attemptRepository
-                .existsByMemberIdAndStatusAndExpiresAtAfter(
+        var pendingAttempt = attemptRepository
+                .findFirstByMemberIdAndStatusAndExpiresAtAfterOrderByCreatedAtDesc(
                         memberId, PaddleCheckoutAttemptStatus.PENDING, now);
-        if (pending) {
+        if (pendingAttempt.isPresent()) {
+            PaddleCheckoutAttempt attempt = pendingAttempt.get();
+            if (attempt.getPlan().getId().equals(planId)
+                    && attempt.getExternalTransactionId() != null) {
+                return new CheckoutContext(
+                        attempt.getId(), memberId, planId, plan.getBillingCycle(),
+                        attempt.getExternalTransactionId());
+            }
             throw new BusinessException(ErrorCode.PAYMENT_IN_PROGRESS);
         }
 
         PaddleCheckoutAttempt attempt = attemptRepository.save(
                 new PaddleCheckoutAttempt(member, plan, now));
-        return new CheckoutContext(attempt.getId(), memberId, planId, plan.getBillingCycle());
+        return new CheckoutContext(attempt.getId(), memberId, planId, plan.getBillingCycle(), null);
     }
 
     @Transactional
@@ -73,5 +80,6 @@ public class PaddleCheckoutStateService {
             String attemptId,
             Long memberId,
             Long planId,
-            com.membershipflow.subscription.entity.BillingCycle billingCycle) {}
+            com.membershipflow.subscription.entity.BillingCycle billingCycle,
+            String existingTransactionId) {}
 }

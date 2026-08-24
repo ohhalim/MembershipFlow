@@ -18,6 +18,10 @@ public class PaddleCheckoutService {
 
     public PaddleTransactionResponse createTransaction(Long memberId, Long planId) {
         PaddleCheckoutStateService.CheckoutContext context = stateService.create(memberId, planId);
+        if (context.existingTransactionId() != null) {
+            return new PaddleTransactionResponse(context.existingTransactionId());
+        }
+
         String transactionId;
         try {
             transactionId = paddlePaymentsClient.createTransaction(
