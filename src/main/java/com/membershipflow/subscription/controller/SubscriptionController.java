@@ -57,7 +57,7 @@ public class SubscriptionController {
     @PostMapping("/paddle/webhook")
     public ResponseEntity<Void> paddleWebhook(
             @RequestBody String rawBody,
-            @RequestHeader("Paddle-Signature") String paddleSignature) {
+            @RequestHeader(value = "Paddle-Signature", required = false) String paddleSignature) {
         paddleWebhookService.handle(rawBody, paddleSignature);
         return ResponseEntity.ok().build();
     }

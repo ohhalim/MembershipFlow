@@ -72,6 +72,14 @@ class PaddleWebhookVerifierTest {
                 .isEqualTo(ErrorCode.INVALID_WEBHOOK_SIGNATURE);
     }
 
+    @Test
+    void verify_rejectsMissingSignature() {
+        assertThatThrownBy(() -> verifier().verify("{}", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_WEBHOOK_SIGNATURE);
+    }
+
     private PaddleWebhookVerifier verifier() {
         return new PaddleWebhookVerifier(
                 SECRET, Duration.ofMinutes(5), Clock.fixed(NOW, ZoneOffset.UTC));

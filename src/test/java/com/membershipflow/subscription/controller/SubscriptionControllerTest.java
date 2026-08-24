@@ -177,6 +177,21 @@ class SubscriptionControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/v1/subscriptions/paddle/webhook — 서명 누락 시 401을 반환한다")
+    void paddleWebhook_missingSignature_returns401() throws Exception {
+        String body = "{}";
+        org.mockito.BDDMockito.willThrow(
+                        new BusinessException(ErrorCode.INVALID_WEBHOOK_SIGNATURE))
+                .given(paddleWebhookService).handle(body, null);
+
+        mockMvc.perform(post("/api/v1/subscriptions/paddle/webhook")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_WEBHOOK_SIGNATURE"));
+    }
+
+    @Test
     @DisplayName("GET /api/v1/subscriptions/callback — 콜백 성공 시 프론트로 302 리다이렉트한다")
     void callback_redirectsOnSuccess() throws Exception {
         // given
