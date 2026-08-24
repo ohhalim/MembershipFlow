@@ -1,5 +1,6 @@
 package com.membershipflow.subscription.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -14,11 +15,26 @@ import java.util.HexFormat;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.convert.ApplicationConversionService;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class PaddleWebhookVerifierTest {
 
     private static final String SECRET = "pdl_ntfset_test_secret";
     private static final Instant NOW = Instant.parse("2026-08-24T01:00:00Z");
+
+    @Test
+    void springContext_createsVerifierWithConfiguredConstructor() {
+        new ApplicationContextRunner()
+                .withInitializer(context -> context.getBeanFactory()
+                        .setConversionService(ApplicationConversionService.getSharedInstance()))
+                .withPropertyValues(
+                        "paddle.webhook-secret=" + SECRET,
+                        "paddle.webhook-tolerance=5m")
+                .withBean(PaddleWebhookVerifier.class)
+                .run(context -> assertThat(context)
+                        .hasSingleBean(PaddleWebhookVerifier.class));
+    }
 
     @Test
     void verify_acceptsSignatureForExactRawBody() throws Exception {
