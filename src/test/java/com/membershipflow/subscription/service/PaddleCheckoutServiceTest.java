@@ -34,13 +34,12 @@ class PaddleCheckoutServiceTest {
     void setUp() {
         service = new PaddleCheckoutService(stateService, priceResolver, paymentsClient);
         context = new PaddleCheckoutStateService.CheckoutContext(
-                "attempt-id", 10L, 20L, BillingCycle.MONTHLY);
-        when(stateService.create(10L, 20L)).thenReturn(context);
-        when(priceResolver.resolve(BillingCycle.MONTHLY)).thenReturn("pri_monthly");
+                "attempt-id", 10L, 20L, BillingCycle.MONTHLY, null);
     }
 
     @Test
     void createTransaction_attachesCreatedTransaction() {
+        stubNewCheckout();
         when(paymentsClient.createTransaction(
                 "pri_monthly", "attempt-id", 10L, 20L))
                 .thenReturn("txn_test");
@@ -53,7 +52,22 @@ class PaddleCheckoutServiceTest {
     }
 
     @Test
+    void createTransaction_returnsExistingTransactionWithoutCreatingAnotherOne() {
+        context = new PaddleCheckoutStateService.CheckoutContext(
+                "attempt-id", 10L, 20L, BillingCycle.MONTHLY, "txn_existing");
+        when(stateService.create(10L, 20L)).thenReturn(context);
+
+        PaddleTransactionResponse response = service.createTransaction(10L, 20L);
+
+        assertThat(response.transactionId()).isEqualTo("txn_existing");
+        verify(paymentsClient, never()).createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L);
+        verify(stateService, never()).attachTransaction("attempt-id", "txn_existing");
+    }
+
+    @Test
     void createTransaction_marksAttemptFailedForExplicitClientRejection() {
+        stubNewCheckout();
         when(paymentsClient.createTransaction(
                 "pri_monthly", "attempt-id", 10L, 20L))
                 .thenThrow(new PaddleTransactionRejectedException(new RuntimeException()));
@@ -67,6 +81,7 @@ class PaddleCheckoutServiceTest {
 
     @Test
     void createTransaction_keepsAttemptPendingForUncertainFailure() {
+        stubNewCheckout();
         when(paymentsClient.createTransaction(
                 "pri_monthly", "attempt-id", 10L, 20L))
                 .thenThrow(new BusinessException(
@@ -77,5 +92,10 @@ class PaddleCheckoutServiceTest {
 
         verify(stateService, never()).failRejectedTransaction("attempt-id");
         verify(stateService, never()).attachTransaction("attempt-id", "txn_test");
+    }
+
+    private void stubNewCheckout() {
+        when(stateService.create(10L, 20L)).thenReturn(context);
+        when(priceResolver.resolve(BillingCycle.MONTHLY)).thenReturn("pri_monthly");
     }
 }
