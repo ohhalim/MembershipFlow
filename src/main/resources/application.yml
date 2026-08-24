@@ -67,6 +67,17 @@ toss:
   # 자동결제 승인은 최대 60초가 소요될 수 있어 공식 권장값보다 여유 있게 설정
   read-timeout: ${TOSS_READ_TIMEOUT:65s}
 
+# Paddle Billing
+paddle:
+  api-key: ${PADDLE_API_KEY:pdl_sdbx_apikey_dummy}
+  api-base-url: ${PADDLE_API_BASE_URL:https://sandbox-api.paddle.com}
+  monthly-price-id: ${PADDLE_MONTHLY_PRICE_ID:pri_sandbox_monthly_dummy}
+  yearly-price-id: ${PADDLE_YEARLY_PRICE_ID:pri_sandbox_yearly_dummy}
+  webhook-secret: ${PADDLE_WEBHOOK_SECRET:pdl_ntfset_dummy}
+  connect-timeout: ${PADDLE_CONNECT_TIMEOUT:5s}
+  read-timeout: ${PADDLE_READ_TIMEOUT:15s}
+  webhook-tolerance: ${PADDLE_WEBHOOK_TOLERANCE:5m}
+
 # 에러 알림 (#188). 비어있으면 DiscordLogbackAppender가 no-op으로 동작
 discord:
   webhook:

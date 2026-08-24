@@ -42,6 +42,8 @@ class SubscriptionControllerTest {
     @Autowired MockMvc mockMvc;
 
     @MockitoBean SubscriptionService subscriptionService;
+    @MockitoBean com.membershipflow.subscription.service.PaddleCheckoutService paddleCheckoutService;
+    @MockitoBean com.membershipflow.subscription.service.PaddleWebhookService paddleWebhookService;
     @MockitoBean JwtAuthenticationFilter jwtAuthenticationFilter;
     @MockitoBean JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     @MockitoBean com.membershipflow.common.security.oauth.CustomOAuth2UserService customOAuth2UserService;
@@ -145,6 +147,33 @@ class SubscriptionControllerTest {
                         .param("planId", "1"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SUBSCRIPTION_ALREADY_EXISTS"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/subscriptions/paddle/transactions — 인증 회원의 Paddle 거래를 생성한다")
+    void createPaddleTransaction_returnsTransactionId() throws Exception {
+        given(paddleCheckoutService.createTransaction(MEMBER_ID, 1L))
+                .willReturn(new PaddleTransactionResponse("txn_test"));
+
+        mockMvc.perform(post("/api/v1/subscriptions/paddle/transactions")
+                        .param("planId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transactionId").value("txn_test"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/subscriptions/paddle/webhook — 원문과 서명을 처리 서비스에 전달한다")
+    void paddleWebhook_forwardsRawBodyAndSignature() throws Exception {
+        String body = "{\"event_type\":\"transaction.completed\"}";
+
+        mockMvc.perform(post("/api/v1/subscriptions/paddle/webhook")
+                        .header("Paddle-Signature", "ts=1;h1=signature")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isOk());
+
+        org.mockito.BDDMockito.then(paddleWebhookService)
+                .should().handle(body, "ts=1;h1=signature");
     }
 
     @Test

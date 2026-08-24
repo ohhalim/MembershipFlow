@@ -6,9 +6,11 @@ import com.membershipflow.common.util.BillingKeyEncryptor;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.client.TossPaymentsClient;
+import com.membershipflow.subscription.client.PaddlePaymentsClient;
 import com.membershipflow.subscription.entity.BillingAttempt;
 import com.membershipflow.subscription.entity.BillingCycle;
 import com.membershipflow.subscription.entity.PaymentHistory;
+import com.membershipflow.subscription.entity.PaymentProvider;
 import com.membershipflow.subscription.entity.PaymentStatus;
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.entity.SubscriptionPlan;
@@ -57,6 +59,8 @@ class SubscriptionServiceTest {
     @Mock TossPaymentsClient         tossPaymentsClient;
     @Mock BillingKeyEncryptor        billingKeyEncryptor;
     @Mock InitialPaymentStateService initialPaymentStateService;
+    @Mock PaddlePaymentsClient paddlePaymentsClient;
+    @Mock SubscriptionCancellationStateService cancellationStateService;
 
     @InjectMocks SubscriptionService subscriptionService;
 
@@ -181,6 +185,28 @@ class SubscriptionServiceTest {
         assertThat(response.status()).isEqualTo(SubscriptionStatus.CANCELLED);
         assertThat(response.serviceActive()).isFalse();
         assertThat(response.serviceEndsAt()).isEqualTo(serviceEndsAt);
+    }
+
+    @Test
+    @DisplayName("Paddle 구독 해지는 외부 해지 예약 성공 후 내부 상태를 반영한다")
+    void cancel_paddleSubscription_schedulesExternalCancellationFirst() {
+        LocalDateTime serviceEndsAt = LocalDateTime.of(2026, 9, 24, 10, 0);
+        given(cancellationStateService.prepare(member.getId())).willReturn(
+                new SubscriptionCancellationStateService.CancellationContext(
+                        PaymentProvider.PADDLE, "sub_test"));
+        given(paddlePaymentsClient.cancelSubscription("sub_test"))
+                .willReturn(new PaddlePaymentsClient.CancellationResult(serviceEndsAt));
+        var expected = new com.membershipflow.subscription.dto.CancelResponse(
+                1L, SubscriptionStatus.CANCELLED, LocalDateTime.now(), serviceEndsAt);
+        given(cancellationStateService.completePaddle(member.getId(), serviceEndsAt))
+                .willReturn(expected);
+
+        var result = subscriptionService.cancel(member.getId());
+
+        assertThat(result).isEqualTo(expected);
+        then(paddlePaymentsClient).should().cancelSubscription("sub_test");
+        then(cancellationStateService).should()
+                .completePaddle(member.getId(), serviceEndsAt);
     }
 
     @Test
