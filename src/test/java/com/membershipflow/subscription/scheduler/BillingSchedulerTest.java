@@ -48,7 +48,7 @@ class BillingSchedulerTest {
         Subscription sub2 = mock(Subscription.class);
         given(sub1.getId()).willReturn(1L);
         given(sub2.getId()).willReturn(2L);
-        given(subscriptionRepository.findDueForBilling(anyList(), any()))
+        given(subscriptionRepository.findDueForBilling(any(), anyList(), any()))
                 .willReturn(List.of(sub1, sub2));
 
         // when
@@ -67,7 +67,7 @@ class BillingSchedulerTest {
         Subscription sub2 = mock(Subscription.class);
         given(sub1.getId()).willReturn(1L);
         given(sub2.getId()).willReturn(2L);
-        given(subscriptionRepository.findDueForBilling(anyList(), any()))
+        given(subscriptionRepository.findDueForBilling(any(), anyList(), any()))
                 .willReturn(List.of(sub1, sub2));
         willThrow(new RuntimeException("결제 실패")).given(subscriptionService).processBilling(1L);
 
@@ -84,7 +84,7 @@ class BillingSchedulerTest {
         // given
         Subscription sub1 = mock(Subscription.class);
         given(sub1.getId()).willReturn(1L);
-        given(subscriptionRepository.findDueForBilling(anyList(), any())).willReturn(List.of(sub1));
+        given(subscriptionRepository.findDueForBilling(any(), anyList(), any())).willReturn(List.of(sub1));
         willThrow(new RuntimeException("결제 실패")).given(subscriptionService).processBilling(1L);
 
         long before = java.time.Instant.now().getEpochSecond();
