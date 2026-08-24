@@ -27,11 +27,18 @@ public class PaymentHistory {
     @JoinColumn(name = "subscription_id", nullable = false)
     private Subscription subscription;
 
-    @Column(name = "toss_order_id", nullable = false, unique = true, length = 64)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_provider", nullable = false, length = 20)
+    private PaymentProvider paymentProvider;
+
+    @Column(name = "toss_order_id", unique = true, length = 64)
     private String tossOrderId;
 
     @Column(name = "toss_payment_key", length = 200)
     private String tossPaymentKey;
+
+    @Column(name = "external_transaction_id", unique = true, length = 64)
+    private String externalTransactionId;
 
     @Column(nullable = false)
     private int amount;
@@ -49,12 +56,15 @@ public class PaymentHistory {
     @Builder
     public PaymentHistory(Member member, Subscription subscription,
                           String tossOrderId, String tossPaymentKey,
+                          PaymentProvider paymentProvider, String externalTransactionId,
                           int amount, PaymentStatus status,
                           LocalDateTime billedAt, String failReason) {
         this.member         = member;
         this.subscription   = subscription;
+        this.paymentProvider = paymentProvider != null ? paymentProvider : PaymentProvider.TOSS;
         this.tossOrderId    = tossOrderId;
         this.tossPaymentKey = tossPaymentKey;
+        this.externalTransactionId = externalTransactionId;
         this.amount         = amount;
         this.status         = status;
         this.billedAt       = billedAt;
