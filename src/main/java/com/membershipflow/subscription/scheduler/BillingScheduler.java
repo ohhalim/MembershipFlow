@@ -3,6 +3,7 @@ package com.membershipflow.subscription.scheduler;
 import com.membershipflow.common.monitoring.BatchHeartbeatService;
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.entity.SubscriptionStatus;
+import com.membershipflow.subscription.entity.PaymentProvider;
 import com.membershipflow.subscription.repository.SubscriptionRepository;
 import com.membershipflow.subscription.service.SubscriptionService;
 import io.micrometer.core.instrument.Gauge;
@@ -45,6 +46,7 @@ public class BillingScheduler {
     @Scheduled(cron = "0 0 0 * * *")
     public void processDueBillings() {
         List<Subscription> dueList = subscriptionRepository.findDueForBilling(
+                PaymentProvider.TOSS,
                 List.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAYMENT_FAILED),
                 LocalDateTime.now());
 

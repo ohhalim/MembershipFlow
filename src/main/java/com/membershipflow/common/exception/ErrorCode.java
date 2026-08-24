@@ -25,6 +25,8 @@ public enum ErrorCode {
     BILLING_KEY_ISSUE_FAILED(HttpStatus.BAD_GATEWAY,    "BILLING_KEY_ISSUE_FAILED",     "빌링 키 발급에 실패했습니다."),
     PAYMENT_FAILED_ERROR(HttpStatus.PAYMENT_REQUIRED,   "PAYMENT_FAILED",               "결제에 실패했습니다."),
     PAYMENT_STATUS_CHECK_FAILED(HttpStatus.BAD_GATEWAY, "PAYMENT_STATUS_CHECK_FAILED",  "결제 승인 상태 확인에 실패했습니다."),
+    INVALID_WEBHOOK_SIGNATURE(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_SIGNATURE", "웹훅 서명이 올바르지 않습니다."),
+    PAYMENT_DATA_MISMATCH(HttpStatus.BAD_REQUEST, "PAYMENT_DATA_MISMATCH", "결제 정보가 요청 정보와 일치하지 않습니다."),
 
     INVALID_PRICE_RANGE(HttpStatus.BAD_REQUEST,    "INVALID_PRICE_RANGE",    "유효하지 않은 가격 범위입니다."),
     INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST,      "INVALID_DATE_RANGE",     "유효하지 않은 날짜 범위입니다."),

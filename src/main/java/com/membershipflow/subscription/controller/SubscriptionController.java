@@ -24,6 +24,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
+    private final com.membershipflow.subscription.service.PaddleCheckoutService paddleCheckoutService;
+    private final com.membershipflow.subscription.service.PaddleWebhookService paddleWebhookService;
 
     @Value("${app.frontend-url}")
     private String frontendUrl;
@@ -40,6 +42,24 @@ public class SubscriptionController {
             @AuthenticationPrincipal OAuth2UserPrincipal principal,
             @RequestParam Long planId) {
         return ResponseEntity.ok(subscriptionService.prepare(principal.getMember().getId(), planId));
+    }
+
+    /** Paddle Checkout에 전달할 서버 검증 거래 생성 */
+    @PostMapping("/paddle/transactions")
+    public ResponseEntity<PaddleTransactionResponse> createPaddleTransaction(
+            @AuthenticationPrincipal OAuth2UserPrincipal principal,
+            @RequestParam Long planId) {
+        return ResponseEntity.ok(paddleCheckoutService.createTransaction(
+                principal.getMember().getId(), planId));
+    }
+
+    /** Paddle 서명 검증 웹훅 */
+    @PostMapping("/paddle/webhook")
+    public ResponseEntity<Void> paddleWebhook(
+            @RequestBody String rawBody,
+            @RequestHeader("Paddle-Signature") String paddleSignature) {
+        paddleWebhookService.handle(rawBody, paddleSignature);
+        return ResponseEntity.ok().build();
     }
 
     /** 카드 등록 콜백 처리 — 성공 시 프론트로 리다이렉트 */
