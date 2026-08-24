@@ -51,4 +51,31 @@ class PaddlePaymentsClientTest {
         assertThat(transactionId).isEqualTo("txn_01m0testtransaction000000000");
         server.verify();
     }
+
+    @Test
+    void cancelSubscription_schedulesCancellationAtNextBillingPeriod() {
+        server.expect(requestTo("https://sandbox-api.paddle.com/subscriptions/sub_test/cancel"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"effective_from":"next_billing_period"}
+                        """))
+                .andRespond(withSuccess("""
+                        {
+                          "data":{
+                            "id":"sub_test",
+                            "status":"active",
+                            "scheduled_change":{
+                              "action":"cancel",
+                              "effective_at":"2026-09-24T01:00:00Z"
+                            }
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        PaddlePaymentsClient.CancellationResult result =
+                client.cancelSubscription("sub_test");
+
+        assertThat(result.effectiveAt()).isNotNull();
+        server.verify();
+    }
 }
