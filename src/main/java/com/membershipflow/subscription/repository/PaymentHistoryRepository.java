@@ -12,6 +12,8 @@ public interface PaymentHistoryRepository extends JpaRepository<PaymentHistory, 
 
     Optional<PaymentHistory> findByTossOrderId(String tossOrderId);
 
+    Optional<PaymentHistory> findByExternalTransactionId(String externalTransactionId);
+
     @Query("""
             SELECT ph FROM PaymentHistory ph
             JOIN FETCH ph.subscription s

@@ -61,6 +61,7 @@ public class SecurityConfig {
                                 "/api/v1/courses/**",
                                 "/api/v1/subscriptions/plans",
                                 "/api/v1/subscriptions/callback",
+                                "/api/v1/subscriptions/paddle/webhook",
                                 "/ws/**",
                                 // nginx가 /admin/ 을 프록시하지 않아(deny all, nginx/nginx.conf 참고) 외부에서 도달 불가.
                                 // 실제 트리거는 docker exec로 backend 컨테이너를 내부망에서 직접 호출하며

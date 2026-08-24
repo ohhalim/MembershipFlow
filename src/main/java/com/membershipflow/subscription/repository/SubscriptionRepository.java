@@ -2,6 +2,7 @@ package com.membershipflow.subscription.repository;
 
 import com.membershipflow.subscription.entity.Subscription;
 import com.membershipflow.subscription.entity.SubscriptionStatus;
+import com.membershipflow.subscription.entity.PaymentProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -21,6 +22,15 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     @Query("SELECT s FROM Subscription s WHERE s.id = :id")
     Optional<Subscription> findByIdForUpdate(@Param("id") Long id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Subscription s WHERE s.member.id = :memberId")
+    Optional<Subscription> findByMemberIdForUpdate(@Param("memberId") Long memberId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Subscription s WHERE s.externalSubscriptionId = :externalSubscriptionId")
+    Optional<Subscription> findByExternalSubscriptionIdForUpdate(
+            @Param("externalSubscriptionId") String externalSubscriptionId);
+
     @Query("""
             SELECT s.member.id FROM Subscription s
             WHERE s.member.id IN :memberIds
@@ -36,8 +46,14 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     // 비관적 락 없음 (#178): 트랜잭션 밖(스케줄러)에서 락 쿼리를 실행하면
     // TransactionRequiredException으로 배치 자체가 죽고, 트랜잭션을 걸어도 조회 직후
     // 종료되면 락이 풀려 무의미하다. 결제 시점 재검증은 processBilling() 내부 가드가 담당.
-    @Query("SELECT s FROM Subscription s WHERE s.status IN :statuses AND s.nextBillingAt <= :now")
+    @Query("""
+            SELECT s FROM Subscription s
+            WHERE s.paymentProvider = :provider
+              AND s.status IN :statuses
+              AND s.nextBillingAt <= :now
+            """)
     List<Subscription> findDueForBilling(
+            @Param("provider") PaymentProvider provider,
             @Param("statuses") List<SubscriptionStatus> statuses,
             @Param("now") LocalDateTime now);
 }
