@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ public class PaddleWebhookVerifier {
     private final Duration tolerance;
     private final Clock clock;
 
+    @Autowired
     public PaddleWebhookVerifier(
             @Value("${paddle.webhook-secret}") String secret,
             @Value("${paddle.webhook-tolerance}") Duration tolerance) {
