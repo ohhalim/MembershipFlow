@@ -10,7 +10,7 @@
 
 Spring Boot 3.5 · Java 21 · MySQL · Spring WebSocket/STOMP · Jsoup · TossPayments  
 Next.js 14 · TypeScript · Tailwind CSS · SWR  
-Docker Compose · GitHub Actions · nginx · Prometheus · Grafana · AWS EC2
+Docker Compose · GitHub Actions · nginx · Prometheus · Grafana · Loki · Grafana Alloy · AWS EC2
 
 ---
 
@@ -26,7 +26,7 @@ Scheduler (매일 07:00)
         └── afterCommit() → AlertService → WebSocket 알림
 ```
 
-단일 EC2(t3.small)에 프론트, 백엔드, DB, 모니터링 통합.
+Application EC2(t3.small)에 프론트, 백엔드, DB, node-exporter, mysqld-exporter, Alloy를 배치하고 Prometheus·Grafana·Loki는 독립 Observability EC2로 분리.
 
 ---
 
@@ -50,17 +50,15 @@ TossPayments 빌링키 방식. 카드 1회 등록 후 선택한 월간·연간 �
 수집 완료 후 `afterCommit()` 트리거. 커밋 전 알림 발송 시 DB에 없는 데이터 기준 알림 발생 방지. STOMP `/user/queue/alert` push, `alert_log`로 24시간 중복 방지.
 
 **CI/CD**  
-main push → 테스트 통과 → Docker 이미지 빌드 → scp로 nginx 설정·Grafana 프로비저닝 파일 EC2 자동 복사. 수동 SSH 없이 코드 변경 즉시 반영.
+main push → 테스트 통과 → Docker 이미지 빌드 → scp로 nginx·Docker Compose·Alloy 설정 EC2 자동 복사 → 백엔드 health gate와 telemetry 상태 검증. 수동 SSH 없이 코드 변경 즉시 반영.
 
 ---
 
 ## 모니터링
 
-Prometheus + Grafana 로컬호스트 전용. 로컬 접근은 SSH 터널 사용.
+Application EC2의 node-exporter·mysqld-exporter가 호스트와 MySQL 메트릭을 노출하고, Alloy가 백엔드 JSON 로그와 MySQL lock 데이터를 독립 Observability EC2의 Loki로 전송. Prometheus·Grafana·Loki는 Observability EC2에서 운영.
 
-```bash
-make tunnel  # Grafana: localhost:3001 / Prometheus: localhost:9090
-```
+상세 배포 구조와 환경변수는 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) 참고.
 
 ---
 
