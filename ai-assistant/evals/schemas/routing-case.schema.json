@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://membershipflow.local/schemas/routing-case.schema.json",
+  "title": "Agent routing evaluation case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "question", "expected_route", "expected_tool", "reviewed"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^route-[0-9]{3}$"},
+    "question": {"type": "string", "minLength": 3},
+    "expected_route": {"enum": ["METRIC", "KNOWLEDGE", "CLARIFY", "OUT_OF_SCOPE"]},
+    "expected_tool": {
+      "type": ["string", "null"],
+      "enum": ["get_member_metrics", "get_subscription_metrics", "search_knowledge", null]
+    },
+    "reviewed": {"const": true},
+    "notes": {"type": "string"}
+  }
+}

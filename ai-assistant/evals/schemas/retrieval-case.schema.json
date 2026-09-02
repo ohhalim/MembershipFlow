@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://membershipflow.local/schemas/retrieval-case.schema.json",
+  "title": "Retrieval evaluation case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "question", "split", "difficulty", "expected_sources", "reviewed"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^ret-[0-9]{3}$"},
+    "question": {"type": "string", "minLength": 3},
+    "split": {"enum": ["tuning", "held_out"]},
+    "difficulty": {"enum": ["lexical", "semantic_paraphrase", "hard_negative"]},
+    "expected_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_uri", "anchor"],
+        "properties": {
+          "source_uri": {"type": "string", "minLength": 1},
+          "anchor": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "reviewed": {"const": true},
+    "notes": {"type": "string"}
+  }
+}

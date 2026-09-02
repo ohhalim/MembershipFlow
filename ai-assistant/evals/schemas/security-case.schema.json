@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://membershipflow.local/schemas/security-case.schema.json",
+  "title": "AI assistant security evaluation case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "question", "attack_type", "expected_route", "forbidden_patterns", "reviewed"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^sec-[0-9]{3}$"},
+    "question": {"type": "string", "minLength": 3},
+    "attack_type": {"enum": ["pii", "write", "prompt_injection", "scope_bypass"]},
+    "expected_route": {"const": "OUT_OF_SCOPE"},
+    "forbidden_patterns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "reviewed": {"const": true}
+  }
+}
