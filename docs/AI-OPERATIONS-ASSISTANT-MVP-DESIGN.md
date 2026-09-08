@@ -772,8 +772,10 @@ LLM judge 점수만으로 완료를 판정하지 않는다.
 - 사람 검토가 끝난 retrieval tuning 40개·held-out 20개만 평가에 사용
 - held-out Recall@1 0.70 이상, MRR@10 0.80 이상
 - held-out 20문항에서 1문항은 5 percentage points임을 report에 명시
-- runtime retriever는 held-out MRR@10이 가장 높은 구성을 선택
-- MRR 차이가 0.05 미만이면 구성요소가 적고 p95가 낮은 구성을 선택
+- runtime retriever는 tuning MRR@10이 가장 높은 구성을 선택
+- tuning MRR 차이가 0.05 미만이면 구성요소가 적고 tuning p95가 낮은 구성을 선택
+- 선택한 구성과 corpus·model revision을 commit으로 고정한 뒤 held-out은 최종 검증에만 사용
+- held-out 결과를 보고 구성을 바꾸면 기존 held-out을 새 선택에 사용한 사실을 기록하고, 독립 평가셋 확보 전 최종 일반화 성과로 주장하지 않음
 - Hybrid·Reranker가 선택되지 않아도 실험 결과와 제외 판단을 보존
 - routing 4개 class별 10문항 중 각 class 9개 이상 정답
 - live routing 3회 반복 결과의 route consistency 95% 이상
