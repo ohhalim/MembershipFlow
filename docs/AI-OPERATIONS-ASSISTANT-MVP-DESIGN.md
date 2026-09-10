@@ -1,5 +1,7 @@
 # AI 운영 어시스턴트 초기 MVP 설계
 
+> 2026-09-09 변경: 검색 저장소는 Elasticsearch 통합으로 결정. 아래 BM25S·pgvector 및 증분 발행 관련 항목은 이전 설계이며 [변경 결정](AI-ELASTICSEARCH-DECISION.md) 우선 적용. 구현 교체는 미완료.
+
 > 상태: Claude 1차 리뷰 반영 / 구현 전 설계
 > 작성일: 2026-09-02
 > 대상 저장소: MembershipFlow
