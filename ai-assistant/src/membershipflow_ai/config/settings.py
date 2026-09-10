@@ -15,7 +15,6 @@ class Settings(BaseSettings):
     )
     repository_root: Path = Path("..")
     corpus_config: Path = Path("config/corpus.yml")
-    bm25_index_dir: Path = Path(".data/bm25")
     embedding_provider: str = "fake"
     embedding_model: str = "BAAI/bge-m3"
     embedding_revision: str | None = None

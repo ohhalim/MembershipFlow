@@ -8,7 +8,6 @@ from membershipflow_ai.ingestion.embeddings import EmbeddingProvider
 from membershipflow_ai.ingestion.parsers import ParserRegistry
 from membershipflow_ai.ingestion.scanner import CorpusScanner
 from membershipflow_ai.persistence.repository import CorpusRepository, VersionIdentity
-from membershipflow_ai.retrieval.bm25 import Bm25ArtifactStore
 
 
 @dataclass(frozen=True)
@@ -19,7 +18,6 @@ class IngestionSummary:
     unchanged_count: int
     removed_count: int
     chunk_count: int
-    bm25_fingerprint: str
 
 
 class IngestionPipeline:
@@ -31,7 +29,6 @@ class IngestionPipeline:
         chunker: StructureAwareChunker,
         embeddings: EmbeddingProvider,
         repository: CorpusRepository,
-        bm25_store: Bm25ArtifactStore,
         parser_version: str = "1",
         pipeline_version: str = "1",
     ) -> None:
@@ -40,7 +37,6 @@ class IngestionPipeline:
         self._chunker = chunker
         self._embeddings = embeddings
         self._repository = repository
-        self._bm25_store = bm25_store
         self._parser_version = parser_version
         self._pipeline_version = pipeline_version
 
@@ -93,8 +89,6 @@ class IngestionPipeline:
 
             configured = {spec.source_uri for spec in self._scanner.specs}
             removed_count = await self._repository.mark_removed(configured)
-            active_chunks = await self._repository.active_chunks()
-            bm25_fingerprint = self._bm25_store.build(active_chunks)
             await self._repository.finish_run(
                 run_id,
                 status="SUCCEEDED",
@@ -111,7 +105,6 @@ class IngestionPipeline:
                 unchanged_count=unchanged_count,
                 removed_count=removed_count,
                 chunk_count=chunk_count,
-                bm25_fingerprint=bm25_fingerprint,
             )
         except Exception as exc:
             await self._repository.finish_run(
