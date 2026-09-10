@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://membershipflow.local/schemas/answer-case.schema.json",
+  "title": "Grounded answer evaluation case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "question", "expected_facts", "expected_sources", "reviewed"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^answer-[0-9]{3}$"},
+    "question": {"type": "string", "minLength": 3},
+    "expected_facts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "expected_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "forbidden_facts": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": []
+    },
+    "reviewed": {"const": true}
+  }
+}
