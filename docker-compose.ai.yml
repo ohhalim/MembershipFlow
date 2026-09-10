@@ -17,6 +17,36 @@ services:
       retries: 10
     restart: unless-stopped
 
+  ai-elasticsearch:
+    build:
+      context: ./ai-assistant/docker/elasticsearch
+      dockerfile: Dockerfile
+    image: mf-ai-elasticsearch:9.5.3
+    profiles: ["ai"]
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${AI_ES_PASSWORD:-local-only-dev-password}
+      # 로컬 전용. 아래 ports 로 127.0.0.1 에만 노출한다. 운영 재사용 금지.
+      - xpack.security.http.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+      - ingest.geoip.downloader.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "${AI_ES_BIND_ADDRESS:-127.0.0.1}:9208:9200"
+    volumes:
+      - ai_elasticsearch_data:/usr/share/elasticsearch/data
+    mem_limit: 2g
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS -u "elastic:$${ELASTIC_PASSWORD}" http://localhost:9200/_cluster/health >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
   ai-api:
     build:
       context: ./ai-assistant
@@ -53,5 +83,6 @@ services:
 
 volumes:
   ai_postgres_data:
+  ai_elasticsearch_data:
   ai_bm25_data:
   ai_model_cache:

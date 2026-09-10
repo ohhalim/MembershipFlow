@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     embedding_revision: str | None = None
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     llm_model: str = "gemini-3.7-flash"
+    elasticsearch_url: str = "http://localhost:9208"
+    elasticsearch_username: str = "elastic"
+    elasticsearch_password: str = "local-only-dev-password"
+    elasticsearch_ca_certs: Path | None = None
+    elasticsearch_alias: str = "mf-ai-chunks"
+    elasticsearch_request_timeout: float = 10.0
     spring_base_url: str = "http://localhost:8081"
     service_token: str = ""
     trace_content_enabled: bool = False
