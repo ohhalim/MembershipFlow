@@ -3,12 +3,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
+import os
 from dataclasses import asdict
 from typing import Any
 
 from elasticsearch import AsyncElasticsearch
 
+from membershipflow_ai.agent.contracts import AssistantAnswer
+from membershipflow_ai.agent.graph import build_llm, run_agent
+from membershipflow_ai.agent.tools import SpringMetricsClient
 from membershipflow_ai.config.settings import get_settings
+from membershipflow_ai.domain.documents import SearchHit
 from membershipflow_ai.ingestion.chunker import RegexTokenCounter, StructureAwareChunker
 from membershipflow_ai.ingestion.embeddings import (
     DeterministicHashEmbedding,
@@ -118,6 +124,80 @@ async def search(query: str, k: int, retriever: str, source_types: list[str] | N
     )
 
 
+async def ask(question: str, k: int, retriever: str) -> None:
+    settings = get_settings()
+    client = elasticsearch_client()
+    try:
+        store = ElasticsearchStore(client, settings.elasticsearch_alias)
+        index = await store.active_index()
+        if index is None:
+            raise SystemExit(
+                f"no active index for alias {settings.elasticsearch_alias}; run ingest+publish"
+            )
+        engine = ElasticsearchRetriever(client, index)
+
+        async def retrieve(query: str) -> tuple[list[SearchHit], str]:
+            keyword = await engine.keyword_search(query, k=k)
+            if retriever == "keyword":
+                return keyword[:k], index
+            embedding = embedding_provider().embed_query(query)
+            vector = await engine.vector_search(embedding, k=k)
+            return reciprocal_rank_fusion([keyword, vector], limit=k), index
+
+        llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
+        result = await run_agent(
+            question,
+            llm=llm,
+            retrieve=retrieve,
+            metrics=SpringMetricsClient(settings),
+        )
+    finally:
+        await client.close()
+
+    print(f"[route] {result.route}   [grounded] {result.grounded}")
+    if result.failure:
+        print(f"[failure] {result.failure}")
+    print()
+    print(result.answer)
+    if result.citations:
+        print("\n근거:")
+        for number, citation in enumerate(result.citations, start=1):
+            print(f"  [{number}] {citation.source_path}:{citation.line_start}-{citation.line_end}")
+
+
+async def slack(k: int, retriever: str) -> None:
+    from membershipflow_ai.interfaces.slack_app import run_slack
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    settings = get_settings()
+    client = elasticsearch_client()
+    try:
+        store = ElasticsearchStore(client, settings.elasticsearch_alias)
+        index = await store.active_index()
+        if index is None:
+            raise SystemExit(
+                f"no active index for alias {settings.elasticsearch_alias}; run ingest+publish"
+            )
+        engine = ElasticsearchRetriever(client, index)
+        llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
+        metrics = SpringMetricsClient(settings)
+
+        async def retrieve(query: str) -> tuple[list[SearchHit], str]:
+            keyword = await engine.keyword_search(query, k=k)
+            if retriever == "keyword":
+                return keyword[:k], index
+            embedding = embedding_provider().embed_query(query)
+            vector = await engine.vector_search(embedding, k=k)
+            return reciprocal_rank_fusion([keyword, vector], limit=k), index
+
+        async def answer_question(question: str) -> AssistantAnswer:
+            return await run_agent(question, llm=llm, retrieve=retrieve, metrics=metrics)
+
+        await run_slack(settings, answer_question)
+    finally:
+        await client.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="membershipflow-ai")
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -136,8 +216,28 @@ def main() -> None:
         "--source-type", action="append", help="filter by source type (repeatable)"
     )
 
+    ask_parser = subcommands.add_parser("ask", help="answer a question with cited evidence")
+    ask_parser.add_argument("question")
+    ask_parser.add_argument("-k", type=int, default=5, help="evidence chunks (default: 5)")
+    ask_parser.add_argument(
+        "--retriever",
+        choices=("keyword", "hybrid"),
+        default="keyword",
+        help="evidence retriever (default: keyword; vector is fake-embedding only)",
+    )
+
+    slack_parser = subcommands.add_parser("slack", help="run the Slack socket-mode bot")
+    slack_parser.add_argument("-k", type=int, default=5, help="evidence chunks (default: 5)")
+    slack_parser.add_argument(
+        "--retriever", choices=("keyword", "hybrid"), default="keyword"
+    )
+
     args = parser.parse_args()
     if args.command == "ingest":
         asyncio.run(ingest())
+    elif args.command == "slack":
+        asyncio.run(slack(args.k, args.retriever))
+    elif args.command == "ask":
+        asyncio.run(ask(args.question, args.k, args.retriever))
     elif args.command == "search":
         asyncio.run(search(args.query, args.k, args.retriever, args.source_type))
