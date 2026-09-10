@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable
+from datetime import date as date_type
+from datetime import timedelta
 from typing import cast
+from zoneinfo import ZoneInfo
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -50,6 +53,66 @@ def message_text(content: object) -> str:
                 parts.append(str(block.get("text", "")))
         return "\n".join(part for part in parts if part).strip()
     return str(content).strip()
+
+
+_CITATION_PATTERN = re.compile(r"\[(\d{1,2})\]")
+_REFUSAL_MARKERS = ("답할 수 없습니다", "답변할 수 없습니다", "근거를 찾지 못")
+
+
+def cited_indexes(answer_text: str) -> set[int]:
+    return {int(match) for match in _CITATION_PATTERN.findall(answer_text)}
+
+
+def verify_citations(answer_text: str, citation_count: int) -> tuple[bool, str | None]:
+    """Decide whether an answer may claim to be grounded.
+
+    The model is asked to cite evidence by number, but nothing stops it from
+    citing an index that was never provided, or from refusing while the caller
+    still reports success. Both cases previously surfaced as grounded=True,
+    which overstates how much the answer is backed by retrieved evidence.
+    """
+    referenced = cited_indexes(answer_text)
+    unknown = {index for index in referenced if index < 1 or index > citation_count}
+    if unknown:
+        return False, f"unknown_citation:{sorted(unknown)}"
+    if any(marker in answer_text for marker in _REFUSAL_MARKERS):
+        return False, "insufficient_evidence"
+    if not referenced:
+        return False, "no_citation"
+    return True, None
+
+
+SERVICE_ZONE = ZoneInfo("Asia/Seoul")
+_SUBSCRIPTION_HINTS = ("구독자", "구독 수", "가입자", "결제 건수", "구독")
+_COLLECT_HINTS = ("수집", "collect", "배치")
+_RELATIVE_DAYS = {"오늘": 0, "어제": 1, "그제": 2, "그저께": 2}
+
+
+def resolve_target_date(question: str, today: date_type | None = None) -> str | None:
+    """Resolve an explicit or relative date to YYYY-MM-DD in service time.
+
+    An empty date silently became "whatever the server defaults to", so a
+    question about yesterday could be answered with today's numbers.
+    """
+    explicit = _DATE_PATTERN.search(question)
+    if explicit:
+        return explicit.group(0)
+    base = today or date_type.today()
+    for word, delta in _RELATIVE_DAYS.items():
+        if word in question:
+            return (base - timedelta(days=delta)).isoformat()
+    return None
+
+
+def metric_kind(question: str) -> str | None:
+    """Pick which read-only query answers the question, or None when unclear."""
+    wants_subscription = any(hint in question for hint in _SUBSCRIPTION_HINTS)
+    wants_collect = any(hint in question for hint in _COLLECT_HINTS)
+    if wants_subscription and not wants_collect:
+        return "subscription"
+    if wants_collect and not wants_subscription:
+        return "collect"
+    return None
 
 
 def rule_route(question: str) -> Route | None:
@@ -127,23 +190,46 @@ async def answer_from_evidence(
             HumanMessage(content=f"질문: {question}\n\n근거:\n{format_evidence(hits)}"),
         ]
     )
+    answer_text = message_text(response.content)
+    grounded, failure = verify_citations(answer_text, len(citations))
     return AssistantAnswer(
         question=question,
         route=Route.KNOWLEDGE,
-        answer=message_text(response.content),
+        answer=answer_text,
         citations=citations,
         hits=hits,
-        grounded=True,
+        grounded=grounded,
+        failure=failure,
     )
 
 
 async def answer_metric(
     llm: BaseChatModel | None, question: str, metrics: SpringMetricsClient
 ) -> AssistantAnswer:
-    match = _DATE_PATTERN.search(question)
-    date = match.group(0) if match else ""
+    kind = metric_kind(question)
+    if kind is None:
+        return AssistantAnswer(
+            question=question,
+            route=Route.CLARIFY,
+            answer="수집 실행과 구독 지표 중 어느 쪽을 말씀하시는지 알려 주세요.",
+            grounded=False,
+            failure="ambiguous_metric_target",
+        )
+    target_date = resolve_target_date(question)
+    if target_date is None:
+        return AssistantAnswer(
+            question=question,
+            route=Route.CLARIFY,
+            answer="어느 날짜 기준인지 알려 주세요. 예: 오늘, 어제, 2026-09-10",
+            grounded=False,
+            failure="missing_date",
+        )
     try:
-        payload = await metrics.collect_runs(date)
+        payload = (
+            await metrics.subscription_metrics(target_date)
+            if kind == "subscription"
+            else await metrics.collect_runs(target_date)
+        )
     except MetricToolUnavailable as exc:
         return AssistantAnswer(
             question=question,
@@ -155,7 +241,7 @@ async def answer_metric(
     return AssistantAnswer(
         question=question,
         route=Route.METRIC,
-        answer=f"수집 조회 결과: {payload}",
+        answer=f"{target_date} {kind} 조회 결과: {payload}",
         grounded=True,
     )
 
