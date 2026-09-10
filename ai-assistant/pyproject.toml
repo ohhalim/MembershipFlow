@@ -21,7 +21,7 @@ dependencies = [
   "pyyaml>=6.0.2",
   "slack-bolt>=1.23.0",
   "sqlalchemy[asyncio]>=2.0.40",
-  "tree-sitter>=0.25.0",
+  "tree-sitter>=0.25.0,<0.26",
   "tree-sitter-java>=0.23.5",
   "uvicorn[standard]>=0.35.0",
 ]
