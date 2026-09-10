@@ -16,6 +16,7 @@ from membershipflow_ai.agent.graph import build_llm, run_agent
 from membershipflow_ai.agent.tools import SpringMetricsClient
 from membershipflow_ai.config.settings import get_settings
 from membershipflow_ai.domain.documents import SearchHit
+from membershipflow_ai.evaluation.report import write_html
 from membershipflow_ai.evaluation.retrieval import (
     aggregate,
     group_by,
@@ -205,7 +206,9 @@ async def slack(k: int, retriever: str) -> None:
         await client.close()
 
 
-async def evaluate(cases_path: str, k: int, retrievers: list[str], allow_draft: bool) -> None:
+async def evaluate(
+    cases_path: str, k: int, retrievers: list[str], allow_draft: bool, html_path: str | None
+) -> None:
     cases = load_cases(Path(cases_path))
     unreviewed = [case.id for case in cases if not case.reviewed]
     if unreviewed and not allow_draft:
@@ -254,7 +257,11 @@ async def evaluate(cases_path: str, k: int, retrievers: list[str], allow_draft: 
             }
     finally:
         await client.close()
-    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    if html_path:
+        write_html(report, html_path)
+        print(f"report written: {html_path}")
+    else:
+        print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
 
 
 def main() -> None:
@@ -295,6 +302,7 @@ def main() -> None:
     eval_parser.add_argument(
         "--allow-draft", action="store_true", help="run even if cases are not reviewed"
     )
+    eval_parser.add_argument("--html", help="write an HTML report to this path")
 
     slack_parser = subcommands.add_parser("slack", help="run the Slack socket-mode bot")
     slack_parser.add_argument("-k", type=int, default=5, help="evidence chunks (default: 5)")
@@ -309,7 +317,7 @@ def main() -> None:
         asyncio.run(
             evaluate(
                 args.cases, args.k, args.retriever or ["keyword", "vector", "hybrid"],
-                args.allow_draft,
+                args.allow_draft, args.html,
             )
         )
     elif args.command == "slack":
