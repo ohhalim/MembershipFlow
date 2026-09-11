@@ -33,8 +33,10 @@ models = [
 
 [dependency-groups]
 dev = [
+  "arize-phoenix>=8.0.0",
   "jsonschema>=4.25.0",
   "mypy>=1.17.0",
+  "openinference-instrumentation-langchain>=0.1.76",
   "pytest>=8.4.0",
   "pytest-asyncio>=1.1.0",
   "pytest-cov>=6.2.0",

@@ -39,6 +39,7 @@ from membershipflow_ai.ingestion.embeddings import (
 from membershipflow_ai.ingestion.parsers import ParserRegistry
 from membershipflow_ai.ingestion.pipeline import IngestionPipeline
 from membershipflow_ai.ingestion.scanner import CorpusScanner
+from membershipflow_ai.observability import retriever_span, setup_tracing
 from membershipflow_ai.persistence.database import create_engine, create_session_factory
 from membershipflow_ai.persistence.elasticsearch_store import ElasticsearchStore
 from membershipflow_ai.persistence.repository import CorpusRepository
@@ -141,6 +142,7 @@ async def search(query: str, k: int, retriever: str, source_types: list[str] | N
 
 
 async def ask(question: str, k: int, retriever: str) -> None:
+    setup_tracing()
     settings = get_settings()
     client = elasticsearch_client()
     try:
@@ -152,13 +154,18 @@ async def ask(question: str, k: int, retriever: str) -> None:
             )
         engine = ElasticsearchRetriever(client, index)
 
+        embeddings = embedding_provider()
+
         async def retrieve(query: str) -> tuple[list[SearchHit], str]:
-            keyword = await engine.keyword_search(query, k=k)
-            if retriever == "keyword":
-                return keyword[:k], index
-            embedding = embedding_provider().embed_query(query)
-            vector = await engine.vector_search(embedding, k=k)
-            return reciprocal_rank_fusion([keyword, vector], limit=k), index
+            with retriever_span(f"elasticsearch:{retriever}", query, index) as sink:
+                keyword = await engine.keyword_search(query, k=k)
+                if retriever == "keyword":
+                    hits = keyword[:k]
+                else:
+                    vector = await engine.vector_search(embeddings.embed_query(query), k=k)
+                    hits = reciprocal_rank_fusion([keyword, vector], limit=k)
+                sink.extend(hits)
+            return hits, index
 
         llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
         result = await run_agent(
@@ -185,6 +192,7 @@ async def slack(k: int, retriever: str) -> None:
     from membershipflow_ai.interfaces.slack_app import run_slack
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    setup_tracing()
     settings = get_settings()
     client = elasticsearch_client()
     try:
@@ -197,14 +205,18 @@ async def slack(k: int, retriever: str) -> None:
         engine = ElasticsearchRetriever(client, index)
         llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
         metrics = SpringMetricsClient(settings)
+        embeddings = embedding_provider()
 
         async def retrieve(query: str) -> tuple[list[SearchHit], str]:
-            keyword = await engine.keyword_search(query, k=k)
-            if retriever == "keyword":
-                return keyword[:k], index
-            embedding = embedding_provider().embed_query(query)
-            vector = await engine.vector_search(embedding, k=k)
-            return reciprocal_rank_fusion([keyword, vector], limit=k), index
+            with retriever_span(f"elasticsearch:{retriever}", query, index) as sink:
+                keyword = await engine.keyword_search(query, k=k)
+                if retriever == "keyword":
+                    hits = keyword[:k]
+                else:
+                    vector = await engine.vector_search(embeddings.embed_query(query), k=k)
+                    hits = reciprocal_rank_fusion([keyword, vector], limit=k)
+                sink.extend(hits)
+            return hits, index
 
         async def answer_question(question: str) -> AssistantAnswer:
             return await run_agent(question, llm=llm, retrieve=retrieve, metrics=metrics)
