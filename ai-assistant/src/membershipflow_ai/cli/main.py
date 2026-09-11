@@ -37,6 +37,7 @@ from membershipflow_ai.persistence.elasticsearch_store import ElasticsearchStore
 from membershipflow_ai.persistence.repository import CorpusRepository
 from membershipflow_ai.retrieval.elasticsearch import ElasticsearchRetriever
 from membershipflow_ai.retrieval.fusion import reciprocal_rank_fusion
+from membershipflow_ai.retrieval.rerank import CrossEncoderReranker
 
 
 def embedding_provider() -> EmbeddingProvider:
@@ -207,7 +208,8 @@ async def slack(k: int, retriever: str) -> None:
 
 
 async def evaluate(
-    cases_path: str, k: int, retrievers: list[str], allow_draft: bool, html_path: str | None
+    cases_path: str, k: int, retrievers: list[str], allow_draft: bool,
+    html_path: str | None, candidates: int,
 ) -> None:
     cases = load_cases(Path(cases_path))
     unreviewed = [case.id for case in cases if not case.reviewed]
@@ -234,15 +236,34 @@ async def evaluate(
         engine = ElasticsearchRetriever(client, index)
         embeddings = embedding_provider()
 
+        reranker = (
+            CrossEncoderReranker(settings.reranker_model, settings.embedding_revision)
+            if any(name.endswith("+rerank") for name in retrievers)
+            else None
+        )
+        report["reranker"] = reranker.model_id if reranker else None
+        report["rerank_candidates"] = candidates
+
         for name in retrievers:
             async def retrieve(question: str, mode: str = name) -> list[SearchHit]:
-                keyword = await engine.keyword_search(question, k=k)
-                if mode == "keyword":
-                    return keyword[:k]
-                vector = await engine.vector_search(embeddings.embed_query(question), k=k)
-                if mode == "vector":
-                    return vector[:k]
-                return reciprocal_rank_fusion([keyword, vector], limit=k)
+                base = mode.removesuffix("+rerank")
+                # 리랭커를 쓸 때는 후보를 넓게 뽑아 재정렬 여지를 준다
+                depth = candidates if mode.endswith("+rerank") else k
+                keyword = await engine.keyword_search(question, k=depth)
+                if base == "keyword":
+                    hits = keyword[:depth]
+                else:
+                    vector = await engine.vector_search(
+                        embeddings.embed_query(question), k=depth
+                    )
+                    hits = (
+                        vector[:depth]
+                        if base == "vector"
+                        else reciprocal_rank_fusion([keyword, vector], limit=depth)
+                    )
+                if reranker is not None and mode.endswith("+rerank"):
+                    return reranker.rerank(question, hits, limit=k)
+                return hits[:k]
 
             results = await run_cases(cases, retrieve)
             report["results"][name] = {
@@ -296,8 +317,13 @@ def main() -> None:
     eval_parser.add_argument("cases", help="path to a retrieval cases jsonl file")
     eval_parser.add_argument("-k", type=int, default=10, help="top-k (default: 10)")
     eval_parser.add_argument(
-        "--retriever", action="append", choices=("keyword", "vector", "hybrid"),
-        help="repeatable; default runs all three",
+        "--retriever", action="append",
+        choices=("keyword", "vector", "hybrid", "vector+rerank", "hybrid+rerank"),
+        help="repeatable; default runs keyword, vector, hybrid",
+    )
+    eval_parser.add_argument(
+        "--candidates", type=int, default=30,
+        help="candidate depth before reranking (default: 30)",
     )
     eval_parser.add_argument(
         "--allow-draft", action="store_true", help="run even if cases are not reviewed"
@@ -317,7 +343,7 @@ def main() -> None:
         asyncio.run(
             evaluate(
                 args.cases, args.k, args.retriever or ["keyword", "vector", "hybrid"],
-                args.allow_draft, args.html,
+                args.allow_draft, args.html, args.candidates,
             )
         )
     elif args.command == "slack":
