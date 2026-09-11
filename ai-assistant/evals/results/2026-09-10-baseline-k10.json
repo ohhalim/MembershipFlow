@@ -1,5 +1,6 @@
 {
   "cases_path": "evals/retrieval/cases.draft.jsonl",
+  "invalidated": "symbol_path 이전 색인에서 측정됐다. 경로가 '.' join/split 으로 손상되어 검색에 성공한 근거를 실패로 집계했다. 표시된 수치는 과소 집계다.",
   "k": 10,
   "physical_index": "mf-ai-chunks-a32289acb45a7365",
   "results": {
@@ -241,5 +242,6 @@
       }
     }
   },
-  "reviewed": false
+  "reviewed": false,
+  "superseded_by": "evals/results/2026-09-11-after-path-fix-k10.json"
 }
