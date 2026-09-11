@@ -30,7 +30,7 @@ class IngestionPipeline:
         embeddings: EmbeddingProvider,
         repository: CorpusRepository,
         parser_version: str = "1",
-        pipeline_version: str = "1",
+        pipeline_version: str = "3",
     ) -> None:
         self._scanner = scanner
         self._parsers = parsers

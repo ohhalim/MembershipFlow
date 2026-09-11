@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +31,18 @@ class Settings(BaseSettings):
     trace_content_enabled: bool = False
     slack_allowed_team_ids: list[str] = Field(default_factory=list)
     slack_allowed_channel_ids: list[str] = Field(default_factory=list)
+
+
+    @field_validator("embedding_revision", "elasticsearch_ca_certs", mode="before")
+    @classmethod
+    def _blank_to_none(cls, value: object) -> object:
+        """`.env` 의 `KEY=` 는 None 이 아니라 빈 문자열로 들어온다.
+
+        빈 문자열을 그대로 넘기면 HuggingFace 가 '' 라는 리비전을 찾다가 실패한다.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 @lru_cache
