@@ -8,6 +8,9 @@ from membershipflow_ai.domain.documents import ActiveChunk, SearchHit, SourceTyp
 
 
 def _hit_to_chunk(source: dict[str, Any]) -> ActiveChunk:
+    # symbol_path 가 원본 경로다. symbol 은 "." 으로 이어붙인 표시용이라
+    # 섹션 제목에 "." 이 있으면 분해 결과가 원본과 달라진다.
+    raw_path = source.get("symbol_path")
     symbol = source.get("symbol") or ""
     return ActiveChunk(
         chunk_id=source["chunk_id"],
@@ -15,7 +18,11 @@ def _hit_to_chunk(source: dict[str, Any]) -> ActiveChunk:
         source_type=SourceType(source["source_type"]),
         source_hash=source["source_hash"],
         ordinal=0,
-        path=tuple(part for part in symbol.split(".") if part),
+        path=(
+            tuple(str(part) for part in raw_path)
+            if isinstance(raw_path, list)
+            else tuple(part for part in symbol.split(".") if part)
+        ),
         content=source["body"],
         line_start=source["line_start"],
         line_end=source["line_end"],
