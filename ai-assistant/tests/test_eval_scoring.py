@@ -85,4 +85,11 @@ def test_aggregate_reports_found_cases() -> None:
     found = score_case(case, [make_hit(2, "S.java", ("pkg", "Subscription", "isActiveAt"))])
     missed = score_case(case, [])
     summary = aggregate([found, missed])
-    assert summary == {"cases": 2, "recall_at_k": 0.5, "mrr": 0.25, "found_cases": 1}
+    assert summary == {
+        "cases": 2,
+        "recall_at_k": 0.5,
+        "all_evidence_rate": 0.5,
+        "mrr": 0.25,
+        "found_cases": 1,
+        "all_evidence_cases": 1,
+    }
