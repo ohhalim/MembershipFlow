@@ -1,0 +1,217 @@
+{
+  "cases_path": "evals/retrieval/cases.draft.jsonl",
+  "k": 10,
+  "physical_index": "mf-ai-chunks-806c80ac51106a9e",
+  "rerank_candidates": 30,
+  "reranker": null,
+  "results": {
+    "hybrid": {
+      "by_difficulty": {
+        "hard_negative": {
+          "cases": 1,
+          "found_cases": 0,
+          "mrr": 0.0,
+          "recall_at_k": 0.0
+        },
+        "lexical": {
+          "cases": 5,
+          "found_cases": 5,
+          "mrr": 0.85,
+          "recall_at_k": 1.0
+        },
+        "semantic_paraphrase": {
+          "cases": 9,
+          "found_cases": 5,
+          "mrr": 0.3833,
+          "recall_at_k": 0.5556
+        }
+      },
+      "by_split": {
+        "held_out": {
+          "cases": 5,
+          "found_cases": 4,
+          "mrr": 0.65,
+          "recall_at_k": 0.8
+        },
+        "tuning": {
+          "cases": 10,
+          "found_cases": 6,
+          "mrr": 0.445,
+          "recall_at_k": 0.6
+        }
+      },
+      "misses": [
+        {
+          "id": "ret-001",
+          "question": "이용 가능한 구독의 판정 기준은?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-002",
+          "question": "Paddle 구독 상태를 반영할 때, 받은 이벤트가 마지막 반영 이벤트보다 오래됐는지 무엇으로 판단해?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-004",
+          "question": "정기 결제 시점이 된 구독을 조회할 때 어떤 조건으로 걸러?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-008",
+          "question": "구독 상태가 CANCELLED이고 이용 종료 시점이 아직 남았다면 이용 가능 판정은 어떻게 돼?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-013",
+          "question": "토스 정기결제가 실패할 때 실패 횟수에 따라 구독 상태는 어떻게 바뀌어?",
+          "recall": 0.0
+        }
+      ],
+      "overall": {
+        "cases": 15,
+        "found_cases": 10,
+        "mrr": 0.5133,
+        "recall_at_k": 0.6667
+      }
+    },
+    "keyword": {
+      "by_difficulty": {
+        "hard_negative": {
+          "cases": 1,
+          "found_cases": 0,
+          "mrr": 0.0,
+          "recall_at_k": 0.0
+        },
+        "lexical": {
+          "cases": 5,
+          "found_cases": 5,
+          "mrr": 0.85,
+          "recall_at_k": 1.0
+        },
+        "semantic_paraphrase": {
+          "cases": 9,
+          "found_cases": 4,
+          "mrr": 0.2103,
+          "recall_at_k": 0.4444
+        }
+      },
+      "by_split": {
+        "held_out": {
+          "cases": 5,
+          "found_cases": 4,
+          "mrr": 0.55,
+          "recall_at_k": 0.8
+        },
+        "tuning": {
+          "cases": 10,
+          "found_cases": 5,
+          "mrr": 0.3393,
+          "recall_at_k": 0.5
+        }
+      },
+      "misses": [
+        {
+          "id": "ret-001",
+          "question": "이용 가능한 구독의 판정 기준은?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-002",
+          "question": "Paddle 구독 상태를 반영할 때, 받은 이벤트가 마지막 반영 이벤트보다 오래됐는지 무엇으로 판단해?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-004",
+          "question": "정기 결제 시점이 된 구독을 조회할 때 어떤 조건으로 걸러?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-005",
+          "question": "구독 ID로 수정 대상 구독을 조회할 때 어떤 잠금을 사용해?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-008",
+          "question": "구독 상태가 CANCELLED이고 이용 종료 시점이 아직 남았다면 이용 가능 판정은 어떻게 돼?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-013",
+          "question": "토스 정기결제가 실패할 때 실패 횟수에 따라 구독 상태는 어떻게 바뀌어?",
+          "recall": 0.0
+        }
+      ],
+      "overall": {
+        "cases": 15,
+        "found_cases": 9,
+        "mrr": 0.4095,
+        "recall_at_k": 0.6
+      }
+    },
+    "vector": {
+      "by_difficulty": {
+        "hard_negative": {
+          "cases": 1,
+          "found_cases": 1,
+          "mrr": 0.125,
+          "recall_at_k": 1.0
+        },
+        "lexical": {
+          "cases": 5,
+          "found_cases": 5,
+          "mrr": 0.8667,
+          "recall_at_k": 1.0
+        },
+        "semantic_paraphrase": {
+          "cases": 9,
+          "found_cases": 5,
+          "mrr": 0.4722,
+          "recall_at_k": 0.5556
+        }
+      },
+      "by_split": {
+        "held_out": {
+          "cases": 5,
+          "found_cases": 4,
+          "mrr": 0.6667,
+          "recall_at_k": 0.8
+        },
+        "tuning": {
+          "cases": 10,
+          "found_cases": 7,
+          "mrr": 0.5375,
+          "recall_at_k": 0.7
+        }
+      },
+      "misses": [
+        {
+          "id": "ret-001",
+          "question": "이용 가능한 구독의 판정 기준은?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-002",
+          "question": "Paddle 구독 상태를 반영할 때, 받은 이벤트가 마지막 반영 이벤트보다 오래됐는지 무엇으로 판단해?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-004",
+          "question": "정기 결제 시점이 된 구독을 조회할 때 어떤 조건으로 걸러?",
+          "recall": 0.0
+        },
+        {
+          "id": "ret-013",
+          "question": "토스 정기결제가 실패할 때 실패 횟수에 따라 구독 상태는 어떻게 바뀌어?",
+          "recall": 0.0
+        }
+      ],
+      "overall": {
+        "cases": 15,
+        "found_cases": 11,
+        "mrr": 0.5806,
+        "recall_at_k": 0.7333
+      }
+    }
+  },
+  "reviewed": false
+}

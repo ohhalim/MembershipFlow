@@ -8,7 +8,7 @@ from elasticsearch import AsyncElasticsearch, NotFoundError
 
 from membershipflow_ai.domain.documents import ActiveChunk
 
-SCHEMA_REVISION = "1"
+SCHEMA_REVISION = "2"
 
 
 def index_settings() -> dict[str, Any]:
@@ -53,6 +53,10 @@ def index_mappings(dimension: int) -> dict[str, Any]:
                 "type": "keyword",
                 "fields": {"text": {"type": "text", "analyzer": "symbol_analyzer"}},
             },
+            # symbol 은 "." 으로 이어붙인 표시용 문자열이라 경로를 되돌릴 수 없다.
+            # 섹션 제목이나 패키지명에 "." 이 들어가면 분해 결과가 원본과 달라진다.
+            # 경로는 배열로 따로 보관해 원본 그대로 복원한다.
+            "symbol_path": {"type": "keyword"},
             "source_path": {"type": "keyword"},
             "source_type": {"type": "keyword"},
             "source_hash": {"type": "keyword"},
@@ -146,6 +150,7 @@ class ElasticsearchStore:
                     "body": chunk.content,
                     "title": chunk.path[-1] if chunk.path else chunk.source_uri,
                     "symbol": ".".join(chunk.path) if chunk.path else chunk.source_uri,
+                    "symbol_path": list(chunk.path),
                     "source_path": chunk.source_uri,
                     "source_type": str(chunk.source_type),
                     "source_hash": chunk.source_hash,
