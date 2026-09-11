@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-m3"
     embedding_revision: str | None = None
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_revision: str | None = None
     llm_model: str = "gemini-3.7-flash"
     elasticsearch_url: str = "http://localhost:9208"
     elasticsearch_username: str = "elastic"
@@ -33,7 +34,9 @@ class Settings(BaseSettings):
     slack_allowed_channel_ids: list[str] = Field(default_factory=list)
 
 
-    @field_validator("embedding_revision", "elasticsearch_ca_certs", mode="before")
+    @field_validator(
+        "embedding_revision", "reranker_revision", "elasticsearch_ca_certs", mode="before"
+    )
     @classmethod
     def _blank_to_none(cls, value: object) -> object:
         """`.env` 의 `KEY=` 는 None 이 아니라 빈 문자열로 들어온다.

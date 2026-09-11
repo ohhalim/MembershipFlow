@@ -7,10 +7,25 @@ from elasticsearch import AsyncElasticsearch
 from membershipflow_ai.domain.documents import ActiveChunk, SearchHit, SourceType
 
 
-def _hit_to_chunk(source: dict[str, Any]) -> ActiveChunk:
+class CorruptedPathError(RuntimeError):
+    """A document came back without a usable symbol_path.
+
+    The symbol fallback still produces a non-empty path, so a missing field is
+    invisible downstream: evaluation would score a correct hit as a miss and
+    report a lower number instead of failing. Evaluation opts into strict mode
+    to turn that into an explicit failure; the serving path keeps the fallback.
+    """
+
+
+def _hit_to_chunk(source: dict[str, Any], *, strict_path: bool = False) -> ActiveChunk:
     # symbol_path 가 원본 경로다. symbol 은 "." 으로 이어붙인 표시용이라
     # 섹션 제목에 "." 이 있으면 분해 결과가 원본과 달라진다.
     raw_path = source.get("symbol_path")
+    if strict_path and not isinstance(raw_path, list):
+        raise CorruptedPathError(
+            f"symbol_path 누락 또는 배열 아님: chunk_id={source.get('chunk_id')!r} "
+            f"type={type(raw_path).__name__}"
+        )
     symbol = source.get("symbol") or ""
     return ActiveChunk(
         chunk_id=source["chunk_id"],
@@ -33,9 +48,12 @@ def _hit_to_chunk(source: dict[str, Any]) -> ActiveChunk:
 class ElasticsearchRetriever:
     """Keyword and vector retrieval pinned to one physical index per request."""
 
-    def __init__(self, client: AsyncElasticsearch, index: str) -> None:
+    def __init__(
+        self, client: AsyncElasticsearch, index: str, *, strict_path: bool = False
+    ) -> None:
         self._client = client
         self._index = index
+        self._strict_path = strict_path
 
     @property
     def index(self) -> str:
@@ -59,7 +77,7 @@ class ElasticsearchRetriever:
         self._raise_on_partial(response.body)
         return [
             SearchHit(
-                chunk=_hit_to_chunk(hit["_source"]),
+                chunk=_hit_to_chunk(hit["_source"], strict_path=self._strict_path),
                 score=float(hit["_score"]),
                 rank=index + 1,
                 retriever="es_keyword",
@@ -89,7 +107,7 @@ class ElasticsearchRetriever:
         self._raise_on_partial(response.body)
         return [
             SearchHit(
-                chunk=_hit_to_chunk(hit["_source"]),
+                chunk=_hit_to_chunk(hit["_source"], strict_path=self._strict_path),
                 score=float(hit["_score"]) - 1.0,
                 rank=index + 1,
                 retriever="es_vector_exact",
