@@ -22,7 +22,7 @@ from membershipflow_ai.evaluation.plan import (
     retrieve_for_mode,
     validate_depths,
 )
-from membershipflow_ai.evaluation.report import write_html
+from membershipflow_ai.evaluation.report import write_json
 from membershipflow_ai.evaluation.retrieval import (
     aggregate,
     cases_fingerprint,
@@ -228,7 +228,7 @@ async def slack(k: int, retriever: str) -> None:
 
 async def evaluate(
     cases_path: str, k: int, retrievers: list[str], allow_draft: bool,
-    html_path: str | None, candidates: int, split: str,
+    json_path: str | None, candidates: int, split: str,
 ) -> None:
     try:
         validate_depths(k, candidates)
@@ -327,9 +327,9 @@ async def evaluate(
         await client.close()
     report["total_elapsed_seconds"] = round(time.monotonic() - started, 3)
 
-    if html_path:
-        write_html(report, html_path)
-        print(f"report written: {html_path}")
+    if json_path:
+        write_json(report, json_path)
+        print(f"report written: {json_path}")
     else:
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
 
@@ -380,7 +380,7 @@ def main() -> None:
     eval_parser.add_argument(
         "--allow-draft", action="store_true", help="run even if cases are not reviewed"
     )
-    eval_parser.add_argument("--html", help="write an HTML report to this path")
+    eval_parser.add_argument("--output", help="write the full evaluation JSON to this path")
 
     slack_parser = subcommands.add_parser("slack", help="run the Slack socket-mode bot")
     slack_parser.add_argument("-k", type=int, default=5, help="evidence chunks (default: 5)")
@@ -395,7 +395,7 @@ def main() -> None:
         asyncio.run(
             evaluate(
                 args.cases, args.k, args.retriever or ["keyword", "vector", "hybrid"],
-                args.allow_draft, args.html, args.candidates, args.split,
+                args.allow_draft, args.output, args.candidates, args.split,
             )
         )
     elif args.command == "slack":
