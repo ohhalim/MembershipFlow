@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -39,9 +40,10 @@ from membershipflow_ai.ingestion.embeddings import (
 from membershipflow_ai.ingestion.parsers import ParserRegistry
 from membershipflow_ai.ingestion.pipeline import IngestionPipeline
 from membershipflow_ai.ingestion.scanner import CorpusScanner
+from membershipflow_ai.ingestion.snapshot import prepare_snapshot
 from membershipflow_ai.observability import retriever_span, setup_tracing
 from membershipflow_ai.persistence.database import create_engine, create_session_factory
-from membershipflow_ai.persistence.elasticsearch_store import ElasticsearchStore
+from membershipflow_ai.persistence.elasticsearch_store import SCHEMA_REVISION, ElasticsearchStore
 from membershipflow_ai.persistence.repository import CorpusRepository
 from membershipflow_ai.retrieval.elasticsearch import ElasticsearchRetriever
 from membershipflow_ai.retrieval.fusion import reciprocal_rank_fusion
@@ -86,6 +88,55 @@ async def ingest() -> None:
         print(json.dumps(asdict(summary), ensure_ascii=False, sort_keys=True))
     finally:
         await engine.dispose()
+
+
+async def build(manifest_path: str) -> None:
+    """Build and verify an isolated index. Never switches a read alias."""
+    # Reserve the report before model/server work; never overwrite an earlier run.
+    with Path(manifest_path).open("x", encoding="utf-8") as output:
+        report: dict[str, Any] = {"status": "PREPARING"}
+
+        def save() -> None:
+            output.seek(0)
+            json.dump(report, output, ensure_ascii=False, indent=2, sort_keys=True)
+            output.truncate()
+            output.flush()
+
+        save()
+        client: AsyncElasticsearch | None = None
+        try:
+            settings = get_settings()
+            chunks, metadata = prepare_snapshot(
+                CorpusScanner(settings.repository_root, settings.corpus_config),
+                embedding_provider(),
+            )
+            report.update(metadata)
+            client = elasticsearch_client()
+            store = ElasticsearchStore(client, settings.elasticsearch_alias)
+            # Every attempt owns a fresh physical index, even for identical sources.
+            # Failed builds remain inspectable and cannot overwrite an active index.
+            index = store.physical_index(uuid.uuid4().hex)
+            report.update(
+                status="BUILDING", physical_index=index,
+                schema_revision=SCHEMA_REVISION,
+                corpus_fingerprint=store.corpus_fingerprint(chunks),
+            )
+            save()
+            await store.create(index, metadata["dimension"])
+            failures = await store.bulk_index(index, chunks, str(metadata["corpus_version"]))
+            if failures:
+                raise RuntimeError(f"bulk indexing failed for {len(failures)} chunks")
+            await store.verify(index, {chunk.chunk_id for chunk in chunks})
+            report["status"] = "VALIDATED"
+            save()
+        except Exception as exc:
+            report.update(status="FAILED", error_type=type(exc).__name__)
+            save()
+            raise
+        finally:
+            if client is not None:
+                await client.close()
+    print(f"validated build manifest: {manifest_path}; read alias unchanged")
 
 
 async def search(query: str, k: int, retriever: str, source_types: list[str] | None) -> None:
@@ -337,7 +388,11 @@ async def evaluate(
 def main() -> None:
     parser = argparse.ArgumentParser(prog="membershipflow-ai")
     subcommands = parser.add_subparsers(dest="command", required=True)
-    subcommands.add_parser("ingest", help="ingest the configured corpus")
+    subcommands.add_parser("ingest", help="ingest the configured corpus into PostgreSQL")
+    build_parser = subcommands.add_parser(
+        "build", help="build an isolated ES index; no alias switch"
+    )
+    build_parser.add_argument("--manifest", required=True, help="new manifest JSON path")
 
     search_parser = subcommands.add_parser("search", help="search the ingested corpus")
     search_parser.add_argument("query")
@@ -391,6 +446,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "ingest":
         asyncio.run(ingest())
+    elif args.command == "build":
+        asyncio.run(build(args.manifest))
     elif args.command == "eval":
         asyncio.run(
             evaluate(
