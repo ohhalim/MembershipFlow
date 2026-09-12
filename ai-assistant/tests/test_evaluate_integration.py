@@ -204,3 +204,29 @@ async def test_evaluation_uses_strict_path_retriever(
     await cli.evaluate(str(cases_file), 2, ["keyword"], False, None, 5, "tuning")
     capsys.readouterr()
     assert seen == [True]
+
+
+@pytest.mark.parametrize("reviewed", ["false", "true", 0, 1, None])
+@pytest.mark.parametrize("allow_draft", [False, True])
+async def test_invalid_review_type_rejected_before_client_creation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, reviewed: object, allow_draft: bool
+) -> None:
+    path = tmp_path / "invalid.jsonl"
+    path.write_text(json.dumps({**CASES[0], "reviewed": reviewed}), "utf-8")
+
+    def unexpected_client() -> None:
+        pytest.fail("invalid input must not create a client")
+
+    monkeypatch.setattr(cli, "elasticsearch_client", unexpected_client)
+    with pytest.raises(SystemExit, match=r"invalid\.jsonl:1: invalid retrieval case"):
+        await cli.evaluate(str(path), 2, ["keyword"], allow_draft, None, 5, "tuning")
+
+
+async def test_allow_draft_preserves_unreviewed_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "draft.jsonl"
+    path.write_text(json.dumps({**CASES[0], "reviewed": False}), "utf-8")
+    patch_cli(monkeypatch)
+    await cli.evaluate(str(path), 2, ["keyword"], True, None, 5, "tuning")
+    assert json.loads(capsys.readouterr().out)["reviewed"] is False

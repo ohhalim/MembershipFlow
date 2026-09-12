@@ -174,11 +174,30 @@ class ElasticsearchStore:
 
     async def verify(self, index: str, expected_chunk_ids: set[str]) -> None:
         await self._client.indices.refresh(index=index)
-        count = (await self._client.count(index=index)).body["count"]
+        response = (await self._client.count(index=index)).body
+        if response.get("_shards", {}).get("failed", 0):
+            raise RuntimeError("chunk verification failed: count has failed shards")
+        count = response["count"]
         if count != len(expected_chunk_ids):
             raise RuntimeError(
                 f"chunk count mismatch: indexed={count} expected={len(expected_chunk_ids)}"
             )
+        # Equal counts alone allow missing chunks to be replaced by unrelated IDs.
+        # This verifies an immutable build index; callers must prevent concurrent writes.
+        expected = sorted(expected_chunk_ids)
+        for start in range(0, len(expected), 500):
+            batch = expected[start : start + 500]
+            response = (await self._client.mget(
+                index=index, ids=batch, source=False, realtime=False,
+            )).body
+            docs = response.get("docs", [])
+            found = {
+                doc.get("_id") for doc in docs
+                if doc.get("found") is True and not doc.get("error")
+            }
+            if len(docs) != len(batch) or found != set(batch):
+                missing = sorted(set(batch) - found)
+                raise RuntimeError(f"chunk ID mismatch: missing={missing}")
 
     async def publish(self, index: str) -> str:
         """Switch the read alias to `index`. Returns the previous index, if any."""

@@ -236,7 +236,10 @@ async def evaluate(
         raise SystemExit(str(exc)) from exc
 
     path = Path(cases_path)
-    cases = load_cases(path)
+    try:
+        cases = load_cases(path)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     if split != "all":
         cases = [case for case in cases if case.split == split]
     if not cases:

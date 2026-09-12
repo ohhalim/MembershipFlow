@@ -5,7 +5,9 @@ import json
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from membershipflow_ai.domain.documents import SearchHit
 
@@ -59,24 +61,52 @@ class CaseResult:
         return 1.0 / min(ranks) if ranks else 0.0
 
 
+class _ExpectedSourceInput(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    source_uri: str = Field(min_length=1)
+    anchor: str = Field(min_length=1)
+
+
+class _RetrievalCaseInput(BaseModel):
+    # Same structural contract as evals/schemas/retrieval-case.schema.json.
+    # Review approval is checked by evaluate after split selection.
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    id: str = Field(pattern=r"^ret-[0-9]{3}$")
+    question: str = Field(min_length=3)
+    split: Literal["tuning", "held_out"]
+    difficulty: Literal["lexical", "semantic_paraphrase", "hard_negative"]
+    expected_sources: list[_ExpectedSourceInput] = Field(min_length=1)
+    reviewed: bool
+    notes: str = ""
+
+
 def load_cases(path: Path) -> list[RetrievalCase]:
     cases: list[RetrievalCase] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    seen: set[str] = set()
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
-        raw = json.loads(line)
+        try:
+            raw = _RetrievalCaseInput.model_validate(json.loads(line))
+        except (json.JSONDecodeError, ValidationError) as exc:
+            raise ValueError(f"{path}:{line_number}: invalid retrieval case: {exc}") from exc
+        if raw.id in seen:
+            raise ValueError(f"{path}:{line_number}: duplicate case id: {raw.id}")
+        seen.add(raw.id)
         cases.append(
             RetrievalCase(
-                id=raw["id"],
-                question=raw["question"],
-                split=raw["split"],
-                difficulty=raw["difficulty"],
+                id=raw.id,
+                question=raw.question,
+                split=raw.split,
+                difficulty=raw.difficulty,
                 expected_sources=tuple(
-                    ExpectedSource(item["source_uri"], item["anchor"])
-                    for item in raw["expected_sources"]
+                    ExpectedSource(item.source_uri, item.anchor)
+                    for item in raw.expected_sources
                 ),
-                reviewed=bool(raw.get("reviewed", False)),
-                notes=raw.get("notes", ""),
+                reviewed=raw.reviewed,
+                notes=raw.notes,
             )
         )
     return cases
