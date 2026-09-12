@@ -51,3 +51,12 @@
 - 조치: 평가 경로는 `strict_path=True` 로 `_source.symbol_path` 의 존재와 배열 타입을
   후보 전체에 대해 검증하고, 위반 시 `CorruptedPathError` 로 중단한다.
   서비스 경로는 기존 fallback 을 유지한다.
+
+## 2026-09-12 HTML 출력 제거
+
+- Phoenix를 조회 화면으로 사용. 별도 HTML 생성기와 기존 HTML 2개 삭제
+- 위 HTML 파일명은 과거 측정 정정 대상 기록으로 유지
+- 평가 결과 원본: stdout JSON 또는 `eval --output <path.json>`
+- JSON의 점수·후보·매칭 순위·실행 조건 보존
+- 현재 eval 경로는 Phoenix 평가 데이터셋/실험 업로드와 연결되지 않음
+- Phoenix의 서비스 trace와 오프라인 평가 결과는 현재 별개. HTML 제거가 자동 연동을 의미하지 않음

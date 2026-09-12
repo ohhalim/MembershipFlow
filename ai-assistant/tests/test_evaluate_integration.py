@@ -230,3 +230,22 @@ async def test_allow_draft_preserves_unreviewed_status(
     patch_cli(monkeypatch)
     await cli.evaluate(str(path), 2, ["keyword"], True, None, 5, "tuning")
     assert json.loads(capsys.readouterr().out)["reviewed"] is False
+
+
+async def test_output_saves_complete_json(
+    monkeypatch: pytest.MonkeyPatch, cases_file: Path, tmp_path: Path
+) -> None:
+    patch_cli(monkeypatch)
+    json_path = tmp_path / "report.json"
+    await cli.evaluate(str(cases_file), 2, ["keyword"], False, str(json_path), 5, "tuning")
+    report = json.loads(json_path.read_text("utf-8"))
+    assert not list(tmp_path.glob("*.html"))
+    assert len(report["cases_sha256"]) == 64
+    assert report["physical_index"] == "mf-ai-chunks-test"
+    assert "total_elapsed_seconds" in report
+    result = report["results"]["keyword"]
+    case = result["cases"][0]
+    assert case["matched_ranks"] == {"S.java#S > hit": 1}
+    assert len(case["returned"]) == 2
+    assert len(case["candidates"]) == 5
+    assert result["overall"]["recall_at_k"] == 1.0
