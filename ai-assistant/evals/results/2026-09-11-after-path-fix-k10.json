@@ -1,8 +1,9 @@
 {
   "cases_path": "evals/retrieval/cases.draft.jsonl",
-  "invalidated": "symbol_path 이전 색인에서 측정됐다. 경로가 '.' join/split 으로 손상되어 검색에 성공한 근거를 실패로 집계했다. 표시된 수치는 과소 집계다.",
   "k": 10,
-  "physical_index": "mf-ai-chunks-a32289acb45a7365",
+  "physical_index": "mf-ai-chunks-806c80ac51106a9e",
+  "rerank_candidates": 30,
+  "reranker": null,
   "results": {
     "hybrid": {
       "by_difficulty": {
@@ -14,29 +15,29 @@
         },
         "lexical": {
           "cases": 5,
-          "found_cases": 4,
-          "mrr": 0.65,
-          "recall_at_k": 0.8
+          "found_cases": 5,
+          "mrr": 0.85,
+          "recall_at_k": 1.0
         },
         "semantic_paraphrase": {
           "cases": 9,
-          "found_cases": 4,
-          "mrr": 0.3611,
-          "recall_at_k": 0.4444
+          "found_cases": 5,
+          "mrr": 0.3833,
+          "recall_at_k": 0.5556
         }
       },
       "by_split": {
         "held_out": {
           "cases": 5,
-          "found_cases": 3,
-          "mrr": 0.45,
-          "recall_at_k": 0.6
+          "found_cases": 4,
+          "mrr": 0.65,
+          "recall_at_k": 0.8
         },
         "tuning": {
           "cases": 10,
-          "found_cases": 5,
-          "mrr": 0.425,
-          "recall_at_k": 0.5
+          "found_cases": 6,
+          "mrr": 0.445,
+          "recall_at_k": 0.6
         }
       },
       "misses": [
@@ -61,26 +62,16 @@
           "recall": 0.0
         },
         {
-          "id": "ret-009",
-          "question": "문서에 정리된 최초 결제와 정기결제의 트랜잭션·외부 호출 범위는 어떻게 달라?",
-          "recall": 0.0
-        },
-        {
           "id": "ret-013",
           "question": "토스 정기결제가 실패할 때 실패 횟수에 따라 구독 상태는 어떻게 바뀌어?",
-          "recall": 0.0
-        },
-        {
-          "id": "ret-014",
-          "question": "배포할 때 SSL 인증서는 어떻게 받아?",
           "recall": 0.0
         }
       ],
       "overall": {
         "cases": 15,
-        "found_cases": 8,
-        "mrr": 0.4333,
-        "recall_at_k": 0.5333
+        "found_cases": 10,
+        "mrr": 0.5133,
+        "recall_at_k": 0.6667
       }
     },
     "keyword": {
@@ -93,29 +84,29 @@
         },
         "lexical": {
           "cases": 5,
-          "found_cases": 4,
-          "mrr": 0.65,
-          "recall_at_k": 0.8
+          "found_cases": 5,
+          "mrr": 0.85,
+          "recall_at_k": 1.0
         },
         "semantic_paraphrase": {
           "cases": 9,
-          "found_cases": 3,
-          "mrr": 0.1825,
-          "recall_at_k": 0.3333
+          "found_cases": 4,
+          "mrr": 0.2103,
+          "recall_at_k": 0.4444
         }
       },
       "by_split": {
         "held_out": {
           "cases": 5,
-          "found_cases": 3,
-          "mrr": 0.35,
-          "recall_at_k": 0.6
+          "found_cases": 4,
+          "mrr": 0.55,
+          "recall_at_k": 0.8
         },
         "tuning": {
           "cases": 10,
-          "found_cases": 4,
-          "mrr": 0.3143,
-          "recall_at_k": 0.4
+          "found_cases": 5,
+          "mrr": 0.3393,
+          "recall_at_k": 0.5
         }
       },
       "misses": [
@@ -145,26 +136,16 @@
           "recall": 0.0
         },
         {
-          "id": "ret-009",
-          "question": "문서에 정리된 최초 결제와 정기결제의 트랜잭션·외부 호출 범위는 어떻게 달라?",
-          "recall": 0.0
-        },
-        {
           "id": "ret-013",
           "question": "토스 정기결제가 실패할 때 실패 횟수에 따라 구독 상태는 어떻게 바뀌어?",
-          "recall": 0.0
-        },
-        {
-          "id": "ret-014",
-          "question": "배포할 때 SSL 인증서는 어떻게 받아?",
           "recall": 0.0
         }
       ],
       "overall": {
         "cases": 15,
-        "found_cases": 7,
-        "mrr": 0.3262,
-        "recall_at_k": 0.4667
+        "found_cases": 9,
+        "mrr": 0.4095,
+        "recall_at_k": 0.6
       }
     },
     "vector": {
@@ -177,29 +158,29 @@
         },
         "lexical": {
           "cases": 5,
-          "found_cases": 4,
-          "mrr": 0.6667,
-          "recall_at_k": 0.8
+          "found_cases": 5,
+          "mrr": 0.8667,
+          "recall_at_k": 1.0
         },
         "semantic_paraphrase": {
           "cases": 9,
-          "found_cases": 4,
-          "mrr": 0.4444,
-          "recall_at_k": 0.4444
+          "found_cases": 5,
+          "mrr": 0.4722,
+          "recall_at_k": 0.5556
         }
       },
       "by_split": {
         "held_out": {
           "cases": 5,
-          "found_cases": 3,
-          "mrr": 0.4667,
-          "recall_at_k": 0.6
+          "found_cases": 4,
+          "mrr": 0.6667,
+          "recall_at_k": 0.8
         },
         "tuning": {
           "cases": 10,
-          "found_cases": 6,
-          "mrr": 0.5125,
-          "recall_at_k": 0.6
+          "found_cases": 7,
+          "mrr": 0.5375,
+          "recall_at_k": 0.7
         }
       },
       "misses": [
@@ -219,29 +200,18 @@
           "recall": 0.0
         },
         {
-          "id": "ret-009",
-          "question": "문서에 정리된 최초 결제와 정기결제의 트랜잭션·외부 호출 범위는 어떻게 달라?",
-          "recall": 0.0
-        },
-        {
           "id": "ret-013",
           "question": "토스 정기결제가 실패할 때 실패 횟수에 따라 구독 상태는 어떻게 바뀌어?",
-          "recall": 0.0
-        },
-        {
-          "id": "ret-014",
-          "question": "배포할 때 SSL 인증서는 어떻게 받아?",
           "recall": 0.0
         }
       ],
       "overall": {
         "cases": 15,
-        "found_cases": 9,
-        "mrr": 0.4972,
-        "recall_at_k": 0.6
+        "found_cases": 11,
+        "mrr": 0.5806,
+        "recall_at_k": 0.7333
       }
     }
   },
-  "reviewed": false,
-  "superseded_by": "evals/results/2026-09-11-after-path-fix-k10.json"
+  "reviewed": false
 }

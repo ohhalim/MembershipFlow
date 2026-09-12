@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -16,9 +17,15 @@ from membershipflow_ai.agent.graph import build_llm, run_agent
 from membershipflow_ai.agent.tools import SpringMetricsClient
 from membershipflow_ai.config.settings import get_settings
 from membershipflow_ai.domain.documents import SearchHit
+from membershipflow_ai.evaluation.plan import (
+    RETRIEVER_MODES,
+    retrieve_for_mode,
+    validate_depths,
+)
 from membershipflow_ai.evaluation.report import write_html
 from membershipflow_ai.evaluation.retrieval import (
     aggregate,
+    cases_fingerprint,
     group_by,
     load_cases,
     run_cases,
@@ -32,11 +39,13 @@ from membershipflow_ai.ingestion.embeddings import (
 from membershipflow_ai.ingestion.parsers import ParserRegistry
 from membershipflow_ai.ingestion.pipeline import IngestionPipeline
 from membershipflow_ai.ingestion.scanner import CorpusScanner
+from membershipflow_ai.observability import retriever_span, setup_tracing
 from membershipflow_ai.persistence.database import create_engine, create_session_factory
 from membershipflow_ai.persistence.elasticsearch_store import ElasticsearchStore
 from membershipflow_ai.persistence.repository import CorpusRepository
 from membershipflow_ai.retrieval.elasticsearch import ElasticsearchRetriever
 from membershipflow_ai.retrieval.fusion import reciprocal_rank_fusion
+from membershipflow_ai.retrieval.rerank import CrossEncoderReranker
 
 
 def embedding_provider() -> EmbeddingProvider:
@@ -133,6 +142,7 @@ async def search(query: str, k: int, retriever: str, source_types: list[str] | N
 
 
 async def ask(question: str, k: int, retriever: str) -> None:
+    setup_tracing()
     settings = get_settings()
     client = elasticsearch_client()
     try:
@@ -144,13 +154,18 @@ async def ask(question: str, k: int, retriever: str) -> None:
             )
         engine = ElasticsearchRetriever(client, index)
 
+        embeddings = embedding_provider()
+
         async def retrieve(query: str) -> tuple[list[SearchHit], str]:
-            keyword = await engine.keyword_search(query, k=k)
-            if retriever == "keyword":
-                return keyword[:k], index
-            embedding = embedding_provider().embed_query(query)
-            vector = await engine.vector_search(embedding, k=k)
-            return reciprocal_rank_fusion([keyword, vector], limit=k), index
+            with retriever_span(f"elasticsearch:{retriever}", query, index) as sink:
+                keyword = await engine.keyword_search(query, k=k)
+                if retriever == "keyword":
+                    hits = keyword[:k]
+                else:
+                    vector = await engine.vector_search(embeddings.embed_query(query), k=k)
+                    hits = reciprocal_rank_fusion([keyword, vector], limit=k)
+                sink.extend(hits)
+            return hits, index
 
         llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
         result = await run_agent(
@@ -177,6 +192,7 @@ async def slack(k: int, retriever: str) -> None:
     from membershipflow_ai.interfaces.slack_app import run_slack
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    setup_tracing()
     settings = get_settings()
     client = elasticsearch_client()
     try:
@@ -189,14 +205,18 @@ async def slack(k: int, retriever: str) -> None:
         engine = ElasticsearchRetriever(client, index)
         llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
         metrics = SpringMetricsClient(settings)
+        embeddings = embedding_provider()
 
         async def retrieve(query: str) -> tuple[list[SearchHit], str]:
-            keyword = await engine.keyword_search(query, k=k)
-            if retriever == "keyword":
-                return keyword[:k], index
-            embedding = embedding_provider().embed_query(query)
-            vector = await engine.vector_search(embedding, k=k)
-            return reciprocal_rank_fusion([keyword, vector], limit=k), index
+            with retriever_span(f"elasticsearch:{retriever}", query, index) as sink:
+                keyword = await engine.keyword_search(query, k=k)
+                if retriever == "keyword":
+                    hits = keyword[:k]
+                else:
+                    vector = await engine.vector_search(embeddings.embed_query(query), k=k)
+                    hits = reciprocal_rank_fusion([keyword, vector], limit=k)
+                sink.extend(hits)
+            return hits, index
 
         async def answer_question(question: str) -> AssistantAnswer:
             return await run_agent(question, llm=llm, retrieve=retrieve, metrics=metrics)
@@ -207,9 +227,20 @@ async def slack(k: int, retriever: str) -> None:
 
 
 async def evaluate(
-    cases_path: str, k: int, retrievers: list[str], allow_draft: bool, html_path: str | None
+    cases_path: str, k: int, retrievers: list[str], allow_draft: bool,
+    html_path: str | None, candidates: int, split: str,
 ) -> None:
-    cases = load_cases(Path(cases_path))
+    try:
+        validate_depths(k, candidates)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    path = Path(cases_path)
+    cases = load_cases(path)
+    if split != "all":
+        cases = [case for case in cases if case.split == split]
+    if not cases:
+        raise SystemExit(f"split={split} 에 해당하는 케이스가 없다")
     unreviewed = [case.id for case in cases if not case.reviewed]
     if unreviewed and not allow_draft:
         raise SystemExit(
@@ -219,9 +250,13 @@ async def evaluate(
 
     settings = get_settings()
     client = elasticsearch_client()
+    started = time.monotonic()
     report: dict[str, Any] = {
         "cases_path": cases_path,
+        "cases_sha256": cases_fingerprint(path),
+        "split": split,
         "k": k,
+        "candidates": candidates,
         "reviewed": not unreviewed,
         "results": {},
     }
@@ -230,25 +265,55 @@ async def evaluate(
         index = await store.active_index()
         if index is None:
             raise SystemExit("no active index; run ingest+publish first")
+        mapping = await client.indices.get_mapping(index=index)
+        properties = mapping.body[index]["mappings"].get("properties", {})
+        if "symbol_path" not in properties:
+            raise SystemExit(
+                f"index {index} 에 symbol_path 가 없다. 구형 색인에서는 경로 복원이 "
+                "손상되어 점수가 낮게 나온다. 재색인 후 다시 실행한다"
+            )
         report["physical_index"] = index
-        engine = ElasticsearchRetriever(client, index)
+        # 평가에서는 경로 복원 실패를 낮은 점수로 흘려보내지 않고 즉시 멈춘다.
+        engine = ElasticsearchRetriever(client, index, strict_path=True)
         embeddings = embedding_provider()
+        report["embedding_model"] = embeddings.model_id
+        report["embedding_revision"] = embeddings.revision
+
+        reranker = (
+            CrossEncoderReranker(settings.reranker_model, settings.reranker_revision)
+            if any(name.endswith("+rerank") for name in retrievers)
+            else None
+        )
+        report["reranker_model"] = reranker.model_id if reranker else None
+        report["reranker_revision"] = settings.reranker_revision if reranker else None
 
         for name in retrievers:
-            async def retrieve(question: str, mode: str = name) -> list[SearchHit]:
-                keyword = await engine.keyword_search(question, k=k)
-                if mode == "keyword":
-                    return keyword[:k]
-                vector = await engine.vector_search(embeddings.embed_query(question), k=k)
-                if mode == "vector":
-                    return vector[:k]
-                return reciprocal_rank_fusion([keyword, vector], limit=k)
+            async def retrieve(
+                question: str, mode: str = name
+            ) -> tuple[list[SearchHit], list[SearchHit]]:
+                return await retrieve_for_mode(
+                    mode, question, engine=engine, embeddings=embeddings,
+                    reranker=reranker, k=k, candidates=candidates,
+                )
 
+            run_started = time.monotonic()
             results = await run_cases(cases, retrieve)
             report["results"][name] = {
                 "overall": aggregate(results),
                 "by_split": group_by(results, "split"),
                 "by_difficulty": group_by(results, "difficulty"),
+                "elapsed_seconds": round(time.monotonic() - run_started, 3),
+                "cases": [
+                    {
+                        "id": r.case.id,
+                        "recall": round(r.recall, 4),
+                        "all_evidence_found": r.all_evidence_found,
+                        "matched_ranks": r.matched_ranks,
+                        "returned": r.returned,
+                        "candidates": r.candidates,
+                    }
+                    for r in results
+                ],
                 "misses": [
                     {"id": r.case.id, "question": r.case.question, "recall": r.recall}
                     for r in results
@@ -257,6 +322,8 @@ async def evaluate(
             }
     finally:
         await client.close()
+    report["total_elapsed_seconds"] = round(time.monotonic() - started, 3)
+
     if html_path:
         write_html(report, html_path)
         print(f"report written: {html_path}")
@@ -296,8 +363,16 @@ def main() -> None:
     eval_parser.add_argument("cases", help="path to a retrieval cases jsonl file")
     eval_parser.add_argument("-k", type=int, default=10, help="top-k (default: 10)")
     eval_parser.add_argument(
-        "--retriever", action="append", choices=("keyword", "vector", "hybrid"),
-        help="repeatable; default runs all three",
+        "--retriever", action="append", choices=RETRIEVER_MODES,
+        help="repeatable; default runs keyword, vector, hybrid",
+    )
+    eval_parser.add_argument(
+        "--candidates", type=int, default=30,
+        help="candidate depth, applied to every retriever (default: 30)",
+    )
+    eval_parser.add_argument(
+        "--split", choices=("tuning", "held_out", "all"), default="tuning",
+        help="case split to run (default: tuning; held_out/all must be chosen explicitly)",
     )
     eval_parser.add_argument(
         "--allow-draft", action="store_true", help="run even if cases are not reviewed"
@@ -317,7 +392,7 @@ def main() -> None:
         asyncio.run(
             evaluate(
                 args.cases, args.k, args.retriever or ["keyword", "vector", "hybrid"],
-                args.allow_draft, args.html,
+                args.allow_draft, args.html, args.candidates, args.split,
             )
         )
     elif args.command == "slack":

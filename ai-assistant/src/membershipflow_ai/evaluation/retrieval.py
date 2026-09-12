@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
@@ -30,6 +31,8 @@ class RetrievalCase:
 class CaseResult:
     case: RetrievalCase
     matched_ranks: dict[str, int | None] = field(default_factory=dict)
+    returned: list[dict[str, Any]] = field(default_factory=list)
+    candidates: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def recall(self) -> float:
@@ -37,6 +40,18 @@ class CaseResult:
             return 0.0
         found = sum(1 for rank in self.matched_ranks.values() if rank is not None)
         return found / len(self.matched_ranks)
+
+    @property
+    def all_evidence_found(self) -> bool:
+        """Every expected source for this case appeared in top-k.
+
+        Averaged recall hides partial credit: a case with two expected sources
+        counts as half-found. A question is only actually answerable when all
+        of its evidence is retrieved, so that is tracked separately.
+        """
+        return bool(self.matched_ranks) and all(
+            rank is not None for rank in self.matched_ranks.values()
+        )
 
     @property
     def reciprocal_rank(self) -> float:
@@ -80,8 +95,28 @@ def anchor_matches(anchor: str, chunk_path: Sequence[str]) -> bool:
     return list(chunk_path[-len(wanted) :]) == wanted
 
 
-def score_case(case: RetrievalCase, hits: Sequence[SearchHit]) -> CaseResult:
-    result = CaseResult(case=case)
+def hit_record(hit: SearchHit) -> dict[str, Any]:
+    """Identity only. Document bodies stay out of stored results."""
+    return {
+        "rank": hit.rank,
+        "chunk_id": hit.chunk.chunk_id,
+        "source_uri": hit.chunk.source_uri,
+        "path": list(hit.chunk.path),
+        "retriever": hit.retriever,
+        "score": round(hit.score, 6),
+    }
+
+
+def score_case(
+    case: RetrievalCase,
+    hits: Sequence[SearchHit],
+    candidates: Sequence[SearchHit] = (),
+) -> CaseResult:
+    result = CaseResult(
+        case=case,
+        returned=[hit_record(hit) for hit in hits],
+        candidates=[hit_record(hit) for hit in candidates],
+    )
     for expected in case.expected_sources:
         key = f"{expected.source_uri}#{expected.anchor}"
         result.matched_ranks[key] = None
@@ -100,8 +135,12 @@ def aggregate(results: Sequence[CaseResult]) -> dict[str, Any]:
     return {
         "cases": len(results),
         "recall_at_k": round(sum(r.recall for r in results) / len(results), 4),
+        "all_evidence_rate": round(
+            sum(1 for r in results if r.all_evidence_found) / len(results), 4
+        ),
         "mrr": round(sum(r.reciprocal_rank for r in results) / len(results), 4),
         "found_cases": sum(1 for r in results if r.reciprocal_rank > 0),
+        "all_evidence_cases": sum(1 for r in results if r.all_evidence_found),
     }
 
 
@@ -114,6 +153,14 @@ def group_by(results: Sequence[CaseResult], key: str) -> dict[str, dict[str, Any
 
 async def run_cases(
     cases: Sequence[RetrievalCase],
-    retrieve: Callable[[str], Awaitable[list[SearchHit]]],
+    retrieve: Callable[[str], Awaitable[tuple[list[SearchHit], list[SearchHit]]]],
 ) -> list[CaseResult]:
-    return [score_case(case, await retrieve(case.question)) for case in cases]
+    results = []
+    for case in cases:
+        hits, candidates = await retrieve(case.question)
+        results.append(score_case(case, hits, candidates))
+    return results
+
+
+def cases_fingerprint(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()

@@ -36,6 +36,9 @@ border-radius:6px;padding:14px 16px;margin-bottom:20px}
 .miss{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
 color:var(--muted)}
 .miss span{color:var(--bad)}
+.void{background:#2a1d1d;border:1px solid #5a3a36;border-left:3px solid var(--bad);
+border-radius:6px;padding:14px 16px;margin-bottom:16px}
+.void b{color:var(--bad)}
 .wrap{overflow-x:auto}
 """
 
@@ -56,8 +59,10 @@ def render_html(report: dict[str, Any]) -> str:
         tiles.append(
             f'<div class="panel"><div class="name">{esc(name)}</div>'
             f'<div class="big">{overall["recall_at_k"]:.4f}</div>'
-            f'<div class="sub">Recall@{report["k"]} &middot; MRR {overall["mrr"]:.4f} '
-            f'&middot; {overall["found_cases"]}/{overall["cases"]} cases</div></div>'
+            f'<div class="sub">Recall@{report["k"]} &middot; MRR {overall["mrr"]:.4f}<br>'
+            f'all-evidence {overall.get("all_evidence_rate", 0):.4f} '
+            f'({overall.get("all_evidence_cases", 0)}/{overall["cases"]}) '
+            f'&middot; found {overall["found_cases"]}/{overall["cases"]}</div></div>'
         )
 
     rows = []
@@ -81,8 +86,36 @@ def render_html(report: dict[str, Any]) -> str:
             )
 
     case_count = next(iter(results.values()))["overall"]["cases"]
-    per_case = 1 / case_count if case_count else 0
     reviewed = "reviewed" if report.get("reviewed") else "DRAFT (reviewed=false)"
+
+    invalidated = ""
+    if report.get("invalidated"):
+        superseded = report.get("superseded_by") or "-"
+        invalidated = (
+            f'<div class="void"><b>INVALIDATED</b> &mdash; {esc(str(report["invalidated"]))}'
+            f'<br>대체 결과: <code>{esc(str(superseded))}</code>'
+            "<br>아래 숫자는 기록 보존을 위해 그대로 두었다. 판단 근거로 쓰지 않는다.</div>"
+        )
+
+    provenance = " &middot; ".join(
+        part
+        for part in (
+            f'embedding <code>{esc(str(report.get("embedding_model", "-")))}</code>',
+            (
+                f'reranker <code>{esc(str(report["reranker_model"]))}</code>'
+                if report.get("reranker_model")
+                else ""
+            ),
+            f'candidates {report.get("candidates", "-")}',
+            f'split {esc(str(report.get("split", "-")))}',
+            (
+                f'cases sha256 <code>{esc(str(report["cases_sha256"]))[:12]}</code>'
+                if report.get("cases_sha256")
+                else ""
+            ),
+        )
+        if part
+    )
 
     return f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <title>Retrieval Evaluation</title><style>{_STYLE}</style></head><body>
@@ -92,11 +125,13 @@ def render_html(report: dict[str, Any]) -> str:
   &middot; k={report["k"]} &middot; cases {case_count} &middot; {esc(reviewed)}
   &middot; cases file <code>{esc(str(report.get("cases_path", "-")))}</code>
   &middot; generated {generated}
+  <br>{provenance}
 </div>
 <div class="grid">{"".join(tiles)}</div>
-<div class="note"><b>측정 한계</b> &mdash; 케이스 {case_count}건이므로 1건 =
-recall {per_case:.4f}. 이보다 작거나 같은 차이는 우열의 근거가 아니다.
-한 번 측정이며 재현 반복은 하지 않았다.</div>
+{invalidated}
+<div class="note"><b>측정 조건</b> &mdash; 케이스 {case_count}건, 한 번 측정이며 재현 반복은
+하지 않았다. 케이스마다 정답 근거 수가 달라 recall 변화폭은 균일하지 않다.
+표본이 작아 작은 차이는 우연일 수 있으나, 이 리포트는 유의성 검정을 수행하지 않는다.</div>
 <h2>Breakdown</h2>
 <div class="wrap"><table>
 <tr><th>retriever</th><th>group</th><th class="n">Recall@{report["k"]}</th><th></th>
