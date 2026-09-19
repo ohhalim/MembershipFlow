@@ -338,11 +338,16 @@ def _load_validated_manifest(manifest_path: str) -> dict[str, Any]:
         raise SystemExit(
             f"manifest status 가 {status!r} 다. VALIDATED 인 build 만 전환할 수 있다"
         )
-    if not manifest.get("physical_index"):
-        raise SystemExit("manifest 에 physical_index 가 없다")
+    index = manifest.get("physical_index")
+    if not isinstance(index, str) or not index.strip():
+        raise SystemExit("manifest physical_index 는 비어 있지 않은 문자열이어야 한다")
     expected = manifest.get("expected_chunk_ids")
     if not isinstance(expected, list) or not expected:
         raise SystemExit("manifest 에 expected_chunk_ids 가 없다")
+    if any(not isinstance(item, str) or not item.strip() for item in expected):
+        raise SystemExit("manifest expected_chunk_ids 는 비어 있지 않은 문자열 목록이어야 한다")
+    if len(set(expected)) != len(expected):
+        raise SystemExit("manifest expected_chunk_ids 에 중복이 있다")
     return manifest
 
 

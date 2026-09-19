@@ -452,3 +452,25 @@ def test_fake_identity_matches_the_real_provider() -> None:
     assert wanted["embedding_model"] == provider.model_id
     assert wanted["embedding_revision"] == provider.revision
     assert wanted["dimension"] == provider.dimension
+
+
+@pytest.mark.parametrize("command", ["publish", "rollback"])
+@pytest.mark.parametrize("overrides", [
+    {"physical_index": 123},
+    {"physical_index": " "},
+    {"expected_chunk_ids": ["c1", "c1"]},
+    {"expected_chunk_ids": ["c1", None]},
+    {"expected_chunk_ids": ["c1", {}]},
+    {"expected_chunk_ids": [""]},
+    {"expected_chunk_ids": [" "]},
+])
+async def test_malformed_manifest_rejected_before_es(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any,
+    command: str, overrides: dict[str, Any],
+) -> None:
+    def unexpected_client() -> None:
+        pytest.fail("invalid manifest must not contact Elasticsearch")
+
+    monkeypatch.setattr(cli, "elasticsearch_client", unexpected_client)
+    with pytest.raises(SystemExit, match="manifest"):
+        await getattr(cli, command)(manifest_file(manifest(**overrides)))
