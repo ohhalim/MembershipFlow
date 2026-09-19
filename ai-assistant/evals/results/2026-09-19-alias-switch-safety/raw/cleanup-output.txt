@@ -1,6 +1,6 @@
-  mf-ai-verify-20260919-c07e4bcf642c4916943ffa606f900532: 테스트 alias mf-ai-verify-20260919 분리
-deleted mf-ai-verify-20260919-c07e4bcf642c4916943ffa606f900532
-deleted mf-ai-verify-20260919-a818fcde56ec45f7b90bde1821f09114
+  mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098: 테스트 alias mf-ai-verify-20260919 분리
+deleted mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+deleted mf-ai-verify-20260919-29035b3dc98a4b4b81c9af7ca5491cdc
 deleted mf-ai-verify-20260919-fixture-empty
 deleted mf-ai-verify-20260919-fixture-partial
 deleted mf-ai-verify-20260919-fixture-othermodel
@@ -8,6 +8,9 @@ deleted mf-ai-verify-20260919-fixture-dim768
 deleted mf-ai-verify-20260919-fixture-rev2
 deleted mf-ai-verify-20260919-fixture-nometa
 deleted mf-ai-verify-20260919-fixture-metalie
+deleted mf-ai-verify-20260919-fixture-badschema
+deleted mf-ai-verify-20260919-fixture-noembed
+deleted mf-ai-verify-20260919-fixture-badsympath
 
 남은 mf-ai 인덱스:
   mf-ai-chunks-0fe52eea51c20746

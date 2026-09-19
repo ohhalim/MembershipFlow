@@ -155,13 +155,39 @@ class ElasticsearchStore:
         )
 
     async def index_identity(self, index: str) -> dict[str, Any]:
-        """Read the recorded model identity, or raise when the index predates it.
+        """Read the recorded model identity after checking the mapping holds it up.
 
-        An index without `_meta` is not assumed safe: nothing proves which model
-        wrote its vectors.
+        Two self-reports agreeing with each other proves nothing: a manifest and
+        an index `_meta` can both be wrong in the same way. The mapping is the
+        one thing Elasticsearch enforces, so it is checked first and `dims` is
+        returned as `mapping_dims` for the caller to cross-check against `_meta`.
+        An index without `_meta` is not assumed safe either.
         """
         mapping = await self._client.indices.get_mapping(index=index)
         mappings = mapping.body[index]["mappings"]
+        properties = mappings.get("properties") or {}
+
+        embedding = properties.get("embedding")
+        if not isinstance(embedding, dict) or embedding.get("type") != "dense_vector":
+            raise RuntimeError(
+                f"index {index} 의 embedding 필드가 dense_vector 가 아니다 "
+                f"(type={embedding.get('type') if isinstance(embedding, dict) else None!r}). "
+                "vector 검색을 할 수 없는 인덱스다. 현재 코드로 다시 build 한다"
+            )
+        dims = embedding.get("dims")
+        if not isinstance(dims, int) or isinstance(dims, bool) or dims <= 0:
+            raise RuntimeError(
+                f"index {index} 의 embedding dims 를 읽을 수 없다 (dims={dims!r}). "
+                "기록된 차원과 대조할 수 없으므로 전환하지 않는다"
+            )
+        symbol_path = properties.get("symbol_path")
+        if not isinstance(symbol_path, dict) or symbol_path.get("type") != "keyword":
+            raise RuntimeError(
+                f"index {index} 의 symbol_path 가 keyword 가 아니다 "
+                f"(type={symbol_path.get('type') if isinstance(symbol_path, dict) else None!r}). "
+                "이 인덱스로 전환하면 검색 결과의 경로 복원이 손상된다. 재색인 후 전환한다"
+            )
+
         meta = mappings.get("_meta") or {}
         missing = [field for field in IDENTITY_FIELDS if field not in meta]
         if missing:
@@ -170,11 +196,7 @@ class ElasticsearchStore:
                 "어떤 모델이 이 벡터를 만들었는지 증명할 수 없으므로 안전하다고 보지 않는다. "
                 "현재 코드로 다시 build 한다"
             )
-        properties = mappings.get("properties", {})
-        embedding = properties.get("embedding", {})
-        if "dims" in embedding:
-            meta = {**meta, "mapping_dims": embedding["dims"]}
-        return dict(meta)
+        return {**meta, "mapping_dims": dims}
 
     async def bulk_index(
         self, index: str, chunks: list[ActiveChunk], corpus_version: str

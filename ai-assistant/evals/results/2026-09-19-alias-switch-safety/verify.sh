@@ -77,15 +77,18 @@ check() {
 # _meta 를 임의로 지정한 픽스처 인덱스. build 가 아니라 이 스크립트가 만든 것이다.
 # 매핑 생성이 실패하면 ES 가 dynamic 매핑으로 빈 인덱스를 만들어 테스트가 엉뚱한
 # 가드에 걸리므로, 생성 결과를 반드시 확인하고 실패 시 즉시 멈춘다.
-fixture() {  # fixture <index> <meta json | {}> <dims> <A 에서 복사할 문서 수>
-  local idx="$1" meta="$2" dims="$3" ndocs="$4" body created
-  body=$(uv run python - "$meta" "$dims" <<'PY'
+# 5번째 인자는 매핑 dict `m` 에 적용할 파이썬 문장이다 (계약 위반 인덱스 재현용).
+fixture() {  # fixture <index> <meta json | {}> <dims> <문서 수> [매핑 변형]
+  local idx="$1" meta="$2" dims="$3" ndocs="$4" mutate="${5:-}" body created
+  body=$(uv run python - "$meta" "$dims" "$mutate" <<'PY'
 import json, sys
 from membershipflow_ai.persistence.elasticsearch_store import index_settings, index_mappings
-meta, dims = json.loads(sys.argv[1]), int(sys.argv[2])
+meta, dims, mutate = json.loads(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
 m = index_mappings(dims, meta)
 if not meta:
     m.pop("_meta")          # _meta 자체가 없는 과거 인덱스 재현
+if mutate:
+    exec(mutate, {"m": m})  # 이 스크립트가 직접 주는 문자열만 실행한다
 print(json.dumps({"settings": index_settings(), "mappings": m}))
 PY
 ) || { echo "FATAL: $idx 매핑 생성 실패"; exit 1; }
@@ -96,7 +99,8 @@ PY
   es "$ES/$idx/_mapping" | python3 -c "
 import json,sys
 m=json.load(sys.stdin)['$idx']['mappings']
-print('    fixture $idx: _meta=%s dims=%s'%(m.get('_meta','(없음)'), m['properties']['embedding']['dims']))"
+emb=m.get('properties',{}).get('embedding')
+print('    fixture $idx: _meta=%s embedding=%s'%(m.get('_meta','(없음)'), emb if emb else '(없음)'))"
   if [ "$ndocs" -gt 0 ]; then
     python3 - "$idx" "$ndocs" "$ES" "$ES_AUTH" "$RUN" <<'PY'
 import json, subprocess, sys
@@ -120,7 +124,7 @@ PY
   fi
 }
 
-FIXTURES="empty partial othermodel dim768 rev2 nometa metalie"
+FIXTURES="empty partial othermodel dim768 rev2 nometa metalie badschema noembed badsympath"
 
 # 반복 실행 가능하게 시작 상태를 맞춘다. 이번 테스트 alias 와 이 스크립트가 만드는
 # 픽스처만 정확한 이름으로 지운다. A/B 는 실제 build 산출물이라 보존한다.
@@ -179,6 +183,9 @@ w("dim768", dimension=768)
 w("rev2", embedding_revision="2")
 w("nometa")
 w("metalie")
+w("badschema", schema_revision="unsupported-schema")
+w("noembed")
+w("badsympath")
 PY
 check "publish 빈 인덱스"             refuse "$A" "chunk count mismatch: indexed=0 expected=5" -- cli publish --manifest $RUN/raw/manifest-empty.json
 check "publish 부분 색인 (5 중 3)"    refuse "$A" "chunk count mismatch: indexed=3 expected=5" -- cli publish --manifest $RUN/raw/manifest-partial.json
@@ -196,6 +203,15 @@ check "publish _meta 없는 인덱스"     refuse "$A" "모델 신원 기록이 
 # _meta 는 build 의 자기 신고다. 기록이 실제 매핑과 어긋나면 기록 쪽을 믿지 않는다.
 fixture "$ALIAS-fixture-metalie"    '{"schema_revision":"2","embedding_model":"fake-sha256-v1","embedding_revision":"1","dimension":1024,"snapshot_revision":"1"}' 768 0
 check "publish _meta 가 매핑과 불일치" refuse "$A" "매핑 차원(768)"          -- cli publish --manifest $RUN/raw/manifest-metalie.json
+
+echo; echo "########## 5. 매핑 계약 위반 -> 거부, alias 는 A 유지 ##########"
+# manifest 와 _meta 가 서로 합의해도 코드가 모르는 스키마면 통과시키지 않는다
+fixture "$ALIAS-fixture-badschema" '{"schema_revision":"unsupported-schema","embedding_model":"fake-sha256-v1","embedding_revision":"1","dimension":1024,"snapshot_revision":"1"}' 1024 5
+fixture "$ALIAS-fixture-noembed"    "$META_OK" 1024 0 'm["properties"].pop("embedding"); m["dynamic"]="true"'
+fixture "$ALIAS-fixture-badsympath" "$META_OK" 1024 0 'm["properties"]["symbol_path"]={"type":"text"}'
+check "publish 코드가 모르는 schema"  refuse "$A" "현재 코드"             -- cli publish --manifest $RUN/raw/manifest-badschema.json
+check "publish embedding 매핑 없음"   refuse "$A" "dense_vector 가 아니다" -- cli publish --manifest $RUN/raw/manifest-noembed.json
+check "publish symbol_path 타입 오류" refuse "$A" "keyword 가 아니다"      -- cli publish --manifest $RUN/raw/manifest-badsympath.json
 
 echo; echo "########## 결과 ##########"
 echo "PASS=$pass FAIL=$fail"

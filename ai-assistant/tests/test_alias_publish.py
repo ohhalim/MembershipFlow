@@ -44,12 +44,17 @@ class StubIndices:
         return index in self._owner.existing
 
     async def get_mapping(self, *, index: str) -> Any:
+        owner = self._owner
         props: dict[str, Any] = {}
-        if index in self._owner.with_symbol_path:
-            props["symbol_path"] = {}
-        props["embedding"] = {"type": "dense_vector", "dims": self._owner.mapping_dims}
+        if index in owner.with_symbol_path:
+            props["symbol_path"] = {"type": owner.symbol_path_type}
+        if owner.embedding_type is not None:
+            embedding: dict[str, Any] = {"type": owner.embedding_type}
+            if owner.mapping_dims is not None:
+                embedding["dims"] = owner.mapping_dims
+            props["embedding"] = embedding
         mappings: dict[str, Any] = {"properties": props}
-        meta = self._owner.meta.get(index)
+        meta = owner.meta.get(index)
         if meta is not None:
             mappings["_meta"] = meta
         return type("Resp", (), {"body": {index: {"mappings": mappings}}})()
@@ -76,7 +81,9 @@ class StubClient:
         indexed_ids: list[str] | None = None,
         with_symbol_path: set[str] | None = None,
         meta: dict[str, dict[str, Any]] | None = None,
-        mapping_dims: int = 1024,
+        mapping_dims: int | None = 1024,
+        embedding_type: str | None = "dense_vector",
+        symbol_path_type: str = "keyword",
     ) -> None:
         self.existing = existing
         self.active = active
@@ -84,6 +91,8 @@ class StubClient:
         self.with_symbol_path = existing if with_symbol_path is None else with_symbol_path
         self.meta = {name: dict(IDENTITY) for name in existing} if meta is None else meta
         self.mapping_dims = mapping_dims
+        self.embedding_type = embedding_type
+        self.symbol_path_type = symbol_path_type
         self.alias_actions: list[list[dict[str, Any]]] = []
         self.closed = False
         self.indices = StubIndices(self)
@@ -266,22 +275,120 @@ async def test_revision_mismatch_is_refused(
     assert client.alias_actions == []
 
 
-async def test_null_revision_is_refused(
-    monkeypatch: pytest.MonkeyPatch, manifest_file: Any, tmp_path: Path
+# --- 매핑 계약: 자기 신고끼리의 합의만으로는 통과시키지 않는다 -----------------
+
+
+async def test_unsupported_schema_revision_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
 ) -> None:
-    """revision 이 없으면 어떤 가중치인지 증명할 수 없다."""
-    monkeypatch.setenv("AI_EMBEDDING_PROVIDER", "sentence-transformers")
-    monkeypatch.setenv("AI_EMBEDDING_MODEL", "BAAI/bge-m3")
-    monkeypatch.setenv("AI_EMBEDDING_REVISION", "")
-    cli.get_settings.cache_clear()
-    other = {**IDENTITY, "embedding_model": "BAAI/bge-m3", "embedding_revision": None}
+    """manifest 와 `_meta` 가 서로 합의해도 코드가 모르는 스키마면 거부한다."""
+    other = {**IDENTITY, "schema_revision": "unsupported-schema"}
     client = patch_client(
         monkeypatch, StubClient({INDEX}, active=None, meta={INDEX: other})
     )
-    data = manifest(embedding_model="BAAI/bge-m3", embedding_revision=None)
-    with pytest.raises(SystemExit, match="revision 이 기록되지 않았다"):
+    with pytest.raises(SystemExit, match="현재 코드"):
+        await cli.publish(manifest_file(manifest(schema_revision="unsupported-schema")))
+    assert client.alias_actions == []
+
+
+async def test_index_without_embedding_mapping_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, embedding_type=None)
+    )
+    with pytest.raises(SystemExit, match="dense_vector 가 아니다"):
+        await cli.publish(manifest_file(manifest()))
+    assert client.alias_actions == []
+
+
+async def test_embedding_with_wrong_type_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, embedding_type="float")
+    )
+    with pytest.raises(SystemExit, match="dense_vector 가 아니다"):
+        await cli.publish(manifest_file(manifest()))
+    assert client.alias_actions == []
+
+
+async def test_embedding_without_dims_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    """dims 를 못 읽으면 기록된 차원을 검증할 수 없으므로 통과시키지 않는다."""
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, mapping_dims=None)
+    )
+    with pytest.raises(SystemExit, match="dims 를 읽을 수 없다"):
+        await cli.publish(manifest_file(manifest()))
+    assert client.alias_actions == []
+
+
+async def test_symbol_path_with_wrong_type_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, symbol_path_type="text")
+    )
+    with pytest.raises(SystemExit, match="keyword 가 아니다"):
+        await cli.publish(manifest_file(manifest()))
+    assert client.alias_actions == []
+
+
+# --- revision 은 고정된 것만 받는다 -------------------------------------------
+
+
+def use_sentence_transformers(
+    monkeypatch: pytest.MonkeyPatch, revision: str
+) -> dict[str, Any]:
+    monkeypatch.setenv("AI_EMBEDDING_PROVIDER", "sentence-transformers")
+    monkeypatch.setenv("AI_EMBEDDING_MODEL", "BAAI/bge-m3")
+    monkeypatch.setenv("AI_EMBEDDING_REVISION", revision)
+    cli.get_settings.cache_clear()
+    return {**IDENTITY, "embedding_model": "BAAI/bge-m3", "embedding_revision": revision or None}
+
+
+COMMIT = "5617a9f61b028005a4858fdac845db406aefb181"
+
+
+@pytest.mark.parametrize(
+    ("revision", "reason"),
+    [
+        ("", "없다"),                       # blank -> None
+        ("main", "움직일 수 있는 참조"),      # 같은 문자열이 나중에 다른 가중치를 가리킨다
+        ("v1.5", "움직일 수 있는 참조"),
+        (COMMIT[:12], "움직일 수 있는 참조"),  # 축약 hash 는 고정 증거로 보지 않는다
+    ],
+)
+async def test_mutable_revision_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any, revision: str, reason: str
+) -> None:
+    recorded = use_sentence_transformers(monkeypatch, revision)
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, meta={INDEX: recorded})
+    )
+    data = manifest(
+        embedding_model="BAAI/bge-m3", embedding_revision=recorded["embedding_revision"]
+    )
+    with pytest.raises(SystemExit, match=reason):
         await cli.publish(manifest_file(data))
     assert client.alias_actions == []
+
+
+async def test_commit_hash_revision_is_accepted(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    """고정 정책이 정상 전환까지 막지는 않는지 확인한다."""
+    recorded = use_sentence_transformers(monkeypatch, COMMIT)
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, meta={INDEX: recorded})
+    )
+    await cli.publish(
+        manifest_file(manifest(embedding_model="BAAI/bge-m3", embedding_revision=COMMIT))
+    )
+    assert len(client.alias_actions) == 1
+
 
 
 async def test_manifest_index_identity_mismatch_is_refused(

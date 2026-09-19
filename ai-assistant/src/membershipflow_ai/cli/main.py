@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from dataclasses import asdict
@@ -176,6 +177,31 @@ async def build(manifest_path: str) -> None:
     print(f"validated build manifest: {manifest_path}; read alias unchanged")
 
 
+COMMIT_HASH = re.compile(r"[0-9a-f]{40}")
+
+
+def require_immutable_revision(source: str, revision: str | None) -> str:
+    """Accept only a revision that cannot move under us.
+
+    Refusing null is not enough. `main` is a valid revision string and two
+    builds pinned to it can load different weights; this machine's HuggingFace
+    cache already holds two revisions of BAAI/bge-m3, with `main` pointing at
+    one of them. Only a full commit hash identifies weights for certain.
+    """
+    if revision is None:
+        raise SystemExit(
+            f"{source} 에 모델 revision 이 없다(null). 어떤 가중치인지 증명할 수 없다. "
+            "40자리 commit hash 로 고정하고 다시 build 한다"
+        )
+    if not COMMIT_HASH.fullmatch(revision):
+        raise SystemExit(
+            f"{source} 의 revision {revision!r} 은 움직일 수 있는 참조다. "
+            "브랜치나 태그는 같은 문자열이어도 나중에 다른 가중치를 가리킨다. "
+            "40자리 commit hash 로 고정하고 다시 build 한다"
+        )
+    return revision
+
+
 def expected_identity() -> dict[str, Any]:
     """Model identity the search path will use, derived from settings alone.
 
@@ -193,7 +219,9 @@ def expected_identity() -> dict[str, Any]:
     if settings.embedding_provider == "sentence-transformers":
         return {
             "embedding_model": settings.embedding_model,
-            "embedding_revision": settings.embedding_revision,
+            "embedding_revision": require_immutable_revision(
+                "AI_EMBEDDING_REVISION", settings.embedding_revision
+            ),
             "dimension": None,  # 설정만으로는 알 수 없다. 인덱스 기록을 신뢰 기준으로 쓴다
         }
     raise SystemExit(f"unsupported embedding provider: {settings.embedding_provider}")
@@ -215,8 +243,21 @@ def check_identity(index: str, recorded: dict[str, Any], manifest: dict[str, Any
                 f"index={recorded.get(field)!r} manifest={manifest[field]!r}"
             )
 
+    # manifest 와 _meta 는 둘 다 build 의 자기 신고다. 서로 합의한다는 사실만으로는
+    # 이 코드가 읽을 수 있는 인덱스라는 근거가 되지 않는다.
+    if recorded["schema_revision"] != SCHEMA_REVISION:
+        raise SystemExit(
+            f"index {index} 의 schema_revision({recorded['schema_revision']!r})이 현재 코드"
+            f"({SCHEMA_REVISION!r})와 다르다. 문서 구조가 달라 검색이 어긋난다. "
+            "현재 코드로 다시 build 한다"
+        )
+
     dims = recorded.get("mapping_dims")
-    if dims is not None and dims != recorded["dimension"]:
+    if dims is None:
+        raise SystemExit(
+            f"index {index} 의 매핑에서 차원을 읽지 못했다. 기록된 차원을 검증할 수 없다"
+        )
+    if dims != recorded["dimension"]:
         raise SystemExit(
             f"index {index} 의 매핑 차원({dims})이 기록된 차원({recorded['dimension']})과 다르다"
         )
@@ -233,12 +274,8 @@ def check_identity(index: str, recorded: dict[str, Any], manifest: dict[str, Any
             f"index {index} 의 모델 revision({recorded['embedding_revision']!r})이 "
             f"현재 설정({wanted['embedding_revision']!r})과 다르다"
         )
-    if recorded["embedding_revision"] is None:
-        raise SystemExit(
-            f"index {index} 의 모델 revision 이 기록되지 않았다(null). "
-            "어떤 가중치로 만들어졌는지 증명할 수 없으므로 전환하지 않는다. "
-            "AI_EMBEDDING_REVISION 을 고정하고 다시 build 한다"
-        )
+    if get_settings().embedding_provider == "sentence-transformers":
+        require_immutable_revision(f"index {index}", recorded["embedding_revision"])
     if wanted["dimension"] is not None and recorded["dimension"] != wanted["dimension"]:
         raise SystemExit(
             f"index {index} 의 차원({recorded['dimension']})이 "
@@ -260,14 +297,6 @@ async def _switch_alias(manifest: dict[str, Any]) -> None:
         store = ElasticsearchStore(client, settings.elasticsearch_alias)
         if not await client.indices.exists(index=index):
             raise SystemExit(f"index {index} 가 존재하지 않는다")
-
-        mapping = await client.indices.get_mapping(index=index)
-        properties = mapping.body[index]["mappings"].get("properties", {})
-        if "symbol_path" not in properties:
-            raise SystemExit(
-                f"index {index} 에 symbol_path 가 없다. 이 인덱스로 전환하면 검색 결과의 "
-                "경로 복원이 손상된다. 재색인 후 전환한다"
-            )
 
         try:
             recorded = await store.index_identity(index)

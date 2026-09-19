@@ -1,5 +1,5 @@
-mf-ai-verify-20260919-c07e4bcf642c4916943ffa606f900532
-mf-ai-verify-20260919-a818fcde56ec45f7b90bde1821f09114
+mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+mf-ai-verify-20260919-29035b3dc98a4b4b81c9af7ca5491cdc
 mf-ai-verify-20260919-fixture-empty
 mf-ai-verify-20260919-fixture-partial
 mf-ai-verify-20260919-fixture-othermodel
@@ -7,3 +7,6 @@ mf-ai-verify-20260919-fixture-dim768
 mf-ai-verify-20260919-fixture-rev2
 mf-ai-verify-20260919-fixture-nometa
 mf-ai-verify-20260919-fixture-metalie
+mf-ai-verify-20260919-fixture-badschema
+mf-ai-verify-20260919-fixture-noembed
+mf-ai-verify-20260919-fixture-badsympath
