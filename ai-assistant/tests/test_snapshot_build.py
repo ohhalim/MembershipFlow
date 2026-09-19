@@ -98,8 +98,10 @@ async def test_failed_build_is_recorded_and_never_published(
     store = patch_build(monkeypatch, corpus)
     getattr(store, stage).side_effect = RuntimeError("simulated failure")
     path = tmp_path / "manifest.json"
-    with pytest.raises(RuntimeError, match="simulated failure"):
+    with pytest.raises(SystemExit, match="simulated failure") as excinfo:
         await cli.build(str(path))
+    # 원인 예외는 보존한다
+    assert isinstance(excinfo.value.__cause__, RuntimeError)
     report = json.loads(path.read_text("utf-8"))
     assert report["status"] == "FAILED"
     assert report["physical_index"].startswith("isolated-")
@@ -112,8 +114,11 @@ async def test_bulk_item_failure_blocks_validation(
 ) -> None:
     store = patch_build(monkeypatch, corpus)
     store.bulk_index.return_value = [object()]
-    with pytest.raises(RuntimeError, match="bulk indexing failed"):
+    with pytest.raises(SystemExit, match="bulk indexing failed") as excinfo:
         await cli.build(str(tmp_path / "manifest.json"))
+    # 원인은 보존하고, 메시지는 기록 위치를 알려준다
+    assert isinstance(excinfo.value.__cause__, RuntimeError)
+    assert "manifest.json" in str(excinfo.value)
     store.verify.assert_not_called()
     store.publish.assert_not_called()
 
@@ -124,7 +129,7 @@ async def test_manifest_is_never_overwritten(
     store = patch_build(monkeypatch, corpus)
     path = tmp_path / "manifest.json"
     path.write_text("previous evidence", "utf-8")
-    with pytest.raises(FileExistsError):
+    with pytest.raises(SystemExit, match="덮어쓰지 않는다"):
         await cli.build(str(path))
     assert path.read_text("utf-8") == "previous evidence"
     store.create.assert_not_called()
