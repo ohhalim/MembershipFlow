@@ -166,13 +166,14 @@ async def build(manifest_path: str) -> None:
     print(f"validated build manifest: {manifest_path}; read alias unchanged")
 
 
-async def _switch_alias(index: str, expected_chunk_ids: set[str] | None) -> None:
-    """Point the read alias at `index` after confirming the index is usable.
+async def _switch_alias(manifest: dict[str, Any]) -> None:
+    """Point the read alias at the index recorded in a validated manifest.
 
     The alias is what search reads, so a bad switch is visible to every user
     immediately. Everything that can be checked is checked before the switch,
     and an index that is already active is left alone rather than re-pointed.
     """
+    index = str(manifest["physical_index"])
     settings = get_settings()
     client = elasticsearch_client()
     try:
@@ -188,11 +189,10 @@ async def _switch_alias(index: str, expected_chunk_ids: set[str] | None) -> None
                 "경로 복원이 손상된다. 재색인 후 전환한다"
             )
 
-        if expected_chunk_ids is not None:
-            try:
-                await store.verify(index, expected_chunk_ids)
-            except RuntimeError as exc:
-                raise SystemExit(f"전환 전 검증 실패: {exc}") from exc
+        try:
+            await store.verify(index, set(manifest["expected_chunk_ids"]))
+        except RuntimeError as exc:
+            raise SystemExit(f"전환 전 검증 실패: {exc}") from exc
 
         current = await store.active_index()
         if current == index:
@@ -208,30 +208,43 @@ async def _switch_alias(index: str, expected_chunk_ids: set[str] | None) -> None
         await client.close()
 
 
-async def publish(manifest_path: str) -> None:
-    """Switch the read alias to the index recorded in a validated manifest."""
-    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+def _load_validated_manifest(manifest_path: str) -> dict[str, Any]:
+    try:
+        manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise SystemExit(f"manifest {manifest_path} 가 없다") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"manifest {manifest_path} 를 읽을 수 없다: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise SystemExit(f"manifest {manifest_path} 의 최상위가 object 가 아니다")
+
     status = manifest.get("status")
     if status != "VALIDATED":
         raise SystemExit(
             f"manifest status 가 {status!r} 다. VALIDATED 인 build 만 전환할 수 있다"
         )
-    index = manifest.get("physical_index")
-    if not index:
+    if not manifest.get("physical_index"):
         raise SystemExit("manifest 에 physical_index 가 없다")
     expected = manifest.get("expected_chunk_ids")
     if not isinstance(expected, list) or not expected:
         raise SystemExit("manifest 에 expected_chunk_ids 가 없다")
-    await _switch_alias(str(index), set(expected))
+    return manifest
 
 
-async def rollback(index: str) -> None:
-    """Point the read alias back at a previously built index.
+async def publish(manifest_path: str) -> None:
+    """Switch the read alias to the index recorded in a validated manifest."""
+    await _switch_alias(_load_validated_manifest(manifest_path))
 
-    Rollback has no manifest, so the chunk-set check is unavailable; the index
-    is still required to carry the current mapping.
+
+async def rollback(manifest_path: str) -> None:
+    """Point the read alias back at an earlier build.
+
+    Rollback takes the same manifest evidence as publish. An index with no
+    manifest cannot be shown to hold a complete, known-model corpus, and a
+    FAILED build leaves a partially filled index whose mapping still looks
+    correct, so pointing at a bare index name is refused.
     """
-    await _switch_alias(index, None)
+    await _switch_alias(_load_validated_manifest(manifest_path))
 
 
 async def search(query: str, k: int, retriever: str, source_types: list[str] | None) -> None:
@@ -495,9 +508,11 @@ def main() -> None:
     publish_parser.add_argument("--manifest", required=True, help="validated manifest JSON path")
 
     rollback_parser = subcommands.add_parser(
-        "rollback", help="point the read alias back at an earlier index"
+        "rollback", help="point the read alias back at an earlier validated build"
     )
-    rollback_parser.add_argument("--to", required=True, help="physical index name")
+    rollback_parser.add_argument(
+        "--manifest", required=True, help="VALIDATED manifest JSON path of the earlier build"
+    )
 
     search_parser = subcommands.add_parser("search", help="search the ingested corpus")
     search_parser.add_argument("query")
@@ -556,7 +571,7 @@ def main() -> None:
     elif args.command == "publish":
         asyncio.run(publish(args.manifest))
     elif args.command == "rollback":
-        asyncio.run(rollback(args.to))
+        asyncio.run(rollback(args.manifest))
     elif args.command == "eval":
         asyncio.run(
             evaluate(
