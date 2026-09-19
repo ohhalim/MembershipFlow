@@ -4,7 +4,7 @@
 
 - 기존 `ingest`: PostgreSQL 문서별 활성화. ES 검색 갱신 없음
 - 신규 `build`: allowlist 원본 전체 읽기 → 파싱·청킹 → 임베딩 → 별도 ES 인덱스 적재 → 개수·ID 검증
-- 검색 alias 전환은 후속 범위. 이 명령만으로 Slack/search가 새 원본을 조회하지 않음
+- 검색 alias 전환은 별도 `publish` 명령. `build`만으로 Slack/search가 새 원본을 조회하지 않음
 
 ## 실행
 
@@ -37,4 +37,30 @@
 - VALIDATED는 답변 품질·검색 품질 인증이 아님
 - regex 토큰 근사값 사용. 실제 모델 tokenizer의 토큰 제한 검증은 미포함
 - 모델 revision이 미지정이면 manifest에 null 기록. 가중치까지 고정된 재현성 주장 불가
-- publish/rollback 및 활성 인덱스 정리 명령 미구현
+- 활성 인덱스 정리 명령 미구현
+
+## publish / rollback
+
+```sh
+.venv/bin/membershipflow-ai publish --manifest /path/to/new-manifest.json
+.venv/bin/membershipflow-ai rollback --manifest /path/to/previous-manifest.json
+```
+
+- 두 명령 모두 `VALIDATED` manifest 필요. 기존 `rollback --to <index>` 미지원
+- 전환 전 검사: 대상 존재, 지원 schema revision, `symbol_path` 매핑, 벡터 매핑 차원, 기대 chunk ID 집합
+- 모델 검사: manifest ↔ 인덱스 `_meta` ↔ 명령 실행 프로세스 설정 일치
+- sentence-transformers revision: 40자리 소문자 commit hash 필요. null·브랜치·태그 거부
+- 이미 활성인 대상도 검사 후 no-op. 전환 시 이전 인덱스 보존
+- `_meta` 없는 기존 인덱스는 rollback 불가. 추정 메타데이터 추가로 우회하지 않음
+- 명령 프로세스 설정 검증은 실행 중인 Slack 프로세스의 모델 설정 검증이 아님
+- Slack은 시작 시 물리 인덱스를 선택하므로 alias 전환만으로 기존 프로세스의 검색 대상이 바뀌지 않음
+
+## 기존 인덱스에서의 이행 조건
+
+1. 사용할 모델 commit hash를 고정해 새 인덱스 build
+2. manifest·인덱스 모델 정보·chunk ID 및 실제 검색 응답 확인
+3. 복귀용 인덱스와 해당 manifest 보존. 기존 메타데이터 없는 인덱스로의 복귀 불가
+4. 검색 소비자에도 같은 모델·revision 적용 후 전환 및 프로세스 재시작 계획 확인
+
+- build·검색 smoke 통과는 검색 품질 승인이나 운영 전환 완료를 의미하지 않음
+- 새 baseline은 재구축 결과이며, 과거 인덱스와 같은 가중치·검색 결과라는 증거가 아님
