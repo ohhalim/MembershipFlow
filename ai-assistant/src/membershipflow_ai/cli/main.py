@@ -139,6 +139,74 @@ async def build(manifest_path: str) -> None:
     print(f"validated build manifest: {manifest_path}; read alias unchanged")
 
 
+async def _switch_alias(index: str, expected_chunk_ids: set[str] | None) -> None:
+    """Point the read alias at `index` after confirming the index is usable.
+
+    The alias is what search reads, so a bad switch is visible to every user
+    immediately. Everything that can be checked is checked before the switch,
+    and an index that is already active is left alone rather than re-pointed.
+    """
+    settings = get_settings()
+    client = elasticsearch_client()
+    try:
+        store = ElasticsearchStore(client, settings.elasticsearch_alias)
+        if not await client.indices.exists(index=index):
+            raise SystemExit(f"index {index} 가 존재하지 않는다")
+
+        mapping = await client.indices.get_mapping(index=index)
+        properties = mapping.body[index]["mappings"].get("properties", {})
+        if "symbol_path" not in properties:
+            raise SystemExit(
+                f"index {index} 에 symbol_path 가 없다. 이 인덱스로 전환하면 검색 결과의 "
+                "경로 복원이 손상된다. 재색인 후 전환한다"
+            )
+
+        if expected_chunk_ids is not None:
+            try:
+                await store.verify(index, expected_chunk_ids)
+            except RuntimeError as exc:
+                raise SystemExit(f"전환 전 검증 실패: {exc}") from exc
+
+        current = await store.active_index()
+        if current == index:
+            print(f"alias {settings.elasticsearch_alias} 는 이미 {index} 를 가리킨다; 변경 없음")
+            return
+
+        previous = await store.publish(index)
+        print(
+            f"alias {settings.elasticsearch_alias}: {previous or '(없음)'} -> {index}; "
+            f"이전 인덱스는 삭제하지 않는다"
+        )
+    finally:
+        await client.close()
+
+
+async def publish(manifest_path: str) -> None:
+    """Switch the read alias to the index recorded in a validated manifest."""
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    status = manifest.get("status")
+    if status != "VALIDATED":
+        raise SystemExit(
+            f"manifest status 가 {status!r} 다. VALIDATED 인 build 만 전환할 수 있다"
+        )
+    index = manifest.get("physical_index")
+    if not index:
+        raise SystemExit("manifest 에 physical_index 가 없다")
+    expected = manifest.get("expected_chunk_ids")
+    if not isinstance(expected, list) or not expected:
+        raise SystemExit("manifest 에 expected_chunk_ids 가 없다")
+    await _switch_alias(str(index), set(expected))
+
+
+async def rollback(index: str) -> None:
+    """Point the read alias back at a previously built index.
+
+    Rollback has no manifest, so the chunk-set check is unavailable; the index
+    is still required to carry the current mapping.
+    """
+    await _switch_alias(index, None)
+
+
 async def search(query: str, k: int, retriever: str, source_types: list[str] | None) -> None:
     settings = get_settings()
     client = elasticsearch_client()
@@ -394,6 +462,16 @@ def main() -> None:
     )
     build_parser.add_argument("--manifest", required=True, help="new manifest JSON path")
 
+    publish_parser = subcommands.add_parser(
+        "publish", help="switch the read alias to a validated build"
+    )
+    publish_parser.add_argument("--manifest", required=True, help="validated manifest JSON path")
+
+    rollback_parser = subcommands.add_parser(
+        "rollback", help="point the read alias back at an earlier index"
+    )
+    rollback_parser.add_argument("--to", required=True, help="physical index name")
+
     search_parser = subcommands.add_parser("search", help="search the ingested corpus")
     search_parser.add_argument("query")
     search_parser.add_argument("-k", type=int, default=5, help="number of hits (default: 5)")
@@ -448,6 +526,10 @@ def main() -> None:
         asyncio.run(ingest())
     elif args.command == "build":
         asyncio.run(build(args.manifest))
+    elif args.command == "publish":
+        asyncio.run(publish(args.manifest))
+    elif args.command == "rollback":
+        asyncio.run(rollback(args.to))
     elif args.command == "eval":
         asyncio.run(
             evaluate(
