@@ -144,7 +144,17 @@ async def build(manifest_path: str) -> None:
                 corpus_fingerprint=store.corpus_fingerprint(chunks),
             )
             save()
-            await store.create(index, metadata["dimension"])
+            await store.create(
+                index,
+                metadata["dimension"],
+                identity={
+                    "schema_revision": SCHEMA_REVISION,
+                    "embedding_model": metadata["embedding_model"],
+                    "embedding_revision": metadata["embedding_revision"],
+                    "dimension": metadata["dimension"],
+                    "snapshot_revision": metadata["snapshot_revision"],
+                },
+            )
             failures = await store.bulk_index(index, chunks, str(metadata["corpus_version"]))
             if failures:
                 raise RuntimeError(f"bulk indexing failed for {len(failures)} chunks")
@@ -164,6 +174,76 @@ async def build(manifest_path: str) -> None:
             if client is not None:
                 await client.close()
     print(f"validated build manifest: {manifest_path}; read alias unchanged")
+
+
+def expected_identity() -> dict[str, Any]:
+    """Model identity the search path will use, derived from settings alone.
+
+    Reading this from configuration rather than from a constructed provider keeps
+    the check cheap: verifying an alias switch must not download or load weights.
+    """
+    settings = get_settings()
+    if settings.embedding_provider == "fake":
+        # Mirrors DeterministicHashEmbedding; kept in sync by test_alias_identity.
+        return {
+            "embedding_model": "fake-sha256-v1",
+            "embedding_revision": "1",
+            "dimension": 1024,
+        }
+    if settings.embedding_provider == "sentence-transformers":
+        return {
+            "embedding_model": settings.embedding_model,
+            "embedding_revision": settings.embedding_revision,
+            "dimension": None,  # 설정만으로는 알 수 없다. 인덱스 기록을 신뢰 기준으로 쓴다
+        }
+    raise SystemExit(f"unsupported embedding provider: {settings.embedding_provider}")
+
+
+def check_identity(index: str, recorded: dict[str, Any], manifest: dict[str, Any]) -> None:
+    """Refuse a switch when manifest, index and consumer settings disagree.
+
+    Chunk ids and counts match across models, so they cannot catch a vector
+    space change. Dimension mismatch breaks vector search outright; a different
+    model at the same dimension breaks it silently, which is worse.
+    """
+    for field in ("schema_revision", "embedding_model", "embedding_revision", "dimension"):
+        if field not in manifest:
+            raise SystemExit(f"manifest 에 {field} 가 없다. 현재 코드로 다시 build 한다")
+        if recorded.get(field) != manifest[field]:
+            raise SystemExit(
+                f"index {index} 의 {field} 가 manifest 와 다르다: "
+                f"index={recorded.get(field)!r} manifest={manifest[field]!r}"
+            )
+
+    dims = recorded.get("mapping_dims")
+    if dims is not None and dims != recorded["dimension"]:
+        raise SystemExit(
+            f"index {index} 의 매핑 차원({dims})이 기록된 차원({recorded['dimension']})과 다르다"
+        )
+
+    wanted = expected_identity()
+    if recorded["embedding_model"] != wanted["embedding_model"]:
+        raise SystemExit(
+            f"index {index} 는 {recorded['embedding_model']!r} 로 만들어졌는데 "
+            f"현재 검색 설정은 {wanted['embedding_model']!r} 를 쓴다. "
+            "같은 차원이어도 벡터 공간이 달라 검색 결과가 조용히 어긋난다"
+        )
+    if recorded["embedding_revision"] != wanted["embedding_revision"]:
+        raise SystemExit(
+            f"index {index} 의 모델 revision({recorded['embedding_revision']!r})이 "
+            f"현재 설정({wanted['embedding_revision']!r})과 다르다"
+        )
+    if recorded["embedding_revision"] is None:
+        raise SystemExit(
+            f"index {index} 의 모델 revision 이 기록되지 않았다(null). "
+            "어떤 가중치로 만들어졌는지 증명할 수 없으므로 전환하지 않는다. "
+            "AI_EMBEDDING_REVISION 을 고정하고 다시 build 한다"
+        )
+    if wanted["dimension"] is not None and recorded["dimension"] != wanted["dimension"]:
+        raise SystemExit(
+            f"index {index} 의 차원({recorded['dimension']})이 "
+            f"현재 설정({wanted['dimension']})과 달라 vector 검색이 실패한다"
+        )
 
 
 async def _switch_alias(manifest: dict[str, Any]) -> None:
@@ -188,6 +268,12 @@ async def _switch_alias(manifest: dict[str, Any]) -> None:
                 f"index {index} 에 symbol_path 가 없다. 이 인덱스로 전환하면 검색 결과의 "
                 "경로 복원이 손상된다. 재색인 후 전환한다"
             )
+
+        try:
+            recorded = await store.index_identity(index)
+        except RuntimeError as exc:
+            raise SystemExit(str(exc)) from exc
+        check_identity(index, recorded, manifest)
 
         try:
             await store.verify(index, set(manifest["expected_chunk_ids"]))

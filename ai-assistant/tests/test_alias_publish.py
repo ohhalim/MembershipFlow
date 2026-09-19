@@ -1,7 +1,7 @@
 """alias 는 검색이 읽는 지점이라 잘못된 전환은 즉시 모든 사용자에게 보인다.
 
-publish 든 rollback 이든 전환 근거는 같다: 그 인덱스가 어떤 청크 집합을 온전히
-담고 있다는 VALIDATED manifest. 인덱스 이름만으로는 그것을 알 수 없다.
+chunk id 와 개수는 모델이 달라도 일치하므로, 벡터 공간이 바뀐 것을 잡지 못한다.
+인덱스에 기록된 모델 신원까지 대조한 뒤에만 전환한다.
 """
 
 from __future__ import annotations
@@ -16,6 +16,13 @@ from membershipflow_ai.cli import main as cli
 
 INDEX = "mf-ai-chunks-abc123"
 CHUNKS = ["c1", "c2"]
+IDENTITY = {
+    "schema_revision": "2",
+    "embedding_model": "fake-sha256-v1",
+    "embedding_revision": "1",
+    "dimension": 1024,
+    "snapshot_revision": "1",
+}
 
 
 def manifest(**overrides: Any) -> dict[str, Any]:
@@ -23,6 +30,7 @@ def manifest(**overrides: Any) -> dict[str, Any]:
         "status": "VALIDATED",
         "physical_index": INDEX,
         "expected_chunk_ids": list(CHUNKS),
+        **IDENTITY,
     }
     base.update(overrides)
     return base
@@ -36,10 +44,15 @@ class StubIndices:
         return index in self._owner.existing
 
     async def get_mapping(self, *, index: str) -> Any:
-        props: dict[str, Any] = {"embedding": {"type": "dense_vector", "dims": 1024}}
+        props: dict[str, Any] = {}
         if index in self._owner.with_symbol_path:
             props["symbol_path"] = {}
-        return type("Resp", (), {"body": {index: {"mappings": {"properties": props}}}})()
+        props["embedding"] = {"type": "dense_vector", "dims": self._owner.mapping_dims}
+        mappings: dict[str, Any] = {"properties": props}
+        meta = self._owner.meta.get(index)
+        if meta is not None:
+            mappings["_meta"] = meta
+        return type("Resp", (), {"body": {index: {"mappings": mappings}}})()
 
     async def refresh(self, *, index: str) -> None:
         return None
@@ -62,11 +75,15 @@ class StubClient:
         active: str | None,
         indexed_ids: list[str] | None = None,
         with_symbol_path: set[str] | None = None,
+        meta: dict[str, dict[str, Any]] | None = None,
+        mapping_dims: int = 1024,
     ) -> None:
         self.existing = existing
         self.active = active
         self.indexed_ids = CHUNKS if indexed_ids is None else indexed_ids
         self.with_symbol_path = existing if with_symbol_path is None else with_symbol_path
+        self.meta = {name: dict(IDENTITY) for name in existing} if meta is None else meta
+        self.mapping_dims = mapping_dims
         self.alias_actions: list[list[dict[str, Any]]] = []
         self.closed = False
         self.indices = StubIndices(self)
@@ -81,6 +98,14 @@ class StubClient:
 
     async def close(self) -> None:
         self.closed = True
+
+
+@pytest.fixture(autouse=True)
+def fake_embedding_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_EMBEDDING_PROVIDER", "fake")
+    cli.get_settings.cache_clear()
+    yield
+    cli.get_settings.cache_clear()
 
 
 @pytest.fixture
@@ -98,7 +123,7 @@ def patch_client(monkeypatch: pytest.MonkeyPatch, client: StubClient) -> StubCli
     return client
 
 
-# --- manifest 게이트: publish 와 rollback 에 같은 기준을 적용한다 ---------------
+# --- manifest 게이트 ---------------------------------------------------------
 
 
 @pytest.mark.parametrize("command", ["publish", "rollback"])
@@ -115,7 +140,6 @@ async def test_failed_manifest_is_refused(
 async def test_missing_manifest_file_is_refused(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, command: str
 ) -> None:
-    """인덱스 이름만 아는 상태로는 전환하지 않는다."""
     patch_client(monkeypatch, StubClient({INDEX}, active=None))
     with pytest.raises(SystemExit, match="가 없다"):
         await getattr(cli, command)(str(tmp_path / "nope.json"))
@@ -152,11 +176,21 @@ async def test_index_without_symbol_path_is_refused(
     assert client.alias_actions == []
 
 
+async def test_index_without_identity_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    """기록이 없는 과거 인덱스를 안전하다고 추정하지 않는다."""
+    client = patch_client(monkeypatch, StubClient({INDEX}, active=None, meta={}))
+    with pytest.raises(SystemExit, match="모델 신원 기록이 없다"):
+        await cli.publish(manifest_file(manifest()))
+    assert client.alias_actions == []
+
+
 @pytest.mark.parametrize("command", ["publish", "rollback"])
 async def test_partial_index_is_refused(
     monkeypatch: pytest.MonkeyPatch, manifest_file: Any, command: str
 ) -> None:
-    """FAILED build 가 남긴 부분 색인은 매핑이 멀쩡해 보여도 전환하지 않는다."""
+    """FAILED build 가 남긴 부분 색인은 매핑이 맞아도 전환하지 않는다."""
     client = patch_client(
         monkeypatch,
         StubClient({INDEX}, active="mf-ai-chunks-old", indexed_ids=["c1"]),
@@ -176,6 +210,77 @@ async def test_empty_index_is_refused(
     )
     with pytest.raises(SystemExit, match="전환 전 검증 실패"):
         await getattr(cli, command)(manifest_file(manifest()))
+    assert client.alias_actions == []
+
+
+# --- 모델 신원 게이트 --------------------------------------------------------
+
+
+async def test_same_dimension_different_model_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    """차원이 같아도 벡터 공간이 다르면 검색이 조용히 어긋난다."""
+    other = {**IDENTITY, "embedding_model": "BAAI/bge-m3"}
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, meta={INDEX: other})
+    )
+    with pytest.raises(SystemExit, match="벡터 공간이 달라"):
+        await cli.publish(manifest_file(manifest(embedding_model="BAAI/bge-m3")))
+    assert client.alias_actions == []
+
+
+async def test_dimension_mismatch_with_settings_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    other = {**IDENTITY, "dimension": 768}
+    client = patch_client(
+        monkeypatch,
+        StubClient({INDEX}, active=None, meta={INDEX: other}, mapping_dims=768),
+    )
+    with pytest.raises(SystemExit, match="vector 검색이 실패한다"):
+        await cli.publish(manifest_file(manifest(dimension=768)))
+    assert client.alias_actions == []
+
+
+async def test_revision_mismatch_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    other = {**IDENTITY, "embedding_revision": "2"}
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, meta={INDEX: other})
+    )
+    with pytest.raises(SystemExit, match="revision"):
+        await cli.publish(manifest_file(manifest(embedding_revision="2")))
+    assert client.alias_actions == []
+
+
+async def test_null_revision_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any, tmp_path: Path
+) -> None:
+    """revision 이 없으면 어떤 가중치인지 증명할 수 없다."""
+    monkeypatch.setenv("AI_EMBEDDING_PROVIDER", "sentence-transformers")
+    monkeypatch.setenv("AI_EMBEDDING_MODEL", "BAAI/bge-m3")
+    monkeypatch.setenv("AI_EMBEDDING_REVISION", "")
+    cli.get_settings.cache_clear()
+    other = {**IDENTITY, "embedding_model": "BAAI/bge-m3", "embedding_revision": None}
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, meta={INDEX: other})
+    )
+    data = manifest(embedding_model="BAAI/bge-m3", embedding_revision=None)
+    with pytest.raises(SystemExit, match="revision 이 기록되지 않았다"):
+        await cli.publish(manifest_file(data))
+    assert client.alias_actions == []
+
+
+async def test_manifest_index_identity_mismatch_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    other = {**IDENTITY, "schema_revision": "1"}
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, meta={INDEX: other})
+    )
+    with pytest.raises(SystemExit, match="schema_revision 가 manifest 와 다르다"):
+        await cli.publish(manifest_file(manifest()))
     assert client.alias_actions == []
 
 
@@ -217,3 +322,14 @@ async def test_client_is_closed_on_failure(
     with pytest.raises(SystemExit):
         await cli.publish(manifest_file(manifest()))
     assert client.closed is True
+
+
+def test_fake_identity_matches_the_real_provider() -> None:
+    """expected_identity 의 fake 값이 실제 구현과 어긋나면 검사가 무의미해진다."""
+    from membershipflow_ai.ingestion.embeddings import DeterministicHashEmbedding
+
+    provider = DeterministicHashEmbedding()
+    wanted = cli.expected_identity()
+    assert wanted["embedding_model"] == provider.model_id
+    assert wanted["embedding_revision"] == provider.revision
+    assert wanted["dimension"] == provider.dimension

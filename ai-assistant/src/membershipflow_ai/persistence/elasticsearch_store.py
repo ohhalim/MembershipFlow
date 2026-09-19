@@ -35,9 +35,23 @@ def index_settings() -> dict[str, Any]:
     }
 
 
-def index_mappings(dimension: int) -> dict[str, Any]:
-    """Document contract from AI-ELASTICSEARCH-IMPLEMENTATION-PLAN.md section 2."""
+IDENTITY_FIELDS = (
+    "schema_revision",
+    "embedding_model",
+    "embedding_revision",
+    "dimension",
+)
+
+
+def index_mappings(dimension: int, identity: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Document contract from AI-ELASTICSEARCH-IMPLEMENTATION-PLAN.md section 2.
+
+    `_meta` records which model produced the vectors in this index. Chunk ids and
+    counts cannot carry that: two indexes built from the same corpus by different
+    models match on both while their vectors mean different things.
+    """
     return {
+        "_meta": dict(identity or {}),
         "dynamic": "strict",
         "properties": {
             "chunk_id": {"type": "keyword"},
@@ -131,12 +145,36 @@ class ElasticsearchStore:
             raise RuntimeError(f"alias {self._alias} must point to exactly one index: {names}")
         return names[0]
 
-    async def create(self, index: str, dimension: int) -> None:
+    async def create(
+        self, index: str, dimension: int, identity: dict[str, Any] | None = None
+    ) -> None:
         await self._client.indices.create(
             index=index,
             settings=index_settings(),
-            mappings=index_mappings(dimension),
+            mappings=index_mappings(dimension, identity),
         )
+
+    async def index_identity(self, index: str) -> dict[str, Any]:
+        """Read the recorded model identity, or raise when the index predates it.
+
+        An index without `_meta` is not assumed safe: nothing proves which model
+        wrote its vectors.
+        """
+        mapping = await self._client.indices.get_mapping(index=index)
+        mappings = mapping.body[index]["mappings"]
+        meta = mappings.get("_meta") or {}
+        missing = [field for field in IDENTITY_FIELDS if field not in meta]
+        if missing:
+            raise RuntimeError(
+                f"index {index} 에 모델 신원 기록이 없다 (누락: {missing}). "
+                "어떤 모델이 이 벡터를 만들었는지 증명할 수 없으므로 안전하다고 보지 않는다. "
+                "현재 코드로 다시 build 한다"
+            )
+        properties = mappings.get("properties", {})
+        embedding = properties.get("embedding", {})
+        if "dims" in embedding:
+            meta = {**meta, "mapping_dims": embedding["dims"]}
+        return dict(meta)
 
     async def bulk_index(
         self, index: str, chunks: list[ActiveChunk], corpus_version: str
