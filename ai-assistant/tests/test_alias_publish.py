@@ -242,6 +242,18 @@ async def test_dimension_mismatch_with_settings_is_refused(
     assert client.alias_actions == []
 
 
+async def test_meta_disagreeing_with_mapping_is_refused(
+    monkeypatch: pytest.MonkeyPatch, manifest_file: Any
+) -> None:
+    """`_meta` 는 build 의 자기 신고다. 실제 매핑과 어긋나면 기록을 믿지 않는다."""
+    client = patch_client(
+        monkeypatch, StubClient({INDEX}, active=None, mapping_dims=768)
+    )
+    with pytest.raises(SystemExit, match=r"매핑 차원\(768\)"):
+        await cli.publish(manifest_file(manifest()))
+    assert client.alias_actions == []
+
+
 async def test_revision_mismatch_is_refused(
     monkeypatch: pytest.MonkeyPatch, manifest_file: Any
 ) -> None:
