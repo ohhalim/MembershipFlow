@@ -9,7 +9,7 @@ import time
 import uuid
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from elasticsearch import AsyncElasticsearch
 
@@ -90,10 +90,32 @@ async def ingest() -> None:
         await engine.dispose()
 
 
+def _open_new_manifest(manifest_path: str) -> TextIO:
+    """Open the manifest for exclusive creation, or explain why that failed.
+
+    Exclusive mode is the guard against overwriting an earlier run, so the open
+    must stay atomic. A pre-existence check would race and could silently
+    destroy a previous build record.
+    """
+    try:
+        return Path(manifest_path).open("x", encoding="utf-8")
+    except FileExistsError as exc:
+        raise SystemExit(
+            f"manifest {manifest_path} 가 이미 있다. 기존 기록을 덮어쓰지 않는다. "
+            "다른 경로를 지정한다"
+        ) from exc
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        raise SystemExit(
+            f"manifest 경로 {manifest_path} 를 만들 수 없다. 상위 디렉터리가 있는지 확인한다"
+        ) from exc
+    except OSError as exc:
+        raise SystemExit(f"manifest {manifest_path} 를 열 수 없다: {exc}") from exc
+
+
 async def build(manifest_path: str) -> None:
     """Build and verify an isolated index. Never switches a read alias."""
     # Reserve the report before model/server work; never overwrite an earlier run.
-    with Path(manifest_path).open("x", encoding="utf-8") as output:
+    with _open_new_manifest(manifest_path) as output:
         report: dict[str, Any] = {"status": "PREPARING"}
 
         def save() -> None:
@@ -130,9 +152,14 @@ async def build(manifest_path: str) -> None:
             report["status"] = "VALIDATED"
             save()
         except Exception as exc:
+            # 원인은 manifest 에 남긴다. 출력은 조사 지점을 알려주는 역할만 한다.
             report.update(status="FAILED", error_type=type(exc).__name__)
             save()
-            raise
+            failure = SystemExit(
+                f"build 실패 ({type(exc).__name__}): {exc}. "
+                f"status FAILED 로 기록했다: {manifest_path}"
+            )
+            raise failure from exc
         finally:
             if client is not None:
                 await client.close()
