@@ -1,0 +1,10 @@
+/Users/ohhalim/orca/workspaces/MembershipFlow/RAG-에이전트-붙이기/ai-assistant/src/membershipflow_ai/ingestion/embeddings.py:80: FutureWarning: The `get_sentence_embedding_dimension` method has been renamed to `get_embedding_dimension`.
+  dimension = self._model.get_sentence_embedding_dimension()
+/Users/ohhalim/orca/workspaces/MembershipFlow/RAG-에이전트-붙이기/ai-assistant/src/membershipflow_ai/ingestion/embeddings.py:80: FutureWarning: The `get_sentence_embedding_dimension` method has been renamed to `get_embedding_dimension`.
+  dimension = self._model.get_sentence_embedding_dimension()
+validated build manifest: /Users/ohhalim/orca/workspaces/MembershipFlow/RAG-에이전트-붙이기/ai-assistant/evals/results/2026-09-19-pinned-alias-roundtrip/manifest-B.json; read alias unchanged
+alias mf-ai-verify-pinned-20260919: (없음) -> mf-ai-chunks-64460aa92eba4887a09aa7011522857d; 이전 인덱스는 삭제하지 않는다
+alias mf-ai-verify-pinned-20260919 는 이미 mf-ai-chunks-64460aa92eba4887a09aa7011522857d 를 가리킨다; 변경 없음
+alias mf-ai-verify-pinned-20260919: mf-ai-chunks-64460aa92eba4887a09aa7011522857d -> mf-ai-verify-pinned-20260919-a74e18dc8a24426b83e37c6b55d263d9; 이전 인덱스는 삭제하지 않는다
+alias mf-ai-verify-pinned-20260919: mf-ai-verify-pinned-20260919-a74e18dc8a24426b83e37c6b55d263d9 -> mf-ai-chunks-64460aa92eba4887a09aa7011522857d; 이전 인덱스는 삭제하지 않는다
+{"status": "PASSED", "steps": 4, "indexes": {"A": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d", "B": "mf-ai-verify-pinned-20260919-a74e18dc8a24426b83e37c6b55d263d9"}}

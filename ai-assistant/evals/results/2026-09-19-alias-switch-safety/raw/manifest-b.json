@@ -1,0 +1,37 @@
+{
+  "chunk_count": 6,
+  "chunker": {
+    "chunk_size": 512,
+    "overlap": 64,
+    "token_counter": "regex"
+  },
+  "corpus_fingerprint": "bddf2712a760bd2317db934620f5d38ef85ef93030a9c8fd4402e56fce837111",
+  "corpus_version": 1,
+  "dimension": 1024,
+  "embedding_model": "fake-sha256-v1",
+  "embedding_revision": "1",
+  "expected_chunk_ids": [
+    "1d9c84504f0d7022e99b9a79215fa4cf2c49d0253c1b377f98910faebe0817bf",
+    "4aa188aaf038c73c1edf940ec9239d8fc5974e7fd804c13b8bbcc553723e8f06",
+    "4db493461128b243661db1f62eae0984d2cbc80ca79d55afc93053d0ded11bae",
+    "beaca9a75dcce9bd6c6457db2b9f579cf5c53073773004cf79b527e5d258c00e",
+    "c14f533a31c96a7947635095d71e8f50779024e22c4afb6915680f5c86bf6588",
+    "fd47260a17372db64538425292bc45a4f43ea5a9b6278aedec7af66bb6a1e50d"
+  ],
+  "parser_revision": "1",
+  "physical_index": "mf-ai-verify-20260919-29035b3dc98a4b4b81c9af7ca5491cdc",
+  "schema_revision": "2",
+  "snapshot_revision": "1",
+  "source_count": 2,
+  "sources": [
+    {
+      "source_hash": "63d75706f8d7a75973ad39613d58c3ab3c74a694fbfccf555e05650570bbec7e",
+      "source_uri": "README.md"
+    },
+    {
+      "source_hash": "413ca0520ccf2b4d7738377696245541becd58a8c412d8714ee629d506f30569",
+      "source_uri": "NOTES.md"
+    }
+  ],
+  "status": "VALIDATED"
+}

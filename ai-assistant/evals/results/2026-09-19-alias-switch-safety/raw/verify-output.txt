@@ -1,0 +1,123 @@
+build a (인덱스 없음 -> 새로 만든다)
+  validated build manifest: evals/results/2026-09-19-alias-switch-safety/raw/manifest-a.json; read alias unchanged
+build b (인덱스 없음 -> 새로 만든다)
+  validated build manifest: evals/results/2026-09-19-alias-switch-safety/raw/manifest-b.json; read alias unchanged
+alias: mf-ai-verify-20260919
+A: mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+B: mf-ai-verify-20260919-29035b3dc98a4b4b81c9af7ca5491cdc
+시작 alias: (없음)
+
+########## 1. 정상 경로 ##########
+
+=== publish A (최초 전환)                    PASS
+    exit=0 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | alias mf-ai-verify-20260919: (없음) -> mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098; 이전 인덱스는 삭제하지 않는다
+
+=== publish A 재실행 (no-op)                  PASS
+    exit=0 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | alias mf-ai-verify-20260919 는 이미 mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098 를 가리킨다; 변경 없음
+
+=== publish B (전환)                           PASS
+    exit=0 alias=mf-ai-verify-20260919-29035b3dc98a4b4b81c9af7ca5491cdc
+    | alias mf-ai-verify-20260919: mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098 -> mf-ai-verify-20260919-29035b3dc98a4b4b81c9af7ca5491cdc; 이전 인덱스는 삭제하지 않는다
+
+=== rollback A (manifest 로 복귀)             PASS
+    exit=0 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | alias mf-ai-verify-20260919: mf-ai-verify-20260919-29035b3dc98a4b4b81c9af7ca5491cdc -> mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098; 이전 인덱스는 삭제하지 않는다
+
+########## 2. manifest 근거 없음 -> 거부, alias 는 A 유지 ##########
+
+=== publish  FAILED manifest                     PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | manifest status 가 'FAILED' 다. VALIDATED 인 build 만 전환할 수 있다
+
+=== rollback FAILED manifest                     PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | manifest status 가 'FAILED' 다. VALIDATED 인 build 만 전환할 수 있다
+
+=== rollback 없는 manifest 경로              PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | manifest evals/results/2026-09-19-alias-switch-safety/raw/nope.json 가 없다
+
+=== rollback --to (구 인터페이스)          PASS
+    exit=2 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | usage: membershipflow-ai rollback [-h] --manifest MANIFEST
+    | membershipflow-ai rollback: error: the following arguments are required: --manifest
+
+########## 3. 인덱스 내용 불일치 -> 거부, alias 는 A 유지 ##########
+    fixture mf-ai-verify-20260919-fixture-empty: _meta={'embedding_model': 'fake-sha256-v1', 'embedding_revision': '1', 'schema_revision': '2', 'dimension': 1024, 'snapshot_revision': '1'} embedding={'type': 'dense_vector', 'dims': 1024, 'index': False}
+    fixture mf-ai-verify-20260919-fixture-partial: _meta={'embedding_model': 'fake-sha256-v1', 'embedding_revision': '1', 'schema_revision': '2', 'dimension': 1024, 'snapshot_revision': '1'} embedding={'type': 'dense_vector', 'dims': 1024, 'index': False}
+    fixture mf-ai-verify-20260919-fixture-partial: 3 docs 적재
+
+=== publish 빈 인덱스                        PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | 전환 전 검증 실패: chunk count mismatch: indexed=0 expected=5
+
+=== publish 부분 색인 (5 중 3)              PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | 전환 전 검증 실패: chunk count mismatch: indexed=3 expected=5
+
+########## 4. 모델 신원 불일치 -> 거부, alias 는 A 유지 ##########
+    fixture mf-ai-verify-20260919-fixture-othermodel: _meta={'embedding_model': 'BAAI/bge-m3', 'embedding_revision': '1', 'schema_revision': '2', 'dimension': 1024, 'snapshot_revision': '1'} embedding={'type': 'dense_vector', 'dims': 1024, 'index': False}
+    fixture mf-ai-verify-20260919-fixture-othermodel: 5 docs 적재
+    fixture mf-ai-verify-20260919-fixture-dim768: _meta={'embedding_model': 'fake-sha256-v1', 'embedding_revision': '1', 'schema_revision': '2', 'dimension': 768, 'snapshot_revision': '1'} embedding={'type': 'dense_vector', 'dims': 768, 'index': False}
+    fixture mf-ai-verify-20260919-fixture-rev2: _meta={'embedding_model': 'fake-sha256-v1', 'embedding_revision': '2', 'schema_revision': '2', 'dimension': 1024, 'snapshot_revision': '1'} embedding={'type': 'dense_vector', 'dims': 1024, 'index': False}
+    fixture mf-ai-verify-20260919-fixture-rev2: 5 docs 적재
+    fixture mf-ai-verify-20260919-fixture-nometa: _meta=(없음) embedding={'type': 'dense_vector', 'dims': 1024, 'index': False}
+    fixture mf-ai-verify-20260919-fixture-nometa: 5 docs 적재
+
+=== publish 같은 차원 다른 모델          PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | index mf-ai-verify-20260919-fixture-othermodel 는 'BAAI/bge-m3' 로 만들어졌는데 현재 검색 설정은 'fake-sha256-v1' 를 쓴다. 같은 차원이어도 벡터 공간이 달라 검색 결과가 조용히 어긋난다
+
+=== publish 차원 불일치 (768)               PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | index mf-ai-verify-20260919-fixture-dim768 의 차원(768)이 현재 설정(1024)과 달라 vector 검색이 실패한다
+
+=== publish revision 불일치                   PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | index mf-ai-verify-20260919-fixture-rev2 의 모델 revision('2')이 현재 설정('1')과 다르다
+
+=== publish _meta 없는 인덱스               PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | index mf-ai-verify-20260919-fixture-nometa 에 모델 신원 기록이 없다 (누락: ['schema_revision', 'embedding_model', 'embedding_revision', 'dimension']). 어떤 모델이 이 벡터를 만들었는지 증명할 수 없으므로 안전하다고 보지 않는다. 현재 코드로 다시 build 한다
+    fixture mf-ai-verify-20260919-fixture-metalie: _meta={'embedding_model': 'fake-sha256-v1', 'embedding_revision': '1', 'schema_revision': '2', 'dimension': 1024, 'snapshot_revision': '1'} embedding={'type': 'dense_vector', 'dims': 768, 'index': False}
+
+=== publish _meta 가 매핑과 불일치        PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | index mf-ai-verify-20260919-fixture-metalie 의 매핑 차원(768)이 기록된 차원(1024)과 다르다
+
+########## 5. 매핑 계약 위반 -> 거부, alias 는 A 유지 ##########
+    fixture mf-ai-verify-20260919-fixture-badschema: _meta={'embedding_model': 'fake-sha256-v1', 'embedding_revision': '1', 'schema_revision': 'unsupported-schema', 'dimension': 1024, 'snapshot_revision': '1'} embedding={'type': 'dense_vector', 'dims': 1024, 'index': False}
+    fixture mf-ai-verify-20260919-fixture-badschema: 5 docs 적재
+    fixture mf-ai-verify-20260919-fixture-noembed: _meta={'embedding_model': 'fake-sha256-v1', 'embedding_revision': '1', 'schema_revision': '2', 'dimension': 1024, 'snapshot_revision': '1'} embedding=(없음)
+    fixture mf-ai-verify-20260919-fixture-badsympath: _meta={'embedding_model': 'fake-sha256-v1', 'embedding_revision': '1', 'schema_revision': '2', 'dimension': 1024, 'snapshot_revision': '1'} embedding={'type': 'dense_vector', 'dims': 1024, 'index': False}
+
+=== publish 코드가 모르는 schema           PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | index mf-ai-verify-20260919-fixture-badschema 의 schema_revision('unsupported-schema')이 현재 코드('2')와 다르다. 문서 구조가 달라 검색이 어긋난다. 현재 코드로 다시 build 한다
+
+=== publish embedding 매핑 없음              PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | index mf-ai-verify-20260919-fixture-noembed 의 embedding 필드가 dense_vector 가 아니다 (type=None). vector 검색을 할 수 없는 인덱스다. 현재 코드로 다시 build 한다
+
+=== publish symbol_path 타입 오류            PASS
+    exit=1 alias=mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+    | index mf-ai-verify-20260919-fixture-badsympath 의 symbol_path 가 keyword 가 아니다 (type='text'). 이 인덱스로 전환하면 검색 결과의 경로 복원이 손상된다. 재색인 후 전환한다
+
+########## 결과 ##########
+PASS=18 FAIL=0
+최종 alias: mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098  (기대: mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098)
+이번 실행이 만든 인덱스:
+  mf-ai-verify-20260919-5f3ec36339dc4facaee5638dd1820098
+  mf-ai-verify-20260919-29035b3dc98a4b4b81c9af7ca5491cdc
+  mf-ai-verify-20260919-fixture-empty
+  mf-ai-verify-20260919-fixture-partial
+  mf-ai-verify-20260919-fixture-othermodel
+  mf-ai-verify-20260919-fixture-dim768
+  mf-ai-verify-20260919-fixture-rev2
+  mf-ai-verify-20260919-fixture-nometa
+  mf-ai-verify-20260919-fixture-metalie
+  mf-ai-verify-20260919-fixture-badschema
+  mf-ai-verify-20260919-fixture-noembed
+  mf-ai-verify-20260919-fixture-badsympath
