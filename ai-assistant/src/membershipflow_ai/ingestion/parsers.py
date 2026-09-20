@@ -140,10 +140,14 @@ class JavaParser:
         start = node.start_byte
         line_start = node.start_point.row + 1
         previous = node.prev_named_sibling
-        if previous is not None and previous.type == "block_comment":
-            if self._text(previous, source_bytes).startswith("/**"):
-                start = previous.start_byte
-                line_start = previous.start_point.row + 1
+        # Javadoc 은 심볼 설명이라 섹션에 포함한다. 일반 블록 주석은 포함하지 않는다.
+        if (
+            previous is not None
+            and previous.type == "block_comment"
+            and self._text(previous, source_bytes).startswith("/**")
+        ):
+            start = previous.start_byte
+            line_start = previous.start_point.row + 1
         content = source_bytes[start : node.end_byte].decode("utf-8")
         return ParsedSection(
             path=path,
