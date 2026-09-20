@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from dataclasses import asdict
@@ -144,7 +145,17 @@ async def build(manifest_path: str) -> None:
                 corpus_fingerprint=store.corpus_fingerprint(chunks),
             )
             save()
-            await store.create(index, metadata["dimension"])
+            await store.create(
+                index,
+                metadata["dimension"],
+                identity={
+                    "schema_revision": SCHEMA_REVISION,
+                    "embedding_model": metadata["embedding_model"],
+                    "embedding_revision": metadata["embedding_revision"],
+                    "dimension": metadata["dimension"],
+                    "snapshot_revision": metadata["snapshot_revision"],
+                },
+            )
             failures = await store.bulk_index(index, chunks, str(metadata["corpus_version"]))
             if failures:
                 raise RuntimeError(f"bulk indexing failed for {len(failures)} chunks")
@@ -166,13 +177,120 @@ async def build(manifest_path: str) -> None:
     print(f"validated build manifest: {manifest_path}; read alias unchanged")
 
 
-async def _switch_alias(index: str, expected_chunk_ids: set[str] | None) -> None:
-    """Point the read alias at `index` after confirming the index is usable.
+COMMIT_HASH = re.compile(r"[0-9a-f]{40}")
+
+
+def require_immutable_revision(source: str, revision: str | None) -> str:
+    """Accept only a revision that cannot move under us.
+
+    Refusing null is not enough. `main` is a valid revision string and two
+    builds pinned to it can load different weights; this machine's HuggingFace
+    cache already holds two revisions of BAAI/bge-m3, with `main` pointing at
+    one of them. Only a full commit hash identifies weights for certain.
+    """
+    if revision is None:
+        raise SystemExit(
+            f"{source} 에 모델 revision 이 없다(null). 어떤 가중치인지 증명할 수 없다. "
+            "40자리 commit hash 로 고정하고 다시 build 한다"
+        )
+    if not COMMIT_HASH.fullmatch(revision):
+        raise SystemExit(
+            f"{source} 의 revision {revision!r} 은 움직일 수 있는 참조다. "
+            "브랜치나 태그는 같은 문자열이어도 나중에 다른 가중치를 가리킨다. "
+            "40자리 commit hash 로 고정하고 다시 build 한다"
+        )
+    return revision
+
+
+def expected_identity() -> dict[str, Any]:
+    """Model identity the search path will use, derived from settings alone.
+
+    Reading this from configuration rather than from a constructed provider keeps
+    the check cheap: verifying an alias switch must not download or load weights.
+    """
+    settings = get_settings()
+    if settings.embedding_provider == "fake":
+        # Mirrors DeterministicHashEmbedding; kept in sync by test_alias_identity.
+        return {
+            "embedding_model": "fake-sha256-v1",
+            "embedding_revision": "1",
+            "dimension": 1024,
+        }
+    if settings.embedding_provider == "sentence-transformers":
+        return {
+            "embedding_model": settings.embedding_model,
+            "embedding_revision": require_immutable_revision(
+                "AI_EMBEDDING_REVISION", settings.embedding_revision
+            ),
+            "dimension": None,  # 설정만으로는 알 수 없다. 인덱스 기록을 신뢰 기준으로 쓴다
+        }
+    raise SystemExit(f"unsupported embedding provider: {settings.embedding_provider}")
+
+
+def check_identity(index: str, recorded: dict[str, Any], manifest: dict[str, Any]) -> None:
+    """Refuse a switch when manifest, index and consumer settings disagree.
+
+    Chunk ids and counts match across models, so they cannot catch a vector
+    space change. Dimension mismatch breaks vector search outright; a different
+    model at the same dimension breaks it silently, which is worse.
+    """
+    for field in ("schema_revision", "embedding_model", "embedding_revision", "dimension"):
+        if field not in manifest:
+            raise SystemExit(f"manifest 에 {field} 가 없다. 현재 코드로 다시 build 한다")
+        if recorded.get(field) != manifest[field]:
+            raise SystemExit(
+                f"index {index} 의 {field} 가 manifest 와 다르다: "
+                f"index={recorded.get(field)!r} manifest={manifest[field]!r}"
+            )
+
+    # manifest 와 _meta 는 둘 다 build 의 자기 신고다. 서로 합의한다는 사실만으로는
+    # 이 코드가 읽을 수 있는 인덱스라는 근거가 되지 않는다.
+    if recorded["schema_revision"] != SCHEMA_REVISION:
+        raise SystemExit(
+            f"index {index} 의 schema_revision({recorded['schema_revision']!r})이 현재 코드"
+            f"({SCHEMA_REVISION!r})와 다르다. 문서 구조가 달라 검색이 어긋난다. "
+            "현재 코드로 다시 build 한다"
+        )
+
+    dims = recorded.get("mapping_dims")
+    if dims is None:
+        raise SystemExit(
+            f"index {index} 의 매핑에서 차원을 읽지 못했다. 기록된 차원을 검증할 수 없다"
+        )
+    if dims != recorded["dimension"]:
+        raise SystemExit(
+            f"index {index} 의 매핑 차원({dims})이 기록된 차원({recorded['dimension']})과 다르다"
+        )
+
+    wanted = expected_identity()
+    if recorded["embedding_model"] != wanted["embedding_model"]:
+        raise SystemExit(
+            f"index {index} 는 {recorded['embedding_model']!r} 로 만들어졌는데 "
+            f"현재 검색 설정은 {wanted['embedding_model']!r} 를 쓴다. "
+            "같은 차원이어도 벡터 공간이 달라 검색 결과가 조용히 어긋난다"
+        )
+    if recorded["embedding_revision"] != wanted["embedding_revision"]:
+        raise SystemExit(
+            f"index {index} 의 모델 revision({recorded['embedding_revision']!r})이 "
+            f"현재 설정({wanted['embedding_revision']!r})과 다르다"
+        )
+    if get_settings().embedding_provider == "sentence-transformers":
+        require_immutable_revision(f"index {index}", recorded["embedding_revision"])
+    if wanted["dimension"] is not None and recorded["dimension"] != wanted["dimension"]:
+        raise SystemExit(
+            f"index {index} 의 차원({recorded['dimension']})이 "
+            f"현재 설정({wanted['dimension']})과 달라 vector 검색이 실패한다"
+        )
+
+
+async def _switch_alias(manifest: dict[str, Any]) -> None:
+    """Point the read alias at the index recorded in a validated manifest.
 
     The alias is what search reads, so a bad switch is visible to every user
     immediately. Everything that can be checked is checked before the switch,
     and an index that is already active is left alone rather than re-pointed.
     """
+    index = str(manifest["physical_index"])
     settings = get_settings()
     client = elasticsearch_client()
     try:
@@ -180,19 +298,16 @@ async def _switch_alias(index: str, expected_chunk_ids: set[str] | None) -> None
         if not await client.indices.exists(index=index):
             raise SystemExit(f"index {index} 가 존재하지 않는다")
 
-        mapping = await client.indices.get_mapping(index=index)
-        properties = mapping.body[index]["mappings"].get("properties", {})
-        if "symbol_path" not in properties:
-            raise SystemExit(
-                f"index {index} 에 symbol_path 가 없다. 이 인덱스로 전환하면 검색 결과의 "
-                "경로 복원이 손상된다. 재색인 후 전환한다"
-            )
+        try:
+            recorded = await store.index_identity(index)
+        except RuntimeError as exc:
+            raise SystemExit(str(exc)) from exc
+        check_identity(index, recorded, manifest)
 
-        if expected_chunk_ids is not None:
-            try:
-                await store.verify(index, expected_chunk_ids)
-            except RuntimeError as exc:
-                raise SystemExit(f"전환 전 검증 실패: {exc}") from exc
+        try:
+            await store.verify(index, set(manifest["expected_chunk_ids"]))
+        except RuntimeError as exc:
+            raise SystemExit(f"전환 전 검증 실패: {exc}") from exc
 
         current = await store.active_index()
         if current == index:
@@ -208,30 +323,48 @@ async def _switch_alias(index: str, expected_chunk_ids: set[str] | None) -> None
         await client.close()
 
 
-async def publish(manifest_path: str) -> None:
-    """Switch the read alias to the index recorded in a validated manifest."""
-    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+def _load_validated_manifest(manifest_path: str) -> dict[str, Any]:
+    try:
+        manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise SystemExit(f"manifest {manifest_path} 가 없다") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"manifest {manifest_path} 를 읽을 수 없다: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise SystemExit(f"manifest {manifest_path} 의 최상위가 object 가 아니다")
+
     status = manifest.get("status")
     if status != "VALIDATED":
         raise SystemExit(
             f"manifest status 가 {status!r} 다. VALIDATED 인 build 만 전환할 수 있다"
         )
     index = manifest.get("physical_index")
-    if not index:
-        raise SystemExit("manifest 에 physical_index 가 없다")
+    if not isinstance(index, str) or not index.strip():
+        raise SystemExit("manifest physical_index 는 비어 있지 않은 문자열이어야 한다")
     expected = manifest.get("expected_chunk_ids")
     if not isinstance(expected, list) or not expected:
         raise SystemExit("manifest 에 expected_chunk_ids 가 없다")
-    await _switch_alias(str(index), set(expected))
+    if any(not isinstance(item, str) or not item.strip() for item in expected):
+        raise SystemExit("manifest expected_chunk_ids 는 비어 있지 않은 문자열 목록이어야 한다")
+    if len(set(expected)) != len(expected):
+        raise SystemExit("manifest expected_chunk_ids 에 중복이 있다")
+    return manifest
 
 
-async def rollback(index: str) -> None:
-    """Point the read alias back at a previously built index.
+async def publish(manifest_path: str) -> None:
+    """Switch the read alias to the index recorded in a validated manifest."""
+    await _switch_alias(_load_validated_manifest(manifest_path))
 
-    Rollback has no manifest, so the chunk-set check is unavailable; the index
-    is still required to carry the current mapping.
+
+async def rollback(manifest_path: str) -> None:
+    """Point the read alias back at an earlier build.
+
+    Rollback takes the same manifest evidence as publish. An index with no
+    manifest cannot be shown to hold a complete, known-model corpus, and a
+    FAILED build leaves a partially filled index whose mapping still looks
+    correct, so pointing at a bare index name is refused.
     """
-    await _switch_alias(index, None)
+    await _switch_alias(_load_validated_manifest(manifest_path))
 
 
 async def search(query: str, k: int, retriever: str, source_types: list[str] | None) -> None:
@@ -495,9 +628,11 @@ def main() -> None:
     publish_parser.add_argument("--manifest", required=True, help="validated manifest JSON path")
 
     rollback_parser = subcommands.add_parser(
-        "rollback", help="point the read alias back at an earlier index"
+        "rollback", help="point the read alias back at an earlier validated build"
     )
-    rollback_parser.add_argument("--to", required=True, help="physical index name")
+    rollback_parser.add_argument(
+        "--manifest", required=True, help="VALIDATED manifest JSON path of the earlier build"
+    )
 
     search_parser = subcommands.add_parser("search", help="search the ingested corpus")
     search_parser.add_argument("query")
@@ -556,7 +691,7 @@ def main() -> None:
     elif args.command == "publish":
         asyncio.run(publish(args.manifest))
     elif args.command == "rollback":
-        asyncio.run(rollback(args.to))
+        asyncio.run(rollback(args.manifest))
     elif args.command == "eval":
         asyncio.run(
             evaluate(
