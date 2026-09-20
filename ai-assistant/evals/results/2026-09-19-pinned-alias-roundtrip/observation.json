@@ -1,0 +1,104 @@
+{
+  "status": "PASSED",
+  "alias": "mf-ai-verify-pinned-20260919",
+  "steps": [
+    {
+      "step": "initial A",
+      "active_index": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d",
+      "vector_hit_ids": [
+        "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+        "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+        "24a889ff4f4b680520a42df1d4710473dbd1d43201a3e14755c04d6b30294b51"
+      ]
+    },
+    {
+      "step": "A no-op",
+      "active_index": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d",
+      "vector_hit_ids": [
+        "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+        "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+        "24a889ff4f4b680520a42df1d4710473dbd1d43201a3e14755c04d6b30294b51"
+      ]
+    },
+    {
+      "step": "A to B",
+      "active_index": "mf-ai-verify-pinned-20260919-a74e18dc8a24426b83e37c6b55d263d9",
+      "vector_hit_ids": [
+        "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+        "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+        "24a889ff4f4b680520a42df1d4710473dbd1d43201a3e14755c04d6b30294b51"
+      ]
+    },
+    {
+      "step": "rollback B to A",
+      "active_index": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d",
+      "vector_hit_ids": [
+        "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+        "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+        "24a889ff4f4b680520a42df1d4710473dbd1d43201a3e14755c04d6b30294b51"
+      ]
+    }
+  ],
+  "code_sha": "e28b80e083dc55f386cf2b7302f4f97f7c16e4a1",
+  "before": {
+    "mf-ai-chunks-0fe52eea51c20746": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-64460aa92eba4887a09aa7011522857d": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-806c80ac51106a9e": {
+      "aliases": {
+        "mf-ai-chunks": {}
+      },
+      "count": 317
+    },
+    "mf-ai-chunks-a32289acb45a7365": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-a5e9ea56d94ee332": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-a86140d4e2b65f3b": {
+      "aliases": {},
+      "count": 317
+    }
+  },
+  "indexes": {
+    "A": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d",
+    "B": "mf-ai-verify-pinned-20260919-a74e18dc8a24426b83e37c6b55d263d9"
+  },
+  "cleanup_acknowledged": true,
+  "after": {
+    "mf-ai-chunks-0fe52eea51c20746": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-64460aa92eba4887a09aa7011522857d": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-806c80ac51106a9e": {
+      "aliases": {
+        "mf-ai-chunks": {}
+      },
+      "count": 317
+    },
+    "mf-ai-chunks-a32289acb45a7365": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-a5e9ea56d94ee332": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-a86140d4e2b65f3b": {
+      "aliases": {},
+      "count": 317
+    }
+  }
+}
