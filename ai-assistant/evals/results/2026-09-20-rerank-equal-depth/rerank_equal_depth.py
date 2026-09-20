@@ -7,7 +7,7 @@ as 미수행. This is that measurement.
 
 `retrieve_for_mode` now takes one `candidates` for every mode, so the pool is
 built identically and only the final ordering differs. The script asserts that
-the pool a `+rerank` mode saw is byte-identical to its base mode's pool, which
+the pool a `+rerank` mode saw has the same ordered chunk IDs as its base mode's pool, which
 is what makes "the reranker caused this" a statement about one variable.
 
 Ceiling: a reranker only reorders the pool. With candidates=20 the best any
