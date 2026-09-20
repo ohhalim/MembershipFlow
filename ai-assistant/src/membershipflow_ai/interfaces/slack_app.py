@@ -70,8 +70,10 @@ def build_slack_app(
     allowed_channels = set(settings.slack_allowed_channel_ids)
 
     @app.event("app_mention")
-    async def handle_mention(event: dict[str, Any], say: Any) -> None:
-        team_id = str(event.get("team") or "")
+    async def handle_mention(
+        event: dict[str, Any], context: dict[str, Any], say: Any,
+    ) -> None:
+        team_id = str(context.get("team_id") or "")
         channel_id = str(event.get("channel") or "")
         if allowed_teams and team_id not in allowed_teams:
             logger.warning("rejected mention from team %s", team_id)
