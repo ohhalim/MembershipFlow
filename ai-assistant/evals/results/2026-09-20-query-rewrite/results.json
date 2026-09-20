@@ -1,0 +1,764 @@
+{
+  "status": "PASSED",
+  "reviewed": false,
+  "split": "tuning",
+  "k": 5,
+  "candidates": 20,
+  "variants": [
+    "original",
+    "rewritten",
+    "fused"
+  ],
+  "rerank_variants": [
+    "original+rerank",
+    "rewritten+rerank",
+    "fused+rerank"
+  ],
+  "cases_sha256": "875197103cfae8734561122398442053287beec042d963e5866a402c025bd9e6",
+  "code_sha": "a7a799cb5d27bb2ff9a62e49274fc6e30c15de8d",
+  "rewrites": [
+    {
+      "id": "ret-001",
+      "original": "이용 가능한 구독의 판정 기준은?",
+      "rewritten": "구독이 이용 가능한 상태인지 판단하는 조건"
+    },
+    {
+      "id": "ret-002",
+      "original": "Paddle 구독 상태를 반영할 때, 받은 이벤트가 마지막 반영 이벤트보다 오래됐는지 무엇으로 판단해?",
+      "rewritten": "Paddle 구독 상태를 반영할 때 수신한 이벤트가 마지막으로 반영된 이벤트보다 이전에 발생했는지 비교하는 조건문"
+    },
+    {
+      "id": "ret-003",
+      "original": "isStaleExternalEvent 는 무엇을 비교해?",
+      "rewritten": "`isStaleExternalEvent` 함수 내부에서 어떤 값들을 서로 비교하여 조건식을 구성하는지 확인한다."
+    },
+    {
+      "id": "ret-004",
+      "original": "정기 결제 시점이 된 구독을 조회할 때 어떤 조건으로 걸러?",
+      "rewritten": "정기 결제일이 도래한 구독 데이터를 조회할 때 적용하는 필터 조건"
+    },
+    {
+      "id": "ret-005",
+      "original": "구독 ID로 수정 대상 구독을 조회할 때 어떤 잠금을 사용해?",
+      "rewritten": "구독 ID로 수정 대상 구독을 조회할 때 잠금을 적용하는 코드를 검색한다."
+    },
+    {
+      "id": "ret-006",
+      "original": "여러 소스의 가격 중 이상치를 찾을 때 기준 가격과 이탈 정도는 어떻게 계산해?",
+      "rewritten": "여러 소스의 가격 데이터에서 이상치를 탐지하기 위해 기준 가격을 산출하고 개별 가격이 기준에서 벗어난 이탈 정도를 계산하는 방식"
+    },
+    {
+      "id": "ret-007",
+      "original": "수집량 감소를 비교할 때 이전 수집 건수가 0이면 어떻게 처리해?",
+      "rewritten": "수집량 감소를 비교할 때 이전 수집 건수가 0인 경우에 적용되는 예외 처리와 계산 로직을 확인한다."
+    },
+    {
+      "id": "ret-008",
+      "original": "구독 상태가 CANCELLED이고 이용 종료 시점이 아직 남았다면 이용 가능 판정은 어떻게 돼?",
+      "rewritten": "구독 상태가 CANCELLED이고 이용 종료 시점이 지나지 않았을 때 이용 가능 여부를 판단하는 로직"
+    },
+    {
+      "id": "ret-009",
+      "original": "문서에 정리된 최초 결제와 정기결제의 트랜잭션·외부 호출 범위는 어떻게 달라?",
+      "rewritten": "문서에 명시된 최초 결제와 정기결제 각각의 트랜잭션 범위와 외부 호출 범위의 차이를 비교한다."
+    },
+    {
+      "id": "ret-010",
+      "original": "토스 자동결제 심사 전 홈페이지·구매 흐름에서 보완해야 할 항목은?",
+      "rewritten": "토스 자동결제 심사 신청 전에 홈페이지와 구매 흐름에서 갖추어야 하는 필수 요건과 표기 사항"
+    }
+  ],
+  "results": {
+    "original": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.55,
+        "all_evidence_rate": 0.5,
+        "mrr": 0.525,
+        "found_cases": 6,
+        "all_evidence_cases": 5
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.9,
+        "all_evidence_rate": 0.9,
+        "mrr": 0.5478,
+        "found_cases": 9,
+        "all_evidence_cases": 9
+      },
+      "retrieval_seconds_per_question": 0.119,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 20
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          }
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          }
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": 19
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          }
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          }
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          }
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          }
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 8
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 9,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": null,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          }
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          }
+        }
+      ]
+    },
+    "rewritten": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.55,
+        "all_evidence_rate": 0.5,
+        "mrr": 0.525,
+        "found_cases": 6,
+        "all_evidence_cases": 5
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 1.0,
+        "all_evidence_rate": 1.0,
+        "mrr": 0.5513,
+        "found_cases": 10,
+        "all_evidence_cases": 10
+      },
+      "retrieval_seconds_per_question": 0.051,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 18
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 19
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          }
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          }
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": 14
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          }
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          }
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          }
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          }
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 12
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 10,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": null,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          }
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          }
+        }
+      ]
+    },
+    "fused": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.55,
+        "all_evidence_rate": 0.5,
+        "mrr": 0.525,
+        "found_cases": 6,
+        "all_evidence_cases": 5
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.9,
+        "all_evidence_rate": 0.9,
+        "mrr": 0.5504,
+        "found_cases": 9,
+        "all_evidence_cases": 9
+      },
+      "retrieval_seconds_per_question": 0.106,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 18
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          }
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          }
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": 18
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          }
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          }
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          }
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          }
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 7
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 9,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": null,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          }
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          }
+        }
+      ]
+    },
+    "original+rerank": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.7,
+        "all_evidence_rate": 0.7,
+        "mrr": 0.4783,
+        "found_cases": 7,
+        "all_evidence_cases": 7
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.9,
+        "all_evidence_rate": 0.9,
+        "mrr": 0.5478,
+        "found_cases": 9,
+        "all_evidence_cases": 9
+      },
+      "rerank_seconds_per_question": 2.727,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 20
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          }
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          }
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": 19
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          }
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 4
+          }
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          }
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          }
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 8
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 5
+          }
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 9,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 5,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 3
+          }
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          }
+        }
+      ]
+    },
+    "rewritten+rerank": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.6,
+        "all_evidence_rate": 0.6,
+        "mrr": 0.4833,
+        "found_cases": 6,
+        "all_evidence_cases": 6
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 1.0,
+        "all_evidence_rate": 1.0,
+        "mrr": 0.5513,
+        "found_cases": 10,
+        "all_evidence_cases": 10
+      },
+      "rerank_seconds_per_question": 2.399,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 18
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 19
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          }
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          }
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": 14
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          }
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 2
+          }
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          }
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          }
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 12
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 10,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 5,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 3
+          }
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          }
+        }
+      ]
+    },
+    "fused+rerank": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.7,
+        "all_evidence_rate": 0.7,
+        "mrr": 0.4783,
+        "found_cases": 7,
+        "all_evidence_cases": 7
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.9,
+        "all_evidence_rate": 0.9,
+        "mrr": 0.5504,
+        "found_cases": 9,
+        "all_evidence_cases": 9
+      },
+      "rerank_seconds_per_question": 2.363,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          }
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 18
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          }
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          }
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": 18
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          }
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 4
+          }
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          }
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          }
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 7
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 5
+          }
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 9,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 5,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 3
+          }
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          }
+        }
+      ]
+    }
+  },
+  "physical_index": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d",
+  "identity": {
+    "embedding_model": "BAAI/bge-m3",
+    "embedding_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "schema_revision": "2",
+    "dimension": 1024,
+    "snapshot_revision": "1",
+    "mapping_dims": 1024
+  },
+  "doc_count": 317,
+  "rewrite_source": "rewrites.json (고정본)",
+  "llm_model": "gemini-3.5-flash",
+  "rewrite_seconds_per_question": 14.082
+}
