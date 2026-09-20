@@ -47,6 +47,8 @@ async def test_build_failure_records_manifest_and_points_at_it(
     def explode(*_: object, **__: object) -> None:
         raise ValueError("snapshot 준비 실패")
 
+    # The failure under test must not depend on cwd or a real corpus file.
+    monkeypatch.setattr(cli, "CorpusScanner", lambda *_: object())
     monkeypatch.setattr(cli, "prepare_snapshot", explode)
     monkeypatch.setattr(cli, "embedding_provider", lambda: None)
 
@@ -69,6 +71,8 @@ async def test_build_failure_keeps_original_exception_as_cause(
     def explode(*_: object, **__: object) -> None:
         raise ValueError("원인")
 
+    # The failure under test must not depend on cwd or a real corpus file.
+    monkeypatch.setattr(cli, "CorpusScanner", lambda *_: object())
     monkeypatch.setattr(cli, "prepare_snapshot", explode)
     monkeypatch.setattr(cli, "embedding_provider", lambda: None)
 
