@@ -1,0 +1,3406 @@
+{
+  "status": "PASSED",
+  "reviewed": false,
+  "split": "tuning",
+  "k": 5,
+  "candidates": 20,
+  "modes": [
+    "keyword",
+    "vector",
+    "hybrid",
+    "vector+rerank",
+    "hybrid+rerank"
+  ],
+  "note": "모든 모드가 같은 candidates 를 쓴다. 후보 깊이 차이를 재정렬 효과로 읽지 않기 위해서다",
+  "cases_sha256": "875197103cfae8734561122398442053287beec042d963e5866a402c025bd9e6",
+  "code_sha": "4acd23d7a18bfbe1d651bf670de62b6fdcd07d0f",
+  "results": {
+    "keyword": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.35,
+        "all_evidence_rate": 0.3,
+        "mrr": 0.325,
+        "found_cases": 4,
+        "all_evidence_cases": 3
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.5,
+        "all_evidence_rate": 0.5,
+        "mrr": 0.3393,
+        "found_cases": 5,
+        "all_evidence_cases": 5
+      },
+      "elapsed_seconds": 0.143,
+      "seconds_per_question": 0.014,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "f2a6b13f9e3794a12b1b74db03dc7a74be166cc5d325752b23b325b921dfa8fe",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "기준"
+              ],
+              "score": 10.334748
+            },
+            {
+              "rank": 2,
+              "chunk_id": "e379bbfd539bdc7ba7ab8237c08a1c2d08390af5b33f21c2af503c9aaaee8340",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "테이블별 역할 요약"
+              ],
+              "score": 8.757469
+            },
+            {
+              "rank": 3,
+              "chunk_id": "967395ad22240d9e433993814ddc0136911e66a2cb4f54c88b1a62b128266cbe",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "7. WebSocket (실시간 알림)",
+                "구독 채널"
+              ],
+              "score": 8.720367
+            },
+            {
+              "rank": 4,
+              "chunk_id": "8c638e86e8b4f598cf06d1be4fe73420ead230de69631c8aaef96bf204bc1747",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "설계 기준"
+              ],
+              "score": 8.720367
+            },
+            {
+              "rank": 5,
+              "chunk_id": "d1f472303469f6279a10fb38e2772c5b8ba8f0d13515d5b129df72456ef30ee5",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.4 watchlist 목표가 알림 조건"
+              ],
+              "score": 7.676036
+            }
+          ]
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "220b923d84f58915f38e678b54b8731f7bc8c637d53b76f669f4e958f7680f59",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "8. 내 말로 설명하기"
+              ],
+              "score": 14.792443
+            },
+            {
+              "rank": 2,
+              "chunk_id": "aee1289523b6d3a56afbb1ef2f07946ea330983ebd8b9901564ee5fc47620e3e",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "paddle"
+              ],
+              "score": 14.773627
+            },
+            {
+              "rank": 3,
+              "chunk_id": "a662caa4221d039a006d5464feefd3e077587c83d54be76d150758e0cfe132c2",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "process"
+              ],
+              "score": 13.006437
+            },
+            {
+              "rank": 4,
+              "chunk_id": "28431d23704b7b8ac10b4b4a1a83e0323193b29824e5886fcf81a142ce9de103",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "최초 결제"
+              ],
+              "score": 12.94384
+            },
+            {
+              "rank": 5,
+              "chunk_id": "33b1e836e316d393cab8754fe7675796f84758e98294fc251cfc17fa6658c981",
+              "source_uri": "docs/00-CONTEXT.md",
+              "path": [
+                "00 — 프로젝트 컨텍스트 (새 채팅 인수인계용)",
+                "현재 상태"
+              ],
+              "score": 11.743621
+            }
+          ]
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "isStaleExternalEvent"
+              ],
+              "score": 33.52411
+            },
+            {
+              "rank": 2,
+              "chunk_id": "25ae439cdee0ce8c48db3a55f739f8c06ad91e742c58b2d5d7739ad9a3e296f6",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.2 소스별 최신 시세 비교"
+              ],
+              "score": 7.67207
+            },
+            {
+              "rank": 3,
+              "chunk_id": "220b923d84f58915f38e678b54b8731f7bc8c637d53b76f669f4e958f7680f59",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "8. 내 말로 설명하기"
+              ],
+              "score": 6.76438
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1c52bfedb410e70f8501e699b1836f9b9d40e03c30acf9f02e3a628188eec923",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleSuspended"
+              ],
+              "score": 4.693428
+            },
+            {
+              "rank": 5,
+              "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePastDue"
+              ],
+              "score": 4.660694
+            }
+          ]
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 18.308025
+            },
+            {
+              "rank": 2,
+              "chunk_id": "220b923d84f58915f38e678b54b8731f7bc8c637d53b76f669f4e958f7680f59",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "8. 내 말로 설명하기"
+              ],
+              "score": 13.483011
+            },
+            {
+              "rank": 3,
+              "chunk_id": "1cf43254d752981f2e2ed50ef974ea45bda437b23ed4b63a5f4567adbdc134a9",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위",
+                "현재 장점"
+              ],
+              "score": 12.492209
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1819176197978ff42ed51bc3d0d58a2bef98713d334ff5c3aad471a54a18a4a1",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위"
+              ],
+              "score": 12.466084
+            },
+            {
+              "rank": 5,
+              "chunk_id": "c7faf6cee3f70bbf0b64af228610ba634c5ea1e64a470c9eb6f41e1000e3236e",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "6. 말하면 안 되는 문장"
+              ],
+              "score": 12.232401
+            }
+          ]
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "967395ad22240d9e433993814ddc0136911e66a2cb4f54c88b1a62b128266cbe",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "7. WebSocket (실시간 알림)",
+                "구독 채널"
+              ],
+              "score": 17.440735
+            },
+            {
+              "rank": 2,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 15.488552
+            },
+            {
+              "rank": 3,
+              "chunk_id": "8185508d80a35d0f4509e3bed8ca2e32cbdf755af19e2b8a8c2d6f24bc227f71",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)"
+              ],
+              "score": 13.289011
+            },
+            {
+              "rank": 4,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 13.289011
+            },
+            {
+              "rank": 5,
+              "chunk_id": "d1f472303469f6279a10fb38e2772c5b8ba8f0d13515d5b129df72456ef30ee5",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.4 watchlist 목표가 알림 조건"
+              ],
+              "score": 13.061396
+            }
+          ]
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 7
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "45e16bb83a6339b2305dfe115f5cc353c70304842ae4dbeb352e1dd1347e183d",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "구현 시 주의사항",
+                "가격/시세"
+              ],
+              "score": 22.55412
+            },
+            {
+              "rank": 2,
+              "chunk_id": "2eec1943b1dbe147a1ad75a623d44882a8716290066219f9ca01c77430ccfbb8",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "구현 시 주의사항",
+                "가격/시세"
+              ],
+              "score": 22.55412
+            },
+            {
+              "rank": 3,
+              "chunk_id": "d1f472303469f6279a10fb38e2772c5b8ba8f0d13515d5b129df72456ef30ee5",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.4 watchlist 목표가 알림 조건"
+              ],
+              "score": 20.605959
+            },
+            {
+              "rank": 4,
+              "chunk_id": "7e11cd37f43ecab84005b56a2c3fda59241698885e7b1d54fee2550d9269abf7",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.2 차트 집계 기준"
+              ],
+              "score": 14.401477
+            },
+            {
+              "rank": 5,
+              "chunk_id": "ce8b51e746aaa67326be16b617bf0939f690bd69f6d85a6b1c7b28360bf08521",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.3 랭킹 기준"
+              ],
+              "score": 13.467325
+            }
+          ]
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "65e089fecb30ce33ad7992d5cf2e7f9e7f5c1457711953123dea339e6fc38be1",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluateCollectDrop"
+              ],
+              "score": 18.956314
+            },
+            {
+              "rank": 2,
+              "chunk_id": "a70fd8393413b144bafc30f93489e0f7c673168e6f88117b5725c0e35c0fdfa6",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "6. 수집기(Collector) 상세 설계",
+                "소스별 수집 방식 (실측)"
+              ],
+              "score": 13.289011
+            },
+            {
+              "rank": 3,
+              "chunk_id": "a32243372d470ac43e0781e6a57f17cb582b3d5922b4935cc4f45b9645f177f1",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "6. 수집기(Collector) 상세 설계"
+              ],
+              "score": 11.87554
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1e0a0c4f97286abc6f5520729f7b719ea88fe4c75ec8c94fb7c38348722e0c78",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "6. 수집기(Collector) 상세 설계",
+                "소스별 수집 방식 (실측)",
+                "동부회원권 수집 상세 (DongbuCollector)"
+              ],
+              "score": 10.733845
+            },
+            {
+              "rank": 5,
+              "chunk_id": "38b8291cb42459db6d16b971888b1289008528c3945a29ae56a967197452cb6d",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "6. 수집기(Collector) 상세 설계",
+                "소스별 수집 방식 (실측)",
+                "동아회원권 수집 상세 (DongaCollector)"
+              ],
+              "score": 10.733845
+            }
+          ]
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 16.416975
+            },
+            {
+              "rank": 2,
+              "chunk_id": "dc501fc85e2490968f3b8ca0ffca0883816d14477998cdd2fb482afd1076baed",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "3. 최초 결제 실패 상황"
+              ],
+              "score": 14.772842
+            },
+            {
+              "rank": 3,
+              "chunk_id": "11cd4aff1e1e109e4e780170908bd2a92470ea8d9f0e85ee703d2139f8846690",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "상태값 정책",
+                "SubscriptionStatus"
+              ],
+              "score": 12.274028
+            },
+            {
+              "rank": 4,
+              "chunk_id": "33b1e836e316d393cab8754fe7675796f84758e98294fc251cfc17fa6658c981",
+              "source_uri": "docs/00-CONTEXT.md",
+              "path": [
+                "00 — 프로젝트 컨텍스트 (새 채팅 인수인계용)",
+                "현재 상태"
+              ],
+              "score": 11.743621
+            },
+            {
+              "rank": 5,
+              "chunk_id": "a986c2bccbede6a7702278fc33b28e787835602ac99519fffd1e6d25ea7e651c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 11.470251
+            }
+          ]
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 7,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": null,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "1819176197978ff42ed51bc3d0d58a2bef98713d334ff5c3aad471a54a18a4a1",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위"
+              ],
+              "score": 30.828236
+            },
+            {
+              "rank": 2,
+              "chunk_id": "c7faf6cee3f70bbf0b64af228610ba634c5ea1e64a470c9eb6f41e1000e3236e",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "6. 말하면 안 되는 문장"
+              ],
+              "score": 29.011173
+            },
+            {
+              "rank": 3,
+              "chunk_id": "13bb40579b690f96312a2eb222b0fddcc7869852c4191e0f9c26ac697637588f",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "2. 최초 결제 전체 흐름",
+                "외부 호출 2: 최초 결제 승인"
+              ],
+              "score": 27.86446
+            },
+            {
+              "rank": 4,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 26.66463
+            },
+            {
+              "rank": 5,
+              "chunk_id": "c3e278dc055a8fb3ee0608c87f18c8392483f66515a531c2c59faa57fc8623f3",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위",
+                "현재 한계"
+              ],
+              "score": 25.12276
+            }
+          ]
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "62e9e7313ddaff0e20069f63cb2854d3000f62ee3bc1a9b2a53ded49c48fd7ae",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "홈페이지·구매 흐름"
+              ],
+              "score": 34.771038
+            },
+            {
+              "rank": 2,
+              "chunk_id": "57fbd60d005df54e3b39714d386003a39722060cf9c95ed4dcd2f8c74cc96653",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목"
+              ],
+              "score": 25.777752
+            },
+            {
+              "rank": 3,
+              "chunk_id": "6751d2b953e231570a8d5255dbb9583d94c559f119bff6f134d527a211bc3907",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "승인과 코드 검증의 경계"
+              ],
+              "score": 20.319073
+            },
+            {
+              "rank": 4,
+              "chunk_id": "f0d4f919cd5cd2d6f4c0603c20a62ab28489f8e6ec403a6ccb4f60c95bd70639",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "운영 준비"
+              ],
+              "score": 19.543272
+            },
+            {
+              "rank": 5,
+              "chunk_id": "9b67c99ac7a368f6baa08c88ed97521b6b35231fc9a4325ffa1c0fc3c32b1174",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검"
+              ],
+              "score": 18.208046
+            }
+          ]
+        }
+      ]
+    },
+    "vector": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.55,
+        "all_evidence_rate": 0.5,
+        "mrr": 0.525,
+        "found_cases": 6,
+        "all_evidence_cases": 5
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.9,
+        "all_evidence_rate": 0.9,
+        "mrr": 0.5478,
+        "found_cases": 9,
+        "all_evidence_cases": 9
+      },
+      "elapsed_seconds": 1.376,
+      "seconds_per_question": 0.138,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 0.605264
+            },
+            {
+              "rank": 2,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 0.591495
+            },
+            {
+              "rank": 3,
+              "chunk_id": "65b0828ceecb2256bef8f6f42a5dbf8f7d4968a5d8bb5f891c819e504b580a7a",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.6 구독 플랜 목록"
+              ],
+              "score": 0.579074
+            },
+            {
+              "rank": 4,
+              "chunk_id": "2deb12717f249f97b7ccf150d67394fa1621f2885b2f07775d20c9fe9fcde50c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.5 결제 이력 조회"
+              ],
+              "score": 0.577936
+            },
+            {
+              "rank": 5,
+              "chunk_id": "fcafe89e59c6fb5cef21a5ec62e3df8717418e3618da33fb3a5c2133a1d8d727",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "8. subscription"
+              ],
+              "score": 0.567643
+            }
+          ]
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 20
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePastDue"
+              ],
+              "score": 0.612224
+            },
+            {
+              "rank": 2,
+              "chunk_id": "53ca85588328f4c928c88c39fe4c3405e68a3c6c87406e3637a24fbfbe9c73fc",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "syncSubscription"
+              ],
+              "score": 0.597786
+            },
+            {
+              "rank": 3,
+              "chunk_id": "45e16bb83a6339b2305dfe115f5cc353c70304842ae4dbeb352e1dd1347e183d",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "구현 시 주의사항",
+                "가격/시세"
+              ],
+              "score": 0.592782
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1c52bfedb410e70f8501e699b1836f9b9d40e03c30acf9f02e3a628188eec923",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleSuspended"
+              ],
+              "score": 0.586597
+            },
+            {
+              "rank": 5,
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleCanceled"
+              ],
+              "score": 0.579911
+            }
+          ]
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "isStaleExternalEvent"
+              ],
+              "score": 0.656501
+            },
+            {
+              "rank": 2,
+              "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePastDue"
+              ],
+              "score": 0.497346
+            },
+            {
+              "rank": 3,
+              "chunk_id": "0dff51b7737eb6f0bfa1eb3de7c390c5c5cbf65219630ee6894699282f8cb618",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleActive"
+              ],
+              "score": 0.49387
+            },
+            {
+              "rank": 4,
+              "chunk_id": "8c638e86e8b4f598cf06d1be4fe73420ead230de69631c8aaef96bf204bc1747",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "설계 기준"
+              ],
+              "score": 0.492972
+            },
+            {
+              "rank": 5,
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleCanceled"
+              ],
+              "score": 0.491108
+            }
+          ]
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": 19
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 0.672343
+            },
+            {
+              "rank": 2,
+              "chunk_id": "2deb12717f249f97b7ccf150d67394fa1621f2885b2f07775d20c9fe9fcde50c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.5 결제 이력 조회"
+              ],
+              "score": 0.668408
+            },
+            {
+              "rank": 3,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 0.65857
+            },
+            {
+              "rank": 4,
+              "chunk_id": "11cd4aff1e1e109e4e780170908bd2a92470ea8d9f0e85ee703d2139f8846690",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "상태값 정책",
+                "SubscriptionStatus"
+              ],
+              "score": 0.656713
+            },
+            {
+              "rank": 5,
+              "chunk_id": "1cf43254d752981f2e2ed50ef974ea45bda437b23ed4b63a5f4567adbdc134a9",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위",
+                "현재 장점"
+              ],
+              "score": 0.645723
+            }
+          ]
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "13ee9914f4375c0ea3fc43b7e91fd6ef072c5eff6db85a2a83aa29ef620f3697",
+              "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+              "path": [
+                "com.membershipflow.subscription.repository",
+                "SubscriptionRepository",
+                "findByIdForUpdate"
+              ],
+              "score": 0.582578
+            },
+            {
+              "rank": 2,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 0.58089
+            },
+            {
+              "rank": 3,
+              "chunk_id": "fcafe89e59c6fb5cef21a5ec62e3df8717418e3618da33fb3a5c2133a1d8d727",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "8. subscription"
+              ],
+              "score": 0.570653
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1bc842306b55748cf8b0bdb534dd661ad650526682b9f4abb5311809a98174c9",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "7-a. subscription_plan"
+              ],
+              "score": 0.560587
+            },
+            {
+              "rank": 5,
+              "chunk_id": "2deb12717f249f97b7ccf150d67394fa1621f2885b2f07775d20c9fe9fcde50c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.5 결제 이력 조회"
+              ],
+              "score": 0.55911
+            }
+          ]
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e6776842327340950d01ed0b50cd62086c67ebcac1cb58cf1c28bed6cdf72950",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluatePriceOutliers"
+              ],
+              "score": 0.648841
+            },
+            {
+              "rank": 2,
+              "chunk_id": "b5047ee429b7d488d593655ef4183fe819490a7ca8ad84f5f662d0d0016d85d7",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "checkPriceOutliers"
+              ],
+              "score": 0.620441
+            },
+            {
+              "rank": 3,
+              "chunk_id": "ce8b51e746aaa67326be16b617bf0939f690bd69f6d85a6b1c7b28360bf08521",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.3 랭킹 기준"
+              ],
+              "score": 0.568677
+            },
+            {
+              "rank": 4,
+              "chunk_id": "7e11cd37f43ecab84005b56a2c3fda59241698885e7b1d54fee2550d9269abf7",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.2 차트 집계 기준"
+              ],
+              "score": 0.563692
+            },
+            {
+              "rank": 5,
+              "chunk_id": "ba7cb48abd7042ea90f6c73196165aecbad0d3eb616bd07df714a8b6293a4ee9",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "5. API 설계",
+                "시세 (Price)"
+              ],
+              "score": 0.560753
+            }
+          ]
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "65e089fecb30ce33ad7992d5cf2e7f9e7f5c1457711953123dea339e6fc38be1",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluateCollectDrop"
+              ],
+              "score": 0.618048
+            },
+            {
+              "rank": 2,
+              "chunk_id": "4d82133482278d28a7ab4dcdc0fccbc77ab4ff30a74d21f4773b884125164b35",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "0. collect_run"
+              ],
+              "score": 0.582412
+            },
+            {
+              "rank": 3,
+              "chunk_id": "7a235dfd6f7059ebd17ef5fca73e23959bd567dd5b465871a52abf5c61e18166",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "checkCollectDrop"
+              ],
+              "score": 0.576479
+            },
+            {
+              "rank": 4,
+              "chunk_id": "74f1dc7cfb9610b46e858d9229bf4c25994de41efd4455d6ddc0843e257835e6",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "6. 수집기(Collector) 상세 설계",
+                "CollectService 흐름"
+              ],
+              "score": 0.538897
+            },
+            {
+              "rank": 5,
+              "chunk_id": "367399f6353438b5df7c9f55e639e0ae5248597aacd375fd53349d61a94f8814",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 0.532482
+            }
+          ]
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 8
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 0.67734
+            },
+            {
+              "rank": 2,
+              "chunk_id": "11cd4aff1e1e109e4e780170908bd2a92470ea8d9f0e85ee703d2139f8846690",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "상태값 정책",
+                "SubscriptionStatus"
+              ],
+              "score": 0.6737
+            },
+            {
+              "rank": 3,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 0.603134
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleCanceled"
+              ],
+              "score": 0.565535
+            },
+            {
+              "rank": 5,
+              "chunk_id": "964e72b32680d3077b198ad5738482d9c9c5d453e34b9893c742cce7d44d95c1",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "schedulePaddleCancellation"
+              ],
+              "score": 0.562944
+            }
+          ]
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 9,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": null,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "c7faf6cee3f70bbf0b64af228610ba634c5ea1e64a470c9eb6f41e1000e3236e",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "6. 말하면 안 되는 문장"
+              ],
+              "score": 0.718028
+            },
+            {
+              "rank": 2,
+              "chunk_id": "220b923d84f58915f38e678b54b8731f7bc8c637d53b76f669f4e958f7680f59",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "8. 내 말로 설명하기"
+              ],
+              "score": 0.705039
+            },
+            {
+              "rank": 3,
+              "chunk_id": "13bb40579b690f96312a2eb222b0fddcc7869852c4191e0f9c26ac697637588f",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "2. 최초 결제 전체 흐름",
+                "외부 호출 2: 최초 결제 승인"
+              ],
+              "score": 0.687124
+            },
+            {
+              "rank": 4,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 0.686436
+            },
+            {
+              "rank": 5,
+              "chunk_id": "c3e278dc055a8fb3ee0608c87f18c8392483f66515a531c2c59faa57fc8623f3",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위",
+                "현재 한계"
+              ],
+              "score": 0.682042
+            }
+          ]
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "62e9e7313ddaff0e20069f63cb2854d3000f62ee3bc1a9b2a53ded49c48fd7ae",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "홈페이지·구매 흐름"
+              ],
+              "score": 0.739739
+            },
+            {
+              "rank": 2,
+              "chunk_id": "f0d4f919cd5cd2d6f4c0603c20a62ab28489f8e6ec403a6ccb4f60c95bd70639",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "운영 준비"
+              ],
+              "score": 0.699283
+            },
+            {
+              "rank": 3,
+              "chunk_id": "f2a6b13f9e3794a12b1b74db03dc7a74be166cc5d325752b23b325b921dfa8fe",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "기준"
+              ],
+              "score": 0.67831
+            },
+            {
+              "rank": 4,
+              "chunk_id": "9b67c99ac7a368f6baa08c88ed97521b6b35231fc9a4325ffa1c0fc3c32b1174",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검"
+              ],
+              "score": 0.659302
+            },
+            {
+              "rank": 5,
+              "chunk_id": "e0535b0671f4d5d42149b5964d598e1b5fd20fdcb068e262d1f02b4c68cc2231",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "남은 개선 대상"
+              ],
+              "score": 0.65524
+            }
+          ]
+        }
+      ]
+    },
+    "hybrid": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.45,
+        "all_evidence_rate": 0.4,
+        "mrr": 0.42,
+        "found_cases": 5,
+        "all_evidence_cases": 4
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.7,
+        "all_evidence_rate": 0.7,
+        "mrr": 0.4383,
+        "found_cases": 7,
+        "all_evidence_cases": 7
+      },
+      "elapsed_seconds": 0.548,
+      "seconds_per_question": 0.055,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 0.030415
+            },
+            {
+              "rank": 2,
+              "chunk_id": "a986c2bccbede6a7702278fc33b28e787835602ac99519fffd1e6d25ea7e651c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 0.029236
+            },
+            {
+              "rank": 3,
+              "chunk_id": "8185508d80a35d0f4509e3bed8ca2e32cbdf755af19e2b8a8c2d6f24bc227f71",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)"
+              ],
+              "score": 0.029199
+            },
+            {
+              "rank": 4,
+              "chunk_id": "65b0828ceecb2256bef8f6f42a5dbf8f7d4968a5d8bb5f891c819e504b580a7a",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.6 구독 플랜 목록"
+              ],
+              "score": 0.029031
+            },
+            {
+              "rank": 5,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 0.028893
+            }
+          ]
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "aee1289523b6d3a56afbb1ef2f07946ea330983ebd8b9901564ee5fc47620e3e",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "paddle"
+              ],
+              "score": 0.030415
+            },
+            {
+              "rank": 2,
+              "chunk_id": "53ca85588328f4c928c88c39fe4c3405e68a3c6c87406e3637a24fbfbe9c73fc",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "syncSubscription"
+              ],
+              "score": 0.030214
+            },
+            {
+              "rank": 3,
+              "chunk_id": "a662caa4221d039a006d5464feefd3e077587c83d54be76d150758e0cfe132c2",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "process"
+              ],
+              "score": 0.029572
+            },
+            {
+              "rank": 4,
+              "chunk_id": "220b923d84f58915f38e678b54b8731f7bc8c637d53b76f669f4e958f7680f59",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "8. 내 말로 설명하기"
+              ],
+              "score": 0.016393
+            },
+            {
+              "rank": 5,
+              "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePastDue"
+              ],
+              "score": 0.016393
+            }
+          ]
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "isStaleExternalEvent"
+              ],
+              "score": 0.032787
+            },
+            {
+              "rank": 2,
+              "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePastDue"
+              ],
+              "score": 0.031514
+            },
+            {
+              "rank": 3,
+              "chunk_id": "1c52bfedb410e70f8501e699b1836f9b9d40e03c30acf9f02e3a628188eec923",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleSuspended"
+              ],
+              "score": 0.030777
+            },
+            {
+              "rank": 4,
+              "chunk_id": "0dff51b7737eb6f0bfa1eb3de7c390c5c5cbf65219630ee6894699282f8cb618",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleActive"
+              ],
+              "score": 0.030366
+            },
+            {
+              "rank": 5,
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleCanceled"
+              ],
+              "score": 0.03031
+            }
+          ]
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 0.032266
+            },
+            {
+              "rank": 2,
+              "chunk_id": "1cf43254d752981f2e2ed50ef974ea45bda437b23ed4b63a5f4567adbdc134a9",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위",
+                "현재 장점"
+              ],
+              "score": 0.031258
+            },
+            {
+              "rank": 3,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 0.030478
+            },
+            {
+              "rank": 4,
+              "chunk_id": "2deb12717f249f97b7ccf150d67394fa1621f2885b2f07775d20c9fe9fcde50c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.5 결제 이력 조회"
+              ],
+              "score": 0.030018
+            },
+            {
+              "rank": 5,
+              "chunk_id": "cabbc17eeb0b4905ed9a06b286ada3ba5ae2f81f20e87db734f92071c008ce23",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "7. 코드 근거와 테스트"
+              ],
+              "score": 0.029631
+            }
+          ]
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 9
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 0.032258
+            },
+            {
+              "rank": 2,
+              "chunk_id": "967395ad22240d9e433993814ddc0136911e66a2cb4f54c88b1a62b128266cbe",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "7. WebSocket (실시간 알림)",
+                "구독 채널"
+              ],
+              "score": 0.030478
+            },
+            {
+              "rank": 3,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 0.029514
+            },
+            {
+              "rank": 4,
+              "chunk_id": "65b0828ceecb2256bef8f6f42a5dbf8f7d4968a5d8bb5f891c819e504b580a7a",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.6 구독 플랜 목록"
+              ],
+              "score": 0.029418
+            },
+            {
+              "rank": 5,
+              "chunk_id": "2deb12717f249f97b7ccf150d67394fa1621f2885b2f07775d20c9fe9fcde50c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.5 결제 이력 조회"
+              ],
+              "score": 0.029274
+            }
+          ]
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e6776842327340950d01ed0b50cd62086c67ebcac1cb58cf1c28bed6cdf72950",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluatePriceOutliers"
+              ],
+              "score": 0.031319
+            },
+            {
+              "rank": 2,
+              "chunk_id": "ce8b51e746aaa67326be16b617bf0939f690bd69f6d85a6b1c7b28360bf08521",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.3 랭킹 기준"
+              ],
+              "score": 0.031258
+            },
+            {
+              "rank": 3,
+              "chunk_id": "7e11cd37f43ecab84005b56a2c3fda59241698885e7b1d54fee2550d9269abf7",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.2 차트 집계 기준"
+              ],
+              "score": 0.03125
+            },
+            {
+              "rank": 4,
+              "chunk_id": "45e16bb83a6339b2305dfe115f5cc353c70304842ae4dbeb352e1dd1347e183d",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "구현 시 주의사항",
+                "가격/시세"
+              ],
+              "score": 0.030886
+            },
+            {
+              "rank": 5,
+              "chunk_id": "2eec1943b1dbe147a1ad75a623d44882a8716290066219f9ca01c77430ccfbb8",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "구현 시 주의사항",
+                "가격/시세"
+              ],
+              "score": 0.030415
+            }
+          ]
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "65e089fecb30ce33ad7992d5cf2e7f9e7f5c1457711953123dea339e6fc38be1",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluateCollectDrop"
+              ],
+              "score": 0.032787
+            },
+            {
+              "rank": 2,
+              "chunk_id": "a70fd8393413b144bafc30f93489e0f7c673168e6f88117b5725c0e35c0fdfa6",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "6. 수집기(Collector) 상세 설계",
+                "소스별 수집 방식 (실측)"
+              ],
+              "score": 0.031281
+            },
+            {
+              "rank": 3,
+              "chunk_id": "367399f6353438b5df7c9f55e639e0ae5248597aacd375fd53349d61a94f8814",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 0.03031
+            },
+            {
+              "rank": 4,
+              "chunk_id": "4d82133482278d28a7ab4dcdc0fccbc77ab4ff30a74d21f4773b884125164b35",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "0. collect_run"
+              ],
+              "score": 0.030018
+            },
+            {
+              "rank": 5,
+              "chunk_id": "c26827fdacf35022e1a492648a43bf239adbb5acec92751c1d23580c5b7291ba",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "7. WebSocket 알림 흐름",
+                "알림 트리거 흐름"
+              ],
+              "score": 0.028986
+            }
+          ]
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 14
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 0.032787
+            },
+            {
+              "rank": 2,
+              "chunk_id": "11cd4aff1e1e109e4e780170908bd2a92470ea8d9f0e85ee703d2139f8846690",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "상태값 정책",
+                "SubscriptionStatus"
+              ],
+              "score": 0.032002
+            },
+            {
+              "rank": 3,
+              "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.3 내 구독 상태 조회"
+              ],
+              "score": 0.031025
+            },
+            {
+              "rank": 4,
+              "chunk_id": "e0535b0671f4d5d42149b5964d598e1b5fd20fdcb068e262d1f02b4c68cc2231",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "남은 개선 대상"
+              ],
+              "score": 0.029644
+            },
+            {
+              "rank": 5,
+              "chunk_id": "a986c2bccbede6a7702278fc33b28e787835602ac99519fffd1e6d25ea7e651c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 0.028372
+            }
+          ]
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 7,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 5
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": null,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 5
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "c7faf6cee3f70bbf0b64af228610ba634c5ea1e64a470c9eb6f41e1000e3236e",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "6. 말하면 안 되는 문장"
+              ],
+              "score": 0.032522
+            },
+            {
+              "rank": 2,
+              "chunk_id": "13bb40579b690f96312a2eb222b0fddcc7869852c4191e0f9c26ac697637588f",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "2. 최초 결제 전체 흐름",
+                "외부 호출 2: 최초 결제 승인"
+              ],
+              "score": 0.031746
+            },
+            {
+              "rank": 3,
+              "chunk_id": "1819176197978ff42ed51bc3d0d58a2bef98713d334ff5c3aad471a54a18a4a1",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위"
+              ],
+              "score": 0.031545
+            },
+            {
+              "rank": 4,
+              "chunk_id": "220b923d84f58915f38e678b54b8731f7bc8c637d53b76f669f4e958f7680f59",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "8. 내 말로 설명하기"
+              ],
+              "score": 0.031281
+            },
+            {
+              "rank": 5,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 0.03125
+            }
+          ]
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "62e9e7313ddaff0e20069f63cb2854d3000f62ee3bc1a9b2a53ded49c48fd7ae",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "홈페이지·구매 흐름"
+              ],
+              "score": 0.032787
+            },
+            {
+              "rank": 2,
+              "chunk_id": "f0d4f919cd5cd2d6f4c0603c20a62ab28489f8e6ec403a6ccb4f60c95bd70639",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "운영 준비"
+              ],
+              "score": 0.031754
+            },
+            {
+              "rank": 3,
+              "chunk_id": "57fbd60d005df54e3b39714d386003a39722060cf9c95ed4dcd2f8c74cc96653",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목"
+              ],
+              "score": 0.031281
+            },
+            {
+              "rank": 4,
+              "chunk_id": "f2a6b13f9e3794a12b1b74db03dc7a74be166cc5d325752b23b325b921dfa8fe",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "기준"
+              ],
+              "score": 0.031025
+            },
+            {
+              "rank": 5,
+              "chunk_id": "9b67c99ac7a368f6baa08c88ed97521b6b35231fc9a4325ffa1c0fc3c32b1174",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검"
+              ],
+              "score": 0.03101
+            }
+          ]
+        }
+      ]
+    },
+    "vector+rerank": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.7,
+        "all_evidence_rate": 0.7,
+        "mrr": 0.4783,
+        "found_cases": 7,
+        "all_evidence_cases": 7
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.9,
+        "all_evidence_rate": 0.9,
+        "mrr": 0.5478,
+        "found_cases": 9,
+        "all_evidence_cases": 9
+      },
+      "elapsed_seconds": 30.508,
+      "seconds_per_question": 3.051,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "fcafe89e59c6fb5cef21a5ec62e3df8717418e3618da33fb3a5c2133a1d8d727",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "8. subscription"
+              ],
+              "score": 0.003358
+            },
+            {
+              "rank": 2,
+              "chunk_id": "f18ee9a921c36fecb1d5b7556e91306b9e18dc523dc0d725e92d7ae27c38afd9",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.2 빌링 키 발급 + 첫 결제 + 구독 등록 (콜백)"
+              ],
+              "score": 0.00254
+            },
+            {
+              "rank": 3,
+              "chunk_id": "26a2141a1a400fd87e5af89eaa531a146f7f69489928691fe36b822c1276e452",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "1. 공통 규칙",
+                "인증"
+              ],
+              "score": 0.00219
+            },
+            {
+              "rank": 4,
+              "chunk_id": "a986c2bccbede6a7702278fc33b28e787835602ac99519fffd1e6d25ea7e651c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 0.001938
+            },
+            {
+              "rank": 5,
+              "chunk_id": "d1f472303469f6279a10fb38e2772c5b8ba8f0d13515d5b129df72456ef30ee5",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.4 watchlist 목표가 알림 조건"
+              ],
+              "score": 0.001565
+            }
+          ]
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 20
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "53ca85588328f4c928c88c39fe4c3405e68a3c6c87406e3637a24fbfbe9c73fc",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "syncSubscription"
+              ],
+              "score": 0.211975
+            },
+            {
+              "rank": 2,
+              "chunk_id": "b3d0e1b88101480576bf9d147d490475a8739f7e64595f502c9b8bc2ed5a5e3c",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "completeTransaction"
+              ],
+              "score": 0.080751
+            },
+            {
+              "rank": 3,
+              "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePastDue"
+              ],
+              "score": 0.080075
+            },
+            {
+              "rank": 4,
+              "chunk_id": "a662caa4221d039a006d5464feefd3e077587c83d54be76d150758e0cfe132c2",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "process"
+              ],
+              "score": 0.054
+            },
+            {
+              "rank": 5,
+              "chunk_id": "0dff51b7737eb6f0bfa1eb3de7c390c5c5cbf65219630ee6894699282f8cb618",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleActive"
+              ],
+              "score": 0.043098
+            }
+          ]
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "isStaleExternalEvent"
+              ],
+              "score": 0.434681
+            },
+            {
+              "rank": 2,
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleCanceled"
+              ],
+              "score": 0.257685
+            },
+            {
+              "rank": 3,
+              "chunk_id": "964e72b32680d3077b198ad5738482d9c9c5d453e34b9893c742cce7d44d95c1",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "schedulePaddleCancellation"
+              ],
+              "score": 0.243663
+            },
+            {
+              "rank": 4,
+              "chunk_id": "761ff02e7f6e6c9b28898790d48967fafc9b76fdaf397203a48b9d113b3b36de",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePaymentFailed"
+              ],
+              "score": 0.242196
+            },
+            {
+              "rank": 5,
+              "chunk_id": "0dff51b7737eb6f0bfa1eb3de7c390c5c5cbf65219630ee6894699282f8cb618",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleActive"
+              ],
+              "score": 0.219821
+            }
+          ]
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": 19
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 0.171785
+            },
+            {
+              "rank": 2,
+              "chunk_id": "a0dc7b1dee5a3965fd3c227e763ad4bc11a5316c9a1cdeb69cac1e3f1b019248",
+              "source_uri": "src/main/java/com/membershipflow/subscription/scheduler/BillingScheduler.java",
+              "path": [
+                "com.membershipflow.subscription.scheduler",
+                "BillingScheduler",
+                "processDueBillings"
+              ],
+              "score": 0.056476
+            },
+            {
+              "rank": 3,
+              "chunk_id": "6cd41a61ef2a9c4fd75394ce76c9c144770d8070f00d5ce19481cc8297e63b18",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "현재 구현 확인"
+              ],
+              "score": 0.055948
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1819176197978ff42ed51bc3d0d58a2bef98713d334ff5c3aad471a54a18a4a1",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위"
+              ],
+              "score": 0.046078
+            },
+            {
+              "rank": 5,
+              "chunk_id": "fcafe89e59c6fb5cef21a5ec62e3df8717418e3618da33fb3a5c2133a1d8d727",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "8. subscription"
+              ],
+              "score": 0.041304
+            }
+          ]
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 4
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "fcafe89e59c6fb5cef21a5ec62e3df8717418e3618da33fb3a5c2133a1d8d727",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "8. subscription"
+              ],
+              "score": 0.035849
+            },
+            {
+              "rank": 2,
+              "chunk_id": "3267201aae9d11a85ceb8b7fcce8b58871de10d37b616df0a5ae7622ec751c9c",
+              "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+              "path": [
+                "com.membershipflow.subscription.repository",
+                "SubscriptionRepository",
+                "findByMemberIdForUpdate"
+              ],
+              "score": 0.028473
+            },
+            {
+              "rank": 3,
+              "chunk_id": "26a2141a1a400fd87e5af89eaa531a146f7f69489928691fe36b822c1276e452",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "1. 공통 규칙",
+                "인증"
+              ],
+              "score": 0.026317
+            },
+            {
+              "rank": 4,
+              "chunk_id": "13ee9914f4375c0ea3fc43b7e91fd6ef072c5eff6db85a2a83aa29ef620f3697",
+              "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+              "path": [
+                "com.membershipflow.subscription.repository",
+                "SubscriptionRepository",
+                "findByIdForUpdate"
+              ],
+              "score": 0.022776
+            },
+            {
+              "rank": 5,
+              "chunk_id": "ad399dddb77b7180436b55acb06b0e71ce069707da4f7898b8bc5027597155e2",
+              "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+              "path": [
+                "com.membershipflow.subscription.repository",
+                "SubscriptionRepository",
+                "findByExternalSubscriptionIdForUpdate"
+              ],
+              "score": 0.013263
+            }
+          ]
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e6776842327340950d01ed0b50cd62086c67ebcac1cb58cf1c28bed6cdf72950",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluatePriceOutliers"
+              ],
+              "score": 0.865725
+            },
+            {
+              "rank": 2,
+              "chunk_id": "b5047ee429b7d488d593655ef4183fe819490a7ca8ad84f5f662d0d0016d85d7",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "checkPriceOutliers"
+              ],
+              "score": 0.562372
+            },
+            {
+              "rank": 3,
+              "chunk_id": "45e16bb83a6339b2305dfe115f5cc353c70304842ae4dbeb352e1dd1347e183d",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "구현 시 주의사항",
+                "가격/시세"
+              ],
+              "score": 0.05422
+            },
+            {
+              "rank": 4,
+              "chunk_id": "7e11cd37f43ecab84005b56a2c3fda59241698885e7b1d54fee2550d9269abf7",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.2 차트 집계 기준"
+              ],
+              "score": 0.024181
+            },
+            {
+              "rank": 5,
+              "chunk_id": "ae04073d65caba0c00bf4ebcbd288fd5b3451dae935ac2c817a522fdf55846ec",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.1 최신가 기준"
+              ],
+              "score": 0.021171
+            }
+          ]
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "65e089fecb30ce33ad7992d5cf2e7f9e7f5c1457711953123dea339e6fc38be1",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluateCollectDrop"
+              ],
+              "score": 0.711347
+            },
+            {
+              "rank": 2,
+              "chunk_id": "7a235dfd6f7059ebd17ef5fca73e23959bd567dd5b465871a52abf5c61e18166",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "checkCollectDrop"
+              ],
+              "score": 0.017543
+            },
+            {
+              "rank": 3,
+              "chunk_id": "367399f6353438b5df7c9f55e639e0ae5248597aacd375fd53349d61a94f8814",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 0.014886
+            },
+            {
+              "rank": 4,
+              "chunk_id": "4d82133482278d28a7ab4dcdc0fccbc77ab4ff30a74d21f4773b884125164b35",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "0. collect_run"
+              ],
+              "score": 0.006827
+            },
+            {
+              "rank": 5,
+              "chunk_id": "c26827fdacf35022e1a492648a43bf239adbb5acec92751c1d23580c5b7291ba",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "7. WebSocket 알림 흐름",
+                "알림 트리거 흐름"
+              ],
+              "score": 0.001919
+            }
+          ]
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 8
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 5
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 0.564676
+            },
+            {
+              "rank": 2,
+              "chunk_id": "11cd4aff1e1e109e4e780170908bd2a92470ea8d9f0e85ee703d2139f8846690",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "상태값 정책",
+                "SubscriptionStatus"
+              ],
+              "score": 0.247673
+            },
+            {
+              "rank": 3,
+              "chunk_id": "964e72b32680d3077b198ad5738482d9c9c5d453e34b9893c742cce7d44d95c1",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "schedulePaddleCancellation"
+              ],
+              "score": 0.021424
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleCanceled"
+              ],
+              "score": 0.016883
+            },
+            {
+              "rank": 5,
+              "chunk_id": "5f12d365d8d5529140f8548674c5fa82ef5ac283815747b2c6c3847b1c65b7e2",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "isActiveAt"
+              ],
+              "score": 0.013589
+            }
+          ]
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 9,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 4
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 5,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 3
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "c7faf6cee3f70bbf0b64af228610ba634c5ea1e64a470c9eb6f41e1000e3236e",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "6. 말하면 안 되는 문장"
+              ],
+              "score": 0.967941
+            },
+            {
+              "rank": 2,
+              "chunk_id": "1819176197978ff42ed51bc3d0d58a2bef98713d334ff5c3aad471a54a18a4a1",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위"
+              ],
+              "score": 0.917696
+            },
+            {
+              "rank": 3,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 0.901487
+            },
+            {
+              "rank": 4,
+              "chunk_id": "c3e278dc055a8fb3ee0608c87f18c8392483f66515a531c2c59faa57fc8623f3",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위",
+                "현재 한계"
+              ],
+              "score": 0.745158
+            },
+            {
+              "rank": 5,
+              "chunk_id": "28431d23704b7b8ac10b4b4a1a83e0323193b29824e5886fcf81a142ce9de103",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "최초 결제"
+              ],
+              "score": 0.629054
+            }
+          ]
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "62e9e7313ddaff0e20069f63cb2854d3000f62ee3bc1a9b2a53ded49c48fd7ae",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "홈페이지·구매 흐름"
+              ],
+              "score": 0.992273
+            },
+            {
+              "rank": 2,
+              "chunk_id": "f0d4f919cd5cd2d6f4c0603c20a62ab28489f8e6ec403a6ccb4f60c95bd70639",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "운영 준비"
+              ],
+              "score": 0.958672
+            },
+            {
+              "rank": 3,
+              "chunk_id": "6751d2b953e231570a8d5255dbb9583d94c559f119bff6f134d527a211bc3907",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "승인과 코드 검증의 경계"
+              ],
+              "score": 0.614985
+            },
+            {
+              "rank": 4,
+              "chunk_id": "57fbd60d005df54e3b39714d386003a39722060cf9c95ed4dcd2f8c74cc96653",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목"
+              ],
+              "score": 0.364836
+            },
+            {
+              "rank": 5,
+              "chunk_id": "6cd41a61ef2a9c4fd75394ce76c9c144770d8070f00d5ce19481cc8297e63b18",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "현재 구현 확인"
+              ],
+              "score": 0.293797
+            }
+          ]
+        }
+      ]
+    },
+    "hybrid+rerank": {
+      "topk": {
+        "cases": 10,
+        "recall_at_k": 0.7,
+        "all_evidence_rate": 0.7,
+        "mrr": 0.4733,
+        "found_cases": 7,
+        "all_evidence_cases": 7
+      },
+      "pool": {
+        "cases": 10,
+        "recall_at_k": 0.7,
+        "all_evidence_rate": 0.7,
+        "mrr": 0.4383,
+        "found_cases": 7,
+        "all_evidence_cases": 7
+      },
+      "elapsed_seconds": 27.833,
+      "seconds_per_question": 2.783,
+      "cases": [
+        {
+          "id": "ret-001",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "fcafe89e59c6fb5cef21a5ec62e3df8717418e3618da33fb3a5c2133a1d8d727",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "8. subscription"
+              ],
+              "score": 0.003358
+            },
+            {
+              "rank": 2,
+              "chunk_id": "f18ee9a921c36fecb1d5b7556e91306b9e18dc523dc0d725e92d7ae27c38afd9",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.2 빌링 키 발급 + 첫 결제 + 구독 등록 (콜백)"
+              ],
+              "score": 0.00254
+            },
+            {
+              "rank": 3,
+              "chunk_id": "26a2141a1a400fd87e5af89eaa531a146f7f69489928691fe36b822c1276e452",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "1. 공통 규칙",
+                "인증"
+              ],
+              "score": 0.00219
+            },
+            {
+              "rank": 4,
+              "chunk_id": "e379bbfd539bdc7ba7ab8237c08a1c2d08390af5b33f21c2af503c9aaaee8340",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "테이블별 역할 요약"
+              ],
+              "score": 0.002166
+            },
+            {
+              "rank": 5,
+              "chunk_id": "a986c2bccbede6a7702278fc33b28e787835602ac99519fffd1e6d25ea7e651c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 0.001938
+            }
+          ]
+        },
+        {
+          "id": "ret-002",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "53ca85588328f4c928c88c39fe4c3405e68a3c6c87406e3637a24fbfbe9c73fc",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "syncSubscription"
+              ],
+              "score": 0.211975
+            },
+            {
+              "rank": 2,
+              "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePastDue"
+              ],
+              "score": 0.080075
+            },
+            {
+              "rank": 3,
+              "chunk_id": "a662caa4221d039a006d5464feefd3e077587c83d54be76d150758e0cfe132c2",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "process"
+              ],
+              "score": 0.054
+            },
+            {
+              "rank": 4,
+              "chunk_id": "0dff51b7737eb6f0bfa1eb3de7c390c5c5cbf65219630ee6894699282f8cb618",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleActive"
+              ],
+              "score": 0.043098
+            },
+            {
+              "rank": 5,
+              "chunk_id": "4935f122df234394fd59c6c053a5204be2e7d4f8262214bb9d6d68abbb64e539",
+              "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+              "path": [
+                "com.membershipflow.subscription.service",
+                "PaddleWebhookService",
+                "completeRenewal"
+              ],
+              "score": 0.030831
+            }
+          ]
+        },
+        {
+          "id": "ret-003",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isStaleExternalEvent": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "isStaleExternalEvent"
+              ],
+              "score": 0.434681
+            },
+            {
+              "rank": 2,
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleCanceled"
+              ],
+              "score": 0.257685
+            },
+            {
+              "rank": 3,
+              "chunk_id": "964e72b32680d3077b198ad5738482d9c9c5d453e34b9893c742cce7d44d95c1",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "schedulePaddleCancellation"
+              ],
+              "score": 0.243663
+            },
+            {
+              "rank": 4,
+              "chunk_id": "761ff02e7f6e6c9b28898790d48967fafc9b76fdaf397203a48b9d113b3b36de",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddlePaymentFailed"
+              ],
+              "score": 0.242196
+            },
+            {
+              "rank": 5,
+              "chunk_id": "0dff51b7737eb6f0bfa1eb3de7c390c5c5cbf65219630ee6894699282f8cb618",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleActive"
+              ],
+              "score": 0.219821
+            }
+          ]
+        },
+        {
+          "id": "ret-004",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findDueForBilling": null
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 0.171785
+            },
+            {
+              "rank": 2,
+              "chunk_id": "a0dc7b1dee5a3965fd3c227e763ad4bc11a5316c9a1cdeb69cac1e3f1b019248",
+              "source_uri": "src/main/java/com/membershipflow/subscription/scheduler/BillingScheduler.java",
+              "path": [
+                "com.membershipflow.subscription.scheduler",
+                "BillingScheduler",
+                "processDueBillings"
+              ],
+              "score": 0.056476
+            },
+            {
+              "rank": 3,
+              "chunk_id": "6cd41a61ef2a9c4fd75394ce76c9c144770d8070f00d5ce19481cc8297e63b18",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "현재 구현 확인"
+              ],
+              "score": 0.055948
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1819176197978ff42ed51bc3d0d58a2bef98713d334ff5c3aad471a54a18a4a1",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위"
+              ],
+              "score": 0.046078
+            },
+            {
+              "rank": 5,
+              "chunk_id": "fcafe89e59c6fb5cef21a5ec62e3df8717418e3618da33fb3a5c2133a1d8d727",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "8. subscription"
+              ],
+              "score": 0.041304
+            }
+          ]
+        },
+        {
+          "id": "ret-005",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 9
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java#SubscriptionRepository > findByIdForUpdate": 5
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "fcafe89e59c6fb5cef21a5ec62e3df8717418e3618da33fb3a5c2133a1d8d727",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "8. subscription"
+              ],
+              "score": 0.035849
+            },
+            {
+              "rank": 2,
+              "chunk_id": "234e0bdfc7561d8965aa31572a71138c40838cd9262f1f5ad140104a56ce714c",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "2. 최초 결제 전체 흐름"
+              ],
+              "score": 0.035346
+            },
+            {
+              "rank": 3,
+              "chunk_id": "3267201aae9d11a85ceb8b7fcce8b58871de10d37b616df0a5ae7622ec751c9c",
+              "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+              "path": [
+                "com.membershipflow.subscription.repository",
+                "SubscriptionRepository",
+                "findByMemberIdForUpdate"
+              ],
+              "score": 0.028473
+            },
+            {
+              "rank": 4,
+              "chunk_id": "26a2141a1a400fd87e5af89eaa531a146f7f69489928691fe36b822c1276e452",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "1. 공통 규칙",
+                "인증"
+              ],
+              "score": 0.026317
+            },
+            {
+              "rank": 5,
+              "chunk_id": "13ee9914f4375c0ea3fc43b7e91fd6ef072c5eff6db85a2a83aa29ef620f3697",
+              "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+              "path": [
+                "com.membershipflow.subscription.repository",
+                "SubscriptionRepository",
+                "findByIdForUpdate"
+              ],
+              "score": 0.022776
+            }
+          ]
+        },
+        {
+          "id": "ret-006",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluatePriceOutliers": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "e6776842327340950d01ed0b50cd62086c67ebcac1cb58cf1c28bed6cdf72950",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluatePriceOutliers"
+              ],
+              "score": 0.865725
+            },
+            {
+              "rank": 2,
+              "chunk_id": "b5047ee429b7d488d593655ef4183fe819490a7ca8ad84f5f662d0d0016d85d7",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "checkPriceOutliers"
+              ],
+              "score": 0.562372
+            },
+            {
+              "rank": 3,
+              "chunk_id": "45e16bb83a6339b2305dfe115f5cc353c70304842ae4dbeb352e1dd1347e183d",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "구현 시 주의사항",
+                "가격/시세"
+              ],
+              "score": 0.05422
+            },
+            {
+              "rank": 4,
+              "chunk_id": "7e11cd37f43ecab84005b56a2c3fda59241698885e7b1d54fee2550d9269abf7",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.2 차트 집계 기준"
+              ],
+              "score": 0.024181
+            },
+            {
+              "rank": 5,
+              "chunk_id": "ae04073d65caba0c00bf4ebcbd288fd5b3451dae935ac2c817a522fdf55846ec",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "2. 도메인 처리 규칙",
+                "2.1 최신가 기준"
+              ],
+              "score": 0.021171
+            }
+          ]
+        },
+        {
+          "id": "ret-007",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java#AnomalyDetectionService > evaluateCollectDrop": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "65e089fecb30ce33ad7992d5cf2e7f9e7f5c1457711953123dea339e6fc38be1",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "evaluateCollectDrop"
+              ],
+              "score": 0.711347
+            },
+            {
+              "rank": 2,
+              "chunk_id": "7a235dfd6f7059ebd17ef5fca73e23959bd567dd5b465871a52abf5c61e18166",
+              "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+              "path": [
+                "com.membershipflow.collect.service",
+                "AnomalyDetectionService",
+                "checkCollectDrop"
+              ],
+              "score": 0.017543
+            },
+            {
+              "rank": 3,
+              "chunk_id": "367399f6353438b5df7c9f55e639e0ae5248597aacd375fd53349d61a94f8814",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "5. Prices (시세)",
+                "5.1 시세 차트 데이터"
+              ],
+              "score": 0.014886
+            },
+            {
+              "rank": 4,
+              "chunk_id": "4d82133482278d28a7ab4dcdc0fccbc77ab4ff30a74d21f4773b884125164b35",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "MySQL DDL",
+                "0. collect_run"
+              ],
+              "score": 0.006827
+            },
+            {
+              "rank": 5,
+              "chunk_id": "c26827fdacf35022e1a492648a43bf239adbb5acec92751c1d23580c5b7291ba",
+              "source_uri": "docs/03-ARCHITECTURE.md",
+              "path": [
+                "03 — 아키텍처 (상세 설계)",
+                "7. WebSocket 알림 흐름",
+                "알림 트리거 흐름"
+              ],
+              "score": 0.001919
+            }
+          ]
+        },
+        {
+          "id": "ret-008",
+          "pool_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 14
+          },
+          "final_rank": {
+            "src/main/java/com/membershipflow/subscription/entity/Subscription.java#Subscription > isActiveAt": 5
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+              "source_uri": "docs/API.md",
+              "path": [
+                "MembershipFlow MVP API 명세",
+                "8. Subscriptions (구독 결제)",
+                "8.4 구독 취소"
+              ],
+              "score": 0.564676
+            },
+            {
+              "rank": 2,
+              "chunk_id": "11cd4aff1e1e109e4e780170908bd2a92470ea8d9f0e85ee703d2139f8846690",
+              "source_uri": "docs/ERD.md",
+              "path": [
+                "MembershipFlow MVP ERD",
+                "상태값 정책",
+                "SubscriptionStatus"
+              ],
+              "score": 0.247673
+            },
+            {
+              "rank": 3,
+              "chunk_id": "964e72b32680d3077b198ad5738482d9c9c5d453e34b9893c742cce7d44d95c1",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "schedulePaddleCancellation"
+              ],
+              "score": 0.021424
+            },
+            {
+              "rank": 4,
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "syncPaddleCanceled"
+              ],
+              "score": 0.016883
+            },
+            {
+              "rank": 5,
+              "chunk_id": "5f12d365d8d5529140f8548674c5fa82ef5ac283815747b2c6c3847b1c65b7e2",
+              "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+              "path": [
+                "com.membershipflow.subscription.entity",
+                "Subscription",
+                "isActiveAt"
+              ],
+              "score": 0.013589
+            }
+          ]
+        },
+        {
+          "id": "ret-009",
+          "pool_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 7,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 5
+          },
+          "final_rank": {
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 최초 결제": 5,
+            "docs/learning/PAYMENT-TRANSACTION-FLOW.md#5. 면접 답변 > 정기결제": 3
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "c7faf6cee3f70bbf0b64af228610ba634c5ea1e64a470c9eb6f41e1000e3236e",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "6. 말하면 안 되는 문장"
+              ],
+              "score": 0.967941
+            },
+            {
+              "rank": 2,
+              "chunk_id": "1819176197978ff42ed51bc3d0d58a2bef98713d334ff5c3aad471a54a18a4a1",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위"
+              ],
+              "score": 0.917696
+            },
+            {
+              "rank": 3,
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "정기결제"
+              ],
+              "score": 0.901487
+            },
+            {
+              "rank": 4,
+              "chunk_id": "c3e278dc055a8fb3ee0608c87f18c8392483f66515a531c2c59faa57fc8623f3",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "4. 정기결제 트랜잭션 범위",
+                "현재 한계"
+              ],
+              "score": 0.745158
+            },
+            {
+              "rank": 5,
+              "chunk_id": "28431d23704b7b8ac10b4b4a1a83e0323193b29824e5886fcf81a142ce9de103",
+              "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+              "path": [
+                "MembershipFlow 결제 트랜잭션 이해 문서",
+                "5. 면접 답변",
+                "최초 결제"
+              ],
+              "score": 0.629054
+            }
+          ]
+        },
+        {
+          "id": "ret-010",
+          "pool_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "final_rank": {
+            "docs/operations/toss-billing-review-readiness.md#심사 전 차단 항목 > 홈페이지·구매 흐름": 1
+          },
+          "top5": [
+            {
+              "rank": 1,
+              "chunk_id": "62e9e7313ddaff0e20069f63cb2854d3000f62ee3bc1a9b2a53ded49c48fd7ae",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "홈페이지·구매 흐름"
+              ],
+              "score": 0.992273
+            },
+            {
+              "rank": 2,
+              "chunk_id": "f0d4f919cd5cd2d6f4c0603c20a62ab28489f8e6ec403a6ccb4f60c95bd70639",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목",
+                "운영 준비"
+              ],
+              "score": 0.958672
+            },
+            {
+              "rank": 3,
+              "chunk_id": "6751d2b953e231570a8d5255dbb9583d94c559f119bff6f134d527a211bc3907",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "승인과 코드 검증의 경계"
+              ],
+              "score": 0.614985
+            },
+            {
+              "rank": 4,
+              "chunk_id": "57fbd60d005df54e3b39714d386003a39722060cf9c95ed4dcd2f8c74cc96653",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "심사 전 차단 항목"
+              ],
+              "score": 0.364836
+            },
+            {
+              "rank": 5,
+              "chunk_id": "6cd41a61ef2a9c4fd75394ce76c9c144770d8070f00d5ce19481cc8297e63b18",
+              "source_uri": "docs/operations/toss-billing-review-readiness.md",
+              "path": [
+                "TossPayments 자동결제 심사 준비 점검",
+                "현재 구현 확인"
+              ],
+              "score": 0.293797
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "physical_index": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d",
+  "identity": {
+    "embedding_model": "BAAI/bge-m3",
+    "embedding_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "schema_revision": "2",
+    "dimension": 1024,
+    "snapshot_revision": "1",
+    "mapping_dims": 1024
+  },
+  "doc_count": 317,
+  "embedding_model": "BAAI/bge-m3",
+  "embedding_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+  "reranker_model": "BAAI/bge-reranker-v2-m3",
+  "reranker_revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+  "pool_identical_to_base": {
+    "vector+rerank": true,
+    "hybrid+rerank": true
+  }
+}
