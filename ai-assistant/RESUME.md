@@ -87,9 +87,13 @@
 
 1. **Slack 실제 사용자 멘션 1건 왕복 검증.** 지금은 등록 핸들러 테스트만 했다.
    실제 사람이 멘션했을 때 전달·응답이 되는지 확인 안 됨
+   → 남은 조건: `docs/operations/SLACK-E2E-READINESS.md` (2026-09-22 확인)
 2. **검색 평가 라벨 검토.** `evals/retrieval/LABEL-REVIEW.md`. 특히 ret-006 의
    질문 범위와 median 근거 포함 여부가 미정. **자동 승인하지 말 것**
+   → ret-006 근거 분석과 최소 수정안: `evals/retrieval/RET-006-EVIDENCE.md`
 3. **독립 평가셋.** 기존 held_out 5건은 개발 중 노출돼 최종 평가로 못 쓴다.
    새 평가셋과 완료 기준을 먼저 정한 뒤에 추가 검색 실험을 할 것
+   → 판정 기준과 실행 명령: `evals/retrieval/INDEPENDENT-EVALSET-PLAN.md`
 
-실험을 더 늘리는 것보다 위 3개가 먼저다.
+실험을 더 늘리는 것보다 위 3개가 먼저다. 위 세 문서는 자료이고 승인이 아니다.
+라벨 수정·`reviewed` 변경·서비스 기동은 사람이 한다.
