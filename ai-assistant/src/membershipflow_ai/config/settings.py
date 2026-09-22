@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
@@ -57,6 +58,25 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AI_SLACK_ALLOWED_CHANNEL_IDS", "SLACK_ALLOWED_CHANNEL_IDS"),
     )
 
+
+    @field_validator("jev_min_confidence", mode="before")
+    @classmethod
+    def _finite_unit_interval(cls, value: object) -> object:
+        """임계값은 0..1 유한 실수여야 한다.
+
+        NaN 은 모든 비교가 False 라 어떤 confidence 도 통과시킨다. 1 을 넘는
+        값은 전부 막는다. 둘 다 "검사가 도는 줄 알았는데 안 돌았다" 로 끝난다.
+        bool 은 int 의 서브클래스라 True 가 1.0 으로 새어 들어온다.
+        """
+        if isinstance(value, bool):
+            raise ValueError("jev_min_confidence must be a number, not a bool")
+        if isinstance(value, int | float):
+            number = float(value)
+            if not math.isfinite(number) or not 0.0 <= number <= 1.0:
+                raise ValueError(
+                    f"jev_min_confidence must be a finite number in [0, 1], got {value!r}"
+                )
+        return value
 
     @field_validator("jev_routing_mode")
     @classmethod

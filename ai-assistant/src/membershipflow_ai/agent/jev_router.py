@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 
@@ -31,6 +32,34 @@ ROUTE_CRITERIA: dict[str, str] = {
     "CLARIFY": "대상이나 요청 내용이 불분명해서 추가 질문이 필요.",
     "OUT_OF_SCOPE": "읽기 전용 범위 밖. 실제 삭제, 환불, 변경, 배포 등의 실행 요청.",
 }
+
+
+def parse_confidence(value: object) -> float | None:
+    """0..1 유한 실수만 confidence 로 인정한다. 아니면 None.
+
+    `isinstance(value, int | float)` 만 보면 셋이 새어 들어온다.
+    bool 은 int 의 서브클래스라 True 가 1.0 으로 통과하고, NaN 은 어떤 비교도
+    False 라 임계값 검사를 그냥 지나가며, 1 을 넘는 값은 임계값을 무의미하게
+    만든다. 확률 분포에서 나온 값이라는 계약을 여기서 지킨다.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    number = float(value)
+    if not math.isfinite(number) or not 0.0 <= number <= 1.0:
+        return None
+    return number
+
+
+def require_threshold(value: float) -> float:
+    """임계값도 같은 규칙으로 막는다. 설정을 거치지 않고 직접 만들 수 있다.
+
+    NaN 임계값은 모든 비교가 False 라 어떤 confidence 도 통과시킨다.
+    조용히 "검사 없음" 이 되는 것이 가장 나쁘다.
+    """
+    checked = parse_confidence(value)
+    if checked is None:
+        raise ValueError(f"min_confidence must be a finite number in [0, 1], got {value!r}")
+    return checked
 
 
 @dataclass(frozen=True)
@@ -86,7 +115,7 @@ class JevRouter:
         self._url = url
         self._model = model
         self._timeout = timeout_seconds
-        self._min_confidence = min_confidence
+        self._min_confidence = require_threshold(min_confidence)
         self._client = client
 
     async def _post(self, payload: dict[str, object]) -> httpx.Response:
@@ -156,16 +185,16 @@ class JevRouter:
         if not isinstance(answer, dict) or answer.get("type") != "choice":
             return rejected("malformed_answer")
         choice = answer.get("choice")
-        confidence = answer.get("confidence")
-        if not isinstance(choice, str) or not isinstance(confidence, int | float):
+        confidence = parse_confidence(answer.get("confidence"))
+        if not isinstance(choice, str) or confidence is None:
             return rejected("malformed_answer")
         if choice not in ROUTE_CRITERIA:
-            return rejected("unknown_choice", choice, float(confidence))
-        if float(confidence) < self._min_confidence:
-            return rejected("low_confidence", choice, float(confidence))
+            return rejected("unknown_choice", choice, confidence)
+        if confidence < self._min_confidence:
+            return rejected("low_confidence", choice, confidence)
         return JevDecision(
             route=Route(choice),
-            confidence=float(confidence),
+            confidence=confidence,
             model=model,
             usage=usage,
             elapsed_seconds=elapsed,

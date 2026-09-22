@@ -19,7 +19,7 @@ from pydantic import ValidationError
 
 from membershipflow_ai.agent.contracts import Route
 from membershipflow_ai.agent.graph import build_jev_router, classify
-from membershipflow_ai.agent.jev_router import JevRouter
+from membershipflow_ai.agent.jev_router import JevRouter, parse_confidence
 from membershipflow_ai.config.settings import Settings
 
 # 2026-09-21 live 실측에서 받은 것과 같은 형태의 응답.
@@ -146,6 +146,93 @@ async def test_malformed_answer_is_not_a_route(answer: dict[str, Any]) -> None:
     assert decision.failure == "malformed_answer"
 
 
+@pytest.mark.parametrize(
+    "confidence",
+    [
+        True,  # bool 은 int 의 서브클래스라 1.0 으로 새어 들어간다
+        False,
+        1.5,  # 확률이 아니면 임계값이 의미를 잃는다
+        -0.1,
+        "0.9",
+        None,
+    ],
+)
+async def test_confidence_outside_unit_interval_is_malformed(confidence: object) -> None:
+    body = json.loads(json.dumps(OK_BODY))
+    body["answers"]["route"]["confidence"] = confidence
+    decision = await router_for(respond(body)).classify("질문")
+    assert decision.route is None
+    assert decision.failure == "malformed_answer"
+
+
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity"])
+async def test_non_finite_confidence_literal_never_yields_a_route(literal: str) -> None:
+    """표준 JSON 이 아닌 NaN/Infinity 리터럴이 와도 경로를 내지 않는다.
+
+    NaN 이 confidence 로 통과하면 임계값 비교가 전부 False 라 어떤 응답도
+    저confidence 로 걸리지 않는다. 검사가 도는 줄 알았는데 안 도는 상태가 된다.
+
+    지금 쓰는 httpx 는 이 리터럴을 파싱 단계에서 거부해서 invalid_json 으로
+    막힌다. 본문을 읽지도 못하니 그 앞에서 끝난다. 다만 JSON 파서가 바뀌면
+    값이 그대로 들어올 수 있어 parse_confidence 쪽 방어도 따로 검증한다
+    (test_parse_confidence_rejects_non_finite).
+    """
+    raw = (
+        '{"model": "jev-1.13.0", "answers": {"route": {"type": "choice", '
+        f'"choice": "KNOWLEDGE", "confidence": {literal}}}}}'
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=raw.encode(), headers={"content-type": "application/json"}
+        )
+
+    decision = await router_for(handler).classify("질문")
+    assert decision.route is None
+    assert decision.failure in {"invalid_json", "malformed_answer"}
+
+
+@pytest.mark.parametrize(
+    "value", [float("nan"), float("inf"), float("-inf"), 1.5, -0.1, True, False, "0.9", None]
+)
+def test_parse_confidence_rejects_non_finite(value: object) -> None:
+    """파서를 거치지 않고 값이 직접 들어오는 경로의 방어."""
+    assert parse_confidence(value) is None
+
+
+@pytest.mark.parametrize("value", [0.0, 0.42, 1.0, 1])
+def test_parse_confidence_accepts_unit_interval(value: object) -> None:
+    assert parse_confidence(value) == float(value)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("confidence", [0.0, 1.0])
+async def test_confidence_endpoints_are_accepted(confidence: float) -> None:
+    body = json.loads(json.dumps(OK_BODY))
+    body["answers"]["route"]["confidence"] = confidence
+    decision = await router_for(respond(body), min_confidence=0.0).classify("질문")
+    assert decision.route is Route.KNOWLEDGE
+    assert decision.confidence == confidence
+
+
+async def test_confidence_exactly_at_threshold_passes() -> None:
+    body = json.loads(json.dumps(OK_BODY))
+    body["answers"]["route"]["confidence"] = 0.5
+    decision = await router_for(respond(body), min_confidence=0.5).classify("질문")
+    assert decision.route is Route.KNOWLEDGE
+
+
+@pytest.mark.parametrize(
+    "threshold", [float("nan"), float("inf"), 1.5, -0.1, True]
+)
+def test_bad_threshold_is_rejected_at_construction(threshold: object) -> None:
+    """설정을 거치지 않고 직접 만들어도 막는다.
+
+    NaN 임계값은 모든 비교가 False 라 어떤 confidence 도 통과시킨다.
+    """
+    with pytest.raises(ValueError, match="min_confidence"):
+        JevRouter(api_key="k", min_confidence=threshold)  # type: ignore[arg-type]
+
+
 async def test_unknown_choice_is_not_coerced() -> None:
     body = json.loads(json.dumps(OK_BODY))
     body["answers"]["route"]["choice"] = "REFUND"
@@ -249,6 +336,20 @@ def test_before_rules_mode_is_reported() -> None:
 def test_unknown_mode_is_rejected() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, jev_routing_mode="befor_rules")  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize(
+    "threshold", [float("nan"), float("inf"), float("-inf"), 1.5, -0.1, True]
+)
+def test_settings_rejects_bad_threshold(threshold: object) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, jev_min_confidence=threshold)  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("threshold", [0.0, 0.5, 1.0])
+def test_settings_accepts_unit_interval(threshold: float) -> None:
+    settings = Settings(_env_file=None, jev_min_confidence=threshold)  # type: ignore[call-arg]
+    assert settings.jev_min_confidence == threshold
 
 
 # --- 읽기 전용 계약 ------------------------------------------------------------
