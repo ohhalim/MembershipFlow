@@ -43,3 +43,53 @@
 - 실행 원본 JSON·이전 실패 기록·브랜치 보존
 - 재실행은 새 결과 디렉터리 사용. 기존 수치를 새 실험으로 덮어쓰지 않음
 - .env·토큰·로컬 PID를 저장소에 커밋하지 않음
+
+---
+
+# 추가 — 2026-09-22 Jev 질문 분류 검토 (이슈 #402)
+
+## 한 것
+
+- `agent/jev_router.py`: TypeSafe Jev choice 분류 어댑터. 타임아웃·HTTP 오류·
+  형식 오류·낮은 confidence 를 모두 "판단 없음"으로 처리하고 기존 경로로 폴백
+- `classify()` 에 선택적 `jev` 인자. 설정 `AI_JEV_ROUTING_MODE`
+  (`off` 기본 / `after_rules` / `before_rules`), `AI_JEV_MODEL`,
+  `AI_JEV_MIN_CONFIDENCE`. 키는 `TYPESAFE_API_KEY` 환경변수로만 받는다
+- `evals/experiments/jev-routing/compare.py`: 같은 12건을 갈래별로 태우는 비교 실행기
+- confidence 를 0..1 유한 실수로 엄격 검증. bool·NaN·범위 밖 값이 통과하면
+  임계값 검사가 조용히 무력화된다. 임계값 자체도 Settings 와 생성자 양쪽에서 막는다
+- 테스트 67건 추가 (실패 종류별 폴백, 순서, 읽기 전용 계약, 경계값). 전체 265건 통과
+- PR: #403 제품 연동, #404 실험 기록. 이슈 #402
+
+## 채택하지 않았다
+
+기본값은 `off` 다. 켜는 것은 설정 하나지만, 지금 있는 근거로는 켤 수 없다고 봤다.
+자세한 조건은 `evals/experiments/jev-routing/README.md`.
+
+- 비교 근거가 합성 12건 + reviewed=false 라벨이다
+- Gemini 대비 실측 비교를 아직 못 했다 (키·할당량 필요)
+- confidence 임계값 0.5 는 공급사 문서 예시 값이고 우리 분포에서 측정한 값이 아니다
+
+## 부수 관측 — 기존 코드 결함, 아직 안 고침
+
+`rule_route` 가 부분 문자열로 설명 질문을 가로챈다.
+
+- `"환불 처리 방식은 어떻게 구현되어 있어?"` → `OUT_OF_SCOPE` (`_OUT_OF_SCOPE_HINTS` 의 "환불")
+- `"현재 코드에서 구독 만료를 어떻게 판단해?"` → `METRIC` (`_METRIC_HINTS` 의 "현재")
+
+현재 한계를 `tests/test_jev_router.py::test_after_rules_leaves_the_rule_misroute_in_place`
+에 고정해 뒀다. Jev 없이도 고칠 수 있는 문제다(규칙을 어미까지 보게 하거나
+설명 어구를 예외로 두는 쪽). 수정 범위와 회귀 위험을 따로 정한 뒤 진행할 것.
+
+## 남은 목표 — Jev 보다 먼저인 것들
+
+출시·품질 증거에 직접 걸린 순서다.
+
+1. **Slack 실제 사용자 멘션 1건 왕복 검증.** 지금은 등록 핸들러 테스트만 했다.
+   실제 사람이 멘션했을 때 전달·응답이 되는지 확인 안 됨
+2. **검색 평가 라벨 검토.** `evals/retrieval/LABEL-REVIEW.md`. 특히 ret-006 의
+   질문 범위와 median 근거 포함 여부가 미정. **자동 승인하지 말 것**
+3. **독립 평가셋.** 기존 held_out 5건은 개발 중 노출돼 최종 평가로 못 쓴다.
+   새 평가셋과 완료 기준을 먼저 정한 뒤에 추가 검색 실험을 할 것
+
+실험을 더 늘리는 것보다 위 3개가 먼저다.
