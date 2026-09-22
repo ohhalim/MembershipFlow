@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
@@ -32,6 +33,19 @@ class Settings(BaseSettings):
     spring_base_url: str = "http://localhost:8081"
     service_token: str = ""
     trace_content_enabled: bool = False
+    # Jev 분류는 기본 꺼짐이다. off 면 rule_route → Gemini 라는 기존 동작 그대로다.
+    # after_rules: rule_route 가 먼저 판정하고, 남은 질문만 Jev 가 본다.
+    # before_rules: Jev 가 먼저 보고, 판단이 없을 때만 rule_route 로 내려간다.
+    #   rule_route 의 키워드 규칙이 설명 질문을 가로채는 사례(예: "환불 처리 방식은
+    #   어떻게 구현되어 있어?" → OUT_OF_SCOPE)가 관측됐고, before_rules 는 그 순서를
+    #   뒤집는 선택지다. 어느 쪽이 나은지는 아직 실측으로 확인되지 않았다.
+    jev_routing_mode: str = "off"
+    # 응답의 실제 모델은 jev-1.13.0 처럼 따로 돌아온다. 요청 모델만 설정한다.
+    jev_model: str = "jev-latest"
+    # 공급사 문서의 예시 임계값(0.5 미만이면 추측하지 말고 되묻기)을 그대로 뒀다.
+    # 우리 질문 분포에서 측정한 값이 아니다. 2026-09-21 기록 12건 중 1건이
+    # 0.42 로 이 선 아래였다.
+    jev_min_confidence: float = 0.5
     # `.env` 는 이 둘을 접두사 없이 적는다. Slack 토큰도 접두사 없이 읽으므로
     # 그 쪽이 자연스럽다. env_prefix 만 믿으면 `.env` 에 채워 넣은 값이 조용히
     # 무시되고, 빈 목록은 "제한 없음" 으로 동작해 가드가 사라진 줄도 모르게 된다.
@@ -44,6 +58,38 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AI_SLACK_ALLOWED_CHANNEL_IDS", "SLACK_ALLOWED_CHANNEL_IDS"),
     )
 
+
+    @field_validator("jev_min_confidence", mode="before")
+    @classmethod
+    def _finite_unit_interval(cls, value: object) -> object:
+        """임계값은 0..1 유한 실수여야 한다.
+
+        NaN 은 모든 비교가 False 라 어떤 confidence 도 통과시킨다. 1 을 넘는
+        값은 전부 막는다. 둘 다 "검사가 도는 줄 알았는데 안 돌았다" 로 끝난다.
+        bool 은 int 의 서브클래스라 True 가 1.0 으로 새어 들어온다.
+        """
+        if isinstance(value, bool):
+            raise ValueError("jev_min_confidence must be a number, not a bool")
+        if isinstance(value, int | float):
+            number = float(value)
+            if not math.isfinite(number) or not 0.0 <= number <= 1.0:
+                raise ValueError(
+                    f"jev_min_confidence must be a finite number in [0, 1], got {value!r}"
+                )
+        return value
+
+    @field_validator("jev_routing_mode")
+    @classmethod
+    def _known_routing_mode(cls, value: str) -> str:
+        """오타를 조용히 '꺼짐'으로 넘기지 않는다.
+
+        `AI_JEV_ROUTING_MODE=befor_rules` 같은 오타를 받아주면 켰다고 믿는
+        설정이 실제로는 기존 경로만 돌아 차이를 오해하게 된다.
+        """
+        allowed = {"off", "after_rules", "before_rules"}
+        if value not in allowed:
+            raise ValueError(f"jev_routing_mode must be one of {sorted(allowed)}, got {value!r}")
+        return value
 
     @field_validator(
         "embedding_revision", "reranker_revision", "elasticsearch_ca_certs", mode="before"
