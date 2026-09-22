@@ -1,13 +1,20 @@
 # ret-006 — 질문 범위에 필요한 근거 청크 (2026-09-22)
 
-`LABEL-REVIEW.md` 의 1번 항목에 대한 후속 확인이다. **승인이 아니다.**
-`cases.draft.jsonl` 의 라벨과 `reviewed` 값은 건드리지 않았다.
+`LABEL-REVIEW.md` 의 1번 항목에 대한 후속 확인이다.
+
+**2026-09-22: 사용자가 아래 최소 수정안을 채택해 적용했다.** ret-006 의
+`expected_sources` 가 2건이 됐다. `reviewed` 는 `false` 그대로다 — 이번 결정은
+이 문항의 근거 범위에 대한 것이고, 15건 전체를 사람이 검토했다는 주장이 아니다.
 
 질문
 > 여러 소스의 가격 중 이상치를 찾을 때 기준 가격과 이탈 정도는 어떻게 계산해?
 
-현재 라벨
+수정 전 라벨
 > `AnomalyDetectionService > evaluatePriceOutliers` 한 건
+
+수정 후 라벨
+> `AnomalyDetectionService > evaluatePriceOutliers`
+> `AnomalyDetectionService > median`
 
 ## 이 파일의 실제 청크 경계
 
@@ -46,7 +53,7 @@ JavaParser 가 클래스 필드 선언 영역을 섹션으로 잡지 않기 때�
 4번은 코드가 "임계값 이하면 `continue`" 로 쓰여 있다. 답변에서 "넘으면 이상치" 라고
 바꿔 말하려면 이 반전을 읽어야 한다.
 
-## 판단: 현재 라벨은 부족하다
+## 판단: 수정 전 라벨은 부족했다
 
 질문이 "**기준 가격**과 **이탈 정도**는 어떻게 계산해" 로 둘을 함께 묻는다.
 이탈 정도(3번)는 현재 라벨 청크가 답한다. 그러나 **기준 가격을 어떻게 계산하는지
@@ -79,7 +86,26 @@ JavaParser 가 클래스 필드 선언 영역을 섹션으로 잡지 않기 때�
   `(com.membershipflow.collect.service, AnomalyDetectionService, median)` 이라
   기존 라벨과 같은 suffix 형식으로 지정된다
 
-**적용하지 않았다.** 라벨 수정과 `reviewed` 변경은 이 문서를 읽은 사람이 한다.
+### 적용 결과 (2026-09-22)
+
+사용자 결정으로 적용했다. 바뀐 것은 `cases.draft.jsonl` 의 ret-006 한 줄뿐이다
+(`expected_sources` 1건 추가, `notes` 에 이유 기록). 다른 14건과 모든 `reviewed`
+값은 그대로다.
+
+적용 후 확인한 것.
+
+- `load_cases` 로 15건이 정상 로딩되고 ret-006 근거가 2건으로 읽힌다
+- 두 anchor 가 각자의 청크에만 매칭되고 서로 오매칭되지 않는다
+  (`anchor_matches` 로 4가지 조합 확인)
+- 평가 관련 테스트 52건 통과 (`test_eval_loading`, `test_eval_contract`,
+  `test_eval_plan`, `test_eval_scoring`)
+- `retrieval-case.schema.json` 은 `reviewed: {"const": true}` 를 요구해 이 draft
+  파일 15건 전부가 통과하지 않는다. **수정 전에도 15/15 실패였다.** 이 스키마는
+  검토가 끝난 파일용이고, draft 는 `--allow-draft` 로 돌린다
+
+실제 채점은 하지 않았다. ES 가 떠 있지 않다.
+
+`reviewed` 변경은 여전히 이 문서를 읽은 사람이 한다.
 
 ### 이 수정으로도 남는 것
 
