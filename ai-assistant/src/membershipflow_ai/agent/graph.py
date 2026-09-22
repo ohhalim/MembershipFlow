@@ -11,7 +11,9 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from membershipflow_ai.agent.contracts import AssistantAnswer, Citation, Route
+from membershipflow_ai.agent.jev_router import JevRouter
 from membershipflow_ai.agent.tools import MetricToolUnavailable, SpringMetricsClient
+from membershipflow_ai.config.settings import Settings
 from membershipflow_ai.domain.documents import SearchHit
 
 _METRIC_HINTS = ("오늘", "어제", "지금", "현재", "몇 건", "몇 명", "수집 결과", "실패한 수집")
@@ -124,10 +126,31 @@ def rule_route(question: str) -> Route | None:
     return None
 
 
-async def classify(llm: BaseChatModel | None, question: str) -> Route:
+async def classify(
+    llm: BaseChatModel | None,
+    question: str,
+    *,
+    jev: JevRouter | None = None,
+    jev_before_rules: bool = False,
+) -> Route:
+    """질문을 네 경로 중 하나로 분류한다.
+
+    `jev` 가 None 이면(기본값) 기존 경로 그대로다. Jev 가 판단을 내지 못하면
+    (타임아웃·형식 오류·낮은 confidence) 어느 순서에서든 기존 경로로 떨어진다.
+    `jev_before_rules` 는 rule_route 키워드 규칙이 설명 질문을 가로채는 문제를
+    피하려는 선택지이며, 우리 질문 분포에서 검증된 설정이 아니다.
+    """
+    if jev is not None and jev_before_rules:
+        decision = await jev.classify(question)
+        if decision.route is not None:
+            return decision.route
     ruled = rule_route(question)
     if ruled is not None:
         return ruled
+    if jev is not None and not jev_before_rules:
+        decision = await jev.classify(question)
+        if decision.route is not None:
+            return decision.route
     if llm is None:
         return Route.KNOWLEDGE
     response = await llm.ainvoke(
@@ -252,8 +275,10 @@ async def run_agent(
     llm: BaseChatModel | None,
     retrieve: Callable[[str], Awaitable[tuple[list[SearchHit], str]]],
     metrics: SpringMetricsClient,
+    jev: JevRouter | None = None,
+    jev_before_rules: bool = False,
 ) -> AssistantAnswer:
-    route = await classify(llm, question)
+    route = await classify(llm, question, jev=jev, jev_before_rules=jev_before_rules)
     if route is Route.OUT_OF_SCOPE:
         return AssistantAnswer(
             question=question,
@@ -274,6 +299,22 @@ async def run_agent(
     result = await answer_from_evidence(llm, question, hits, physical_index)
     result.route = Route.KNOWLEDGE
     return result
+
+
+def build_jev_router(settings: Settings, api_key: str) -> tuple[JevRouter | None, bool]:
+    """설정과 환경변수로 Jev 라우터를 만든다. 꺼져 있거나 키가 없으면 None.
+
+    두 번째 값은 rule_route 보다 먼저 물어볼지 여부다. 키를 저장소나 Settings
+    에 두지 않으려고 호출부에서 환경변수로 받아 넘긴다.
+    """
+    if settings.jev_routing_mode == "off" or not api_key:
+        return None, False
+    router = JevRouter(
+        api_key=api_key,
+        model=settings.jev_model,
+        min_confidence=settings.jev_min_confidence,
+    )
+    return router, settings.jev_routing_mode == "before_rules"
 
 
 def build_llm(api_key: str, model: str) -> BaseChatModel | None:

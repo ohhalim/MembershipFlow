@@ -32,6 +32,19 @@ class Settings(BaseSettings):
     spring_base_url: str = "http://localhost:8081"
     service_token: str = ""
     trace_content_enabled: bool = False
+    # Jev 분류는 기본 꺼짐이다. off 면 rule_route → Gemini 라는 기존 동작 그대로다.
+    # after_rules: rule_route 가 먼저 판정하고, 남은 질문만 Jev 가 본다.
+    # before_rules: Jev 가 먼저 보고, 판단이 없을 때만 rule_route 로 내려간다.
+    #   rule_route 의 키워드 규칙이 설명 질문을 가로채는 사례(예: "환불 처리 방식은
+    #   어떻게 구현되어 있어?" → OUT_OF_SCOPE)가 관측됐고, before_rules 는 그 순서를
+    #   뒤집는 선택지다. 어느 쪽이 나은지는 아직 실측으로 확인되지 않았다.
+    jev_routing_mode: str = "off"
+    # 응답의 실제 모델은 jev-1.13.0 처럼 따로 돌아온다. 요청 모델만 설정한다.
+    jev_model: str = "jev-latest"
+    # 공급사 문서의 예시 임계값(0.5 미만이면 추측하지 말고 되묻기)을 그대로 뒀다.
+    # 우리 질문 분포에서 측정한 값이 아니다. 2026-09-21 기록 12건 중 1건이
+    # 0.42 로 이 선 아래였다.
+    jev_min_confidence: float = 0.5
     # `.env` 는 이 둘을 접두사 없이 적는다. Slack 토큰도 접두사 없이 읽으므로
     # 그 쪽이 자연스럽다. env_prefix 만 믿으면 `.env` 에 채워 넣은 값이 조용히
     # 무시되고, 빈 목록은 "제한 없음" 으로 동작해 가드가 사라진 줄도 모르게 된다.
@@ -44,6 +57,19 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AI_SLACK_ALLOWED_CHANNEL_IDS", "SLACK_ALLOWED_CHANNEL_IDS"),
     )
 
+
+    @field_validator("jev_routing_mode")
+    @classmethod
+    def _known_routing_mode(cls, value: str) -> str:
+        """오타를 조용히 '꺼짐'으로 넘기지 않는다.
+
+        `AI_JEV_ROUTING_MODE=befor_rules` 같은 오타를 받아주면 켰다고 믿는
+        설정이 실제로는 기존 경로만 돌아 차이를 오해하게 된다.
+        """
+        allowed = {"off", "after_rules", "before_rules"}
+        if value not in allowed:
+            raise ValueError(f"jev_routing_mode must be one of {sorted(allowed)}, got {value!r}")
+        return value
 
     @field_validator(
         "embedding_revision", "reranker_revision", "elasticsearch_ca_certs", mode="before"

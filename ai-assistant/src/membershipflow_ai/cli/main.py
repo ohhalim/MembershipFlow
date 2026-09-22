@@ -15,7 +15,7 @@ from typing import Any, TextIO
 from elasticsearch import AsyncElasticsearch
 
 from membershipflow_ai.agent.contracts import AssistantAnswer
-from membershipflow_ai.agent.graph import build_llm, run_agent
+from membershipflow_ai.agent.graph import build_jev_router, build_llm, run_agent
 from membershipflow_ai.agent.tools import SpringMetricsClient
 from membershipflow_ai.config.settings import get_settings
 from membershipflow_ai.domain.documents import SearchHit
@@ -447,11 +447,16 @@ async def ask(question: str, k: int, retriever: str) -> None:
             return hits, index
 
         llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
+        jev, jev_before_rules = build_jev_router(
+            settings, os.environ.get("TYPESAFE_API_KEY", "")
+        )
         result = await run_agent(
             question,
             llm=llm,
             retrieve=retrieve,
             metrics=SpringMetricsClient(settings),
+            jev=jev,
+            jev_before_rules=jev_before_rules,
         )
     finally:
         await client.close()
@@ -483,6 +488,9 @@ async def slack(k: int, retriever: str) -> None:
             )
         engine = ElasticsearchRetriever(client, index)
         llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
+        jev, jev_before_rules = build_jev_router(
+            settings, os.environ.get("TYPESAFE_API_KEY", "")
+        )
         metrics = SpringMetricsClient(settings)
         embeddings = embedding_provider()
 
@@ -498,7 +506,14 @@ async def slack(k: int, retriever: str) -> None:
             return hits, index
 
         async def answer_question(question: str) -> AssistantAnswer:
-            return await run_agent(question, llm=llm, retrieve=retrieve, metrics=metrics)
+            return await run_agent(
+                question,
+                llm=llm,
+                retrieve=retrieve,
+                metrics=metrics,
+                jev=jev,
+                jev_before_rules=jev_before_rules,
+            )
 
         await run_slack(settings, answer_question)
     finally:
