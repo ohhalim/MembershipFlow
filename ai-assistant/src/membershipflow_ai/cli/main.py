@@ -445,7 +445,9 @@ async def ask(question: str, k: int, retriever: str) -> None:
                 sink.extend(hits)
             return hits, index
 
-        llm = build_llm(settings.gemini_api_key, settings.llm_model)
+        llm = build_llm(
+            settings.gemini_api_key, settings.llm_model, settings.llm_fallback_models
+        )
         jev, jev_before_rules = build_jev_router(settings, settings.typesafe_api_key)
         result = await run_agent(
             question,
@@ -484,7 +486,9 @@ async def slack(k: int, retriever: str) -> None:
                 f"no active index for alias {settings.elasticsearch_alias}; run ingest+publish"
             )
         engine = ElasticsearchRetriever(client, index)
-        llm = build_llm(settings.gemini_api_key, settings.llm_model)
+        llm = build_llm(
+            settings.gemini_api_key, settings.llm_model, settings.llm_fallback_models
+        )
         jev, jev_before_rules = build_jev_router(settings, settings.typesafe_api_key)
         metrics = SpringMetricsClient(settings)
         embeddings = embedding_provider()
