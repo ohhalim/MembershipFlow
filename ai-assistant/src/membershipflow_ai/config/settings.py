@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     reranker_revision: str | None = None
     llm_model: str = "gemini-3.7-flash"
+    # 한 모델이 503(과부하)을 내면 질문이 통째로 막힌다. 2026-09-29 실측에서
+    # 3.8·3.7·3.5 가 동시에 503 인데 3.6 과 2.5 는 정상이었다. 같은 순간에도
+    # 모델마다 가용성이 다르므로 차례로 넘어간다. 쉼표로 적는다.
+    llm_fallback_models: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["gemini-3.6-flash", "gemini-2.5-flash"],
+        validation_alias=AliasChoices("AI_LLM_FALLBACK_MODELS", "LLM_FALLBACK_MODELS"),
+    )
     elasticsearch_url: str = "http://localhost:9208"
     elasticsearch_username: str = "elastic"
     elasticsearch_password: str = "local-only-dev-password"
@@ -121,7 +128,9 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("slack_allowed_team_ids", "slack_allowed_channel_ids", mode="before")
+    @field_validator(
+        "slack_allowed_team_ids", "slack_allowed_channel_ids", "llm_fallback_models", mode="before"
+    )
     @classmethod
     def _split_ids(cls, value: object) -> object:
         """`T01,T02` 처럼 쉼표로 적은 값을 받는다.

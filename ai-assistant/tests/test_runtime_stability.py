@@ -148,3 +148,51 @@ async def test_no_hits_is_still_reported_separately() -> None:
     result = await answer_from_evidence(None, "질문", [], "mf-ai-chunks-000001")
     assert result.citations == []
     assert result.failure != "llm_unavailable"
+
+
+# --- 4. 모델 하나가 막혀도 답이 나가야 한다 -----------------------------------
+#
+# 과부하는 모델별로 다르게 온다. 2026-09-29 실측에서 gemini-3.8/3.7/3.5 가
+# 동시에 503 인데 3.6 과 2.5 는 정상이었다. 기본 모델만 계속 두드리면 질문이
+# 통째로 막힌다.
+
+
+def test_fallback_models_are_chained() -> None:
+    from membershipflow_ai.agent.graph import build_llm
+
+    chained = build_llm("test-key", "primary", ["alt-1", "alt-2"])
+    # with_fallbacks 는 Runnable 을 돌려준다. 단일 모델과 타입이 다르다.
+    assert type(chained).__name__ == "RunnableWithFallbacks"
+    assert len(chained.fallbacks) == 2
+
+
+def test_no_fallback_leaves_a_plain_client() -> None:
+    """폴백이 없으면 굳이 감싸지 않는다."""
+    from membershipflow_ai.agent.graph import build_llm
+
+    plain = build_llm("test-key", "primary", [])
+    assert type(plain).__name__ == "ChatGoogleGenerativeAI"
+
+
+def test_duplicate_of_primary_is_dropped() -> None:
+    """같은 모델을 두 번 두드리는 것은 폴백이 아니다."""
+    from membershipflow_ai.agent.graph import build_llm
+
+    only_same = build_llm("test-key", "primary", ["primary"])
+    assert type(only_same).__name__ == "ChatGoogleGenerativeAI"
+
+    mixed = build_llm("test-key", "primary", ["primary", "alt", ""])
+    assert len(mixed.fallbacks) == 1
+
+
+def test_no_key_still_returns_none() -> None:
+    from membershipflow_ai.agent.graph import build_llm
+
+    assert build_llm("", "primary", ["alt"]) is None
+
+
+def test_fallback_list_accepts_comma_separated_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`.env` 에 사람이 자연스럽게 적는 표기를 받아야 한다."""
+    monkeypatch.setenv("AI_LLM_FALLBACK_MODELS", "a-model, b-model")
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert settings.llm_fallback_models == ["a-model", "b-model"]

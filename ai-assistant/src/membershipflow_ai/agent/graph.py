@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import date as date_type
 from datetime import timedelta
 from typing import cast
@@ -342,22 +342,35 @@ LLM_MAX_RETRIES = 3
 LLM_TIMEOUT_SECONDS = 30.0
 
 
-def build_llm(api_key: str, model: str) -> BaseChatModel | None:
-    """Gemini 클라이언트. 일시적 오류는 클라이언트가 재시도한다.
+def build_llm(
+    api_key: str, model: str, fallback_models: Sequence[str] = ()
+) -> BaseChatModel | None:
+    """Gemini 클라이언트. 일시적 오류는 재시도하고, 그래도 안 되면 모델을 바꾼다.
 
-    503(과부하)과 429(한도)는 잠시 뒤 성공하는 경우가 많다. 한 번 실패했다고
-    바로 포기하면 질문 하나가 통째로 날아간다. 대신 무한정 붙잡고 있지 않도록
-    타임아웃을 함께 건다. 재시도를 다 쓰면 호출부가 근거만 돌려준다.
+    503(과부하)과 429(한도)는 잠시 뒤 성공하는 경우가 많아 클라이언트가 먼저
+    재시도한다. 그런데 과부하는 모델별로 다르게 온다. 2026-09-29 실측에서
+    3.8·3.7·3.5 가 동시에 503 인데 3.6 과 2.5 는 정상이었다. 같은 모델만 계속
+    두드리면 질문이 통째로 막히므로 다음 모델로 넘어간다.
+
+    무한정 붙잡지 않도록 타임아웃을 건다. 폴백까지 다 쓰면 호출부가 근거만
+    돌려준다.
     """
     if not api_key:
         return None
     from langchain_google_genai import ChatGoogleGenerativeAI
 
-    client = ChatGoogleGenerativeAI(
-        model=model,
-        google_api_key=api_key,
-        temperature=0.0,
-        max_retries=LLM_MAX_RETRIES,
-        timeout=LLM_TIMEOUT_SECONDS,
-    )
-    return cast(BaseChatModel, client)
+    def client_for(name: str) -> ChatGoogleGenerativeAI:
+        return ChatGoogleGenerativeAI(
+            model=name,
+            google_api_key=api_key,
+            temperature=0.0,
+            max_retries=LLM_MAX_RETRIES,
+            timeout=LLM_TIMEOUT_SECONDS,
+        )
+
+    primary = client_for(model)
+    # 기본 모델과 같은 이름이 폴백에 또 있으면 같은 곳을 두 번 두드릴 뿐이다.
+    alternates = [client_for(name) for name in fallback_models if name and name != model]
+    if not alternates:
+        return cast(BaseChatModel, primary)
+    return cast(BaseChatModel, primary.with_fallbacks(alternates))
