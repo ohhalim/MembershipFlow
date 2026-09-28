@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
@@ -59,15 +58,28 @@ def build_slack_app(
     settings: Settings,
     answer_question: Callable[[str], Awaitable[AssistantAnswer]],
 ) -> tuple[AsyncApp, str]:
-    bot_token = os.environ.get("SLACK_BOT_TOKEN", "")
-    app_token = os.environ.get("SLACK_APP_TOKEN", "")
+    bot_token = settings.slack_bot_token
+    app_token = settings.slack_app_token
     if not bot_token or not app_token:
-        raise SystemExit("SLACK_BOT_TOKEN 과 SLACK_APP_TOKEN 이 모두 필요하다")
+        raise SystemExit(
+            "SLACK_BOT_TOKEN 과 SLACK_APP_TOKEN 이 모두 필요하다 (.env 또는 환경변수)"
+        )
 
     app = AsyncApp(token=bot_token)
     deduper = EventDeduplicator()
     allowed_teams = set(settings.slack_allowed_team_ids)
     allowed_channels = set(settings.slack_allowed_channel_ids)
+    # 빈 목록은 "제한 없음" 으로 동작한다. 설정을 빠뜨린 것과 의도적으로 열어
+    # 둔 것을 로그로 구분할 수 없으면, 가드가 사라진 줄 모르는 채로 초대되는
+    # 아무 워크스페이스·채널에 코드 내용을 답하게 된다.
+    if not allowed_teams:
+        logger.warning(
+            "SLACK_ALLOWED_TEAM_IDS 가 비어 있다. 모든 워크스페이스의 멘션에 응답한다"
+        )
+    if not allowed_channels:
+        logger.warning(
+            "SLACK_ALLOWED_CHANNEL_IDS 가 비어 있다. 모든 채널의 멘션에 응답한다"
+        )
 
     @app.event("app_mention")
     async def handle_mention(
@@ -95,9 +107,14 @@ def build_slack_app(
 
         try:
             answer = await answer_question(question)
-        except Exception as exc:
+        except Exception:
+            # 예외 문자열에는 내부 URL·자격증명·쿼리 본문이 섞일 수 있다.
+            # 사용자에게는 상황만 알리고 원인은 로그에만 남긴다.
             logger.exception("answer failed")
-            await say(text=f"처리 중 오류가 발생했습니다: {exc}", thread_ts=thread_ts)
+            await say(
+                text="처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+                thread_ts=thread_ts,
+            )
             return
         await say(text=format_answer(answer), thread_ts=thread_ts)
 

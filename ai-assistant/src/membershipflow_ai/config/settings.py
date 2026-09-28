@@ -49,6 +49,23 @@ class Settings(BaseSettings):
     # `.env` 는 이 둘을 접두사 없이 적는다. Slack 토큰도 접두사 없이 읽으므로
     # 그 쪽이 자연스럽다. env_prefix 만 믿으면 `.env` 에 채워 넣은 값이 조용히
     # 무시되고, 빈 목록은 "제한 없음" 으로 동작해 가드가 사라진 줄도 모르게 된다.
+    # 아래 넷은 `os.environ` 으로 직접 읽던 값이다. `.env` 는 이 Settings 만
+    # 읽으므로, 직접 읽는 쪽은 쉘에 export 하지 않으면 값을 못 봤다. `.env` 에
+    # 키를 채워 넣고도 "GEMINI_API_KEY 가 없다" 로 답하거나 Slack 봇이 기동
+    # 단계에서 죽었다. 접두사 없는 이름도 함께 받아 `.env` 표기를 그대로 쓴다.
+    gemini_api_key: str = Field(
+        default="", validation_alias=AliasChoices("AI_GEMINI_API_KEY", "GEMINI_API_KEY")
+    )
+    slack_bot_token: str = Field(
+        default="", validation_alias=AliasChoices("AI_SLACK_BOT_TOKEN", "SLACK_BOT_TOKEN")
+    )
+    slack_app_token: str = Field(
+        default="", validation_alias=AliasChoices("AI_SLACK_APP_TOKEN", "SLACK_APP_TOKEN")
+    )
+    typesafe_api_key: str = Field(
+        default="", validation_alias=AliasChoices("AI_TYPESAFE_API_KEY", "TYPESAFE_API_KEY")
+    )
+
     slack_allowed_team_ids: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
         validation_alias=AliasChoices("AI_SLACK_ALLOWED_TEAM_IDS", "SLACK_ALLOWED_TEAM_IDS"),

@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import re
 import time
 import uuid
@@ -446,10 +445,8 @@ async def ask(question: str, k: int, retriever: str) -> None:
                 sink.extend(hits)
             return hits, index
 
-        llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
-        jev, jev_before_rules = build_jev_router(
-            settings, os.environ.get("TYPESAFE_API_KEY", "")
-        )
+        llm = build_llm(settings.gemini_api_key, settings.llm_model)
+        jev, jev_before_rules = build_jev_router(settings, settings.typesafe_api_key)
         result = await run_agent(
             question,
             llm=llm,
@@ -487,10 +484,8 @@ async def slack(k: int, retriever: str) -> None:
                 f"no active index for alias {settings.elasticsearch_alias}; run ingest+publish"
             )
         engine = ElasticsearchRetriever(client, index)
-        llm = build_llm(os.environ.get("GEMINI_API_KEY", ""), settings.llm_model)
-        jev, jev_before_rules = build_jev_router(
-            settings, os.environ.get("TYPESAFE_API_KEY", "")
-        )
+        llm = build_llm(settings.gemini_api_key, settings.llm_model)
+        jev, jev_before_rules = build_jev_router(settings, settings.typesafe_api_key)
         metrics = SpringMetricsClient(settings)
         embeddings = embedding_provider()
 
