@@ -1,3 +1,7 @@
+# 프로젝트명을 고정한다. compose 는 기본으로 디렉터리명을 접두사로 쓰는데,
+# 워크트리마다 디렉터리명이 달라 같은 볼륨을 못 찾고 빈 색인이 새로 생긴다.
+name: mf-ai-local
+
 services:
   ai-postgres:
     image: pgvector/pgvector:0.8.1-pg17
@@ -47,29 +51,39 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  ai-api:
+  ai-slack:
     build:
       context: ./ai-assistant
       dockerfile: Dockerfile
     profiles: ["ai"]
+    # 실제 인터페이스는 Slack 이다. 이전에는 이 서비스가 compose 에 없어서
+    # 손으로 띄우고 PID 를 /tmp 에 뒀고, 재부팅하면 그대로 사라졌다.
+    command: ["uv", "run", "membershipflow-ai", "slack"]
     environment:
       AI_DATABASE_URL: postgresql+asyncpg://membershipflow_ai:${AI_POSTGRES_PASSWORD:-local-ai-password}@ai-postgres:5432/membershipflow_ai
       AI_REPOSITORY_ROOT: /workspace
       AI_CORPUS_CONFIG: /app/config/corpus.yml
       AI_BM25_INDEX_DIR: /var/lib/membershipflow-ai/bm25
+      # 컨테이너 안의 localhost 는 자기 자신이다. 서비스 이름으로 가리켜야 한다.
+      AI_ELASTICSEARCH_URL: http://ai-elasticsearch:9200
+      AI_ELASTICSEARCH_USERNAME: elastic
+      AI_ELASTICSEARCH_PASSWORD: ${AI_ES_PASSWORD:-local-only-dev-password}
+      AI_ELASTICSEARCH_ALIAS: ${AI_ELASTICSEARCH_ALIAS:-mf-ai-chunks}
       AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-fake}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-BAAI/bge-m3}
       AI_EMBEDDING_REVISION: ${AI_EMBEDDING_REVISION:-}
       AI_RERANKER_MODEL: ${AI_RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
       AI_LLM_MODEL: ${AI_LLM_MODEL:-gemini-3.7-flash}
-      AI_SPRING_BASE_URL: http://backend:8081
+      AI_SPRING_BASE_URL: ${AI_SPRING_BASE_URL:-http://backend:8081}
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
-      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      # 비워 두면 초대되는 아무 워크스페이스·채널에 응답한다. 반드시 채운다.
+      SLACK_ALLOWED_TEAM_IDS: ${SLACK_ALLOWED_TEAM_IDS:-}
+      SLACK_ALLOWED_CHANNEL_IDS: ${SLACK_ALLOWED_CHANNEL_IDS:-}
+      PHOENIX_COLLECTOR_ENDPOINT: ${PHOENIX_COLLECTOR_ENDPOINT:-}
       TRACE_CONTENT_ENABLED: ${TRACE_CONTENT_ENABLED:-false}
-    ports:
-      - "${AI_API_BIND_ADDRESS:-127.0.0.1}:8090:8090"
     volumes:
       - .:/workspace:ro
       - ai_bm25_data:/var/lib/membershipflow-ai/bm25
@@ -77,7 +91,7 @@ services:
     depends_on:
       ai-postgres:
         condition: service_healthy
-      backend:
+      ai-elasticsearch:
         condition: service_healthy
     restart: unless-stopped
 
