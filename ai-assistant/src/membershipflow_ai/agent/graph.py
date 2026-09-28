@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from datetime import date as date_type
@@ -15,6 +16,8 @@ from membershipflow_ai.agent.jev_router import JevRouter
 from membershipflow_ai.agent.tools import MetricToolUnavailable, SpringMetricsClient
 from membershipflow_ai.config.settings import Settings
 from membershipflow_ai.domain.documents import SearchHit
+
+logger = logging.getLogger(__name__)
 
 _METRIC_HINTS = ("오늘", "어제", "지금", "현재", "몇 건", "몇 명", "수집 결과", "실패한 수집")
 _OUT_OF_SCOPE_HINTS = ("배포해", "결제 취소해", "환불", "삭제해", "재시작")
@@ -207,12 +210,30 @@ async def answer_from_evidence(
             grounded=False,
             failure="llm_unconfigured",
         )
-    response = await llm.ainvoke(
-        [
-            SystemMessage(content=ANSWER_SYSTEM),
-            HumanMessage(content=f"질문: {question}\n\n근거:\n{format_evidence(hits)}"),
-        ]
-    )
+    try:
+        response = await llm.ainvoke(
+            [
+                SystemMessage(content=ANSWER_SYSTEM),
+                HumanMessage(content=f"질문: {question}\n\n근거:\n{format_evidence(hits)}"),
+            ]
+        )
+    except Exception:
+        # 검색은 이미 성공했다. 생성 한 단계가 실패했다고 찾아 둔 근거까지 버리면
+        # 사용자는 아무것도 못 받는다. 근거만이라도 돌려주고 실패를 기록한다.
+        # 예외 문자열에는 모델명·엔드포인트·요청 본문이 섞일 수 있어 싣지 않는다.
+        logger.exception("answer generation failed; returning evidence only")
+        return AssistantAnswer(
+            question=question,
+            route=Route.KNOWLEDGE,
+            answer=(
+                "답변 생성에 실패했습니다. 아래 근거를 직접 확인해 주세요. "
+                "잠시 후 다시 시도하면 될 수 있습니다."
+            ),
+            citations=citations,
+            hits=hits,
+            grounded=False,
+            failure="llm_unavailable",
+        )
     answer_text = message_text(response.content)
     grounded, failure = verify_citations(answer_text, len(citations))
     return AssistantAnswer(
@@ -317,10 +338,26 @@ def build_jev_router(settings: Settings, api_key: str) -> tuple[JevRouter | None
     return router, settings.jev_routing_mode == "before_rules"
 
 
+LLM_MAX_RETRIES = 3
+LLM_TIMEOUT_SECONDS = 30.0
+
+
 def build_llm(api_key: str, model: str) -> BaseChatModel | None:
+    """Gemini 클라이언트. 일시적 오류는 클라이언트가 재시도한다.
+
+    503(과부하)과 429(한도)는 잠시 뒤 성공하는 경우가 많다. 한 번 실패했다고
+    바로 포기하면 질문 하나가 통째로 날아간다. 대신 무한정 붙잡고 있지 않도록
+    타임아웃을 함께 건다. 재시도를 다 쓰면 호출부가 근거만 돌려준다.
+    """
     if not api_key:
         return None
     from langchain_google_genai import ChatGoogleGenerativeAI
 
-    client = ChatGoogleGenerativeAI(model=model, google_api_key=api_key, temperature=0.0)
+    client = ChatGoogleGenerativeAI(
+        model=model,
+        google_api_key=api_key,
+        temperature=0.0,
+        max_retries=LLM_MAX_RETRIES,
+        timeout=LLM_TIMEOUT_SECONDS,
+    )
     return cast(BaseChatModel, client)
