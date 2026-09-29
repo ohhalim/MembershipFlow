@@ -148,7 +148,7 @@ $ uv run membershipflow-ai ask "이용 가능한 구독의 판정 기준은?"
 | 앱 크래시 시 자동 복구 (RestartCount 1) | O |
 | 전체 질의응답 경로, grounded=true | O |
 | pytest 282, ruff, mypy | O |
-| **실제 사람의 Slack 멘션 왕복** | **X** (`channel_mention_tested` 여전히 false) |
+| **실제 사람의 Slack 멘션 왕복** | **O** (2026-09-29 00:09 확인. 아래 참고) |
 | 호스트 재부팅 후 자동 복구 | X |
 | AWS 배포 | **하지 않기로 함** (로컬 운영) |
 
@@ -158,3 +158,57 @@ $ uv run membershipflow-ai ask "이용 가능한 구독의 판정 기준은?"
   필요
 - 데이터가 6.6MB(317 청크)뿐이다. ES 대신 이미 있는 pgvector 로 줄일 여지가
   있다. 지금은 동작하므로 서두를 이유는 없다
+
+
+---
+
+# 추가 — 2026-09-29 Slack 실사용 왕복 확인
+
+## `channel_mention_tested` 가 닫혔다
+
+사람이 `#membershipflow-assistant` 에서 멘션한 질문에 답변이 스레드로 돌아왔다.
+2026-09-20 기록부터 계속 `false` 로 남아 있던 항목이다.
+
+```
+00:09:17  Received message ... "type":"app_mention" ... channel C0C0CANRA15
+00:09:17  Message processing started
+          → 답변 + 근거 5건 + route/grounded 푸터 전송
+```
+
+답변 자체는 `grounded: false / failure: insufficient_evidence` 였다. 모델이
+"제공된 근거로는 답할 수 없습니다" 라고 말했고 시스템이 그것을 잡아 grounded 를
+내린 것이다. **고장이 아니라 설계대로 동작한 것이다.** 다만 검색이 실제 만료
+판정 코드를 못 올리고 docs/API.md 계열만 올린 것은 검색 품질 과제다.
+
+## 원인은 두 가지였고, 둘 다 설정이 아니었다
+
+**1. 멘션이 파란색이 아니었다.** `@에러 응답 형식이...` 처럼 `@` 를 손으로
+타이핑한 것은 Slack 이 멘션으로 보지 않는다. 이벤트 자체가 생기지 않으므로
+봇은 아무것도 받지 못한다. 자동완성에서 골라야 한다.
+
+설정은 처음부터 전부 정상이었다. Enable Events, Socket Mode, `app_mention`
+구독, `app_mentions:read`, app_id 일치(`A0C0RNQD1JS`), 채널 참여, 단일 연결
+(`num_connections:1`) 을 하나씩 확인해 전부 배제한 뒤에야 남은 결론이다.
+
+**2. 503 의 상당 부분은 무료 티어 한도였다.**
+
+```
+Quota exceeded: generate_content_free_tier_requests
+limit: 20, model: gemini-3.5-flash
+```
+
+모델당 하루 20회다. 모델명이 틀린 것이 아니었다. 한도에 걸리자 #414 에서 넣은
+폴백이 `gemini-3.6-flash` 로 넘어가 답변을 만들었다. **폴백이 실제 상황에서
+처음 일한 사례다.**
+
+## 진단 중 내가 틀렸던 것
+
+- "Event Subscriptions 에서 `app_mention` 구독이 빠진 것" 이라고 단정했다.
+  근거 없이 앞서간 판단이었고 실제로는 구독돼 있었다
+- 봇 토큰으로 자기를 멘션해 수신을 검증하려 했다. Bolt 는 봇 자신의 이벤트를
+  미들웨어에서 걸러내므로(`ignoring_self_events_enabled` 기본 True) 대조군이
+  되지 않는다. Astra 가 이 점을 지적해 바로잡았다
+- 핸들러 로그 0건을 "Slack 이 안 보냈다" 로 읽었다. 원시 수신 로그와 핸들러
+  진입 로그는 구분해야 한다. `AI_LOG_LEVEL=DEBUG` 를 추가한 이유다
+
+절차와 판별표는 `docs/operations/RUNBOOK.md` 에 적었다.

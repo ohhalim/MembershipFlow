@@ -474,9 +474,13 @@ async def ask(question: str, k: int, retriever: str) -> None:
 async def slack(k: int, retriever: str) -> None:
     from membershipflow_ai.interfaces.slack_app import run_slack
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    setup_tracing()
     settings = get_settings()
+    # 레벨을 못 바꾸면 "핸들러까지 안 온 것" 과 "아예 안 받은 것" 을 구분할 수
+    # 없다. 로거 이름을 함께 찍어 어느 계층에서 걸렸는지 보이게 한다.
+    logging.basicConfig(
+        level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    )
+    setup_tracing()
     client = elasticsearch_client()
     try:
         store = ElasticsearchStore(client, settings.elasticsearch_alias)
