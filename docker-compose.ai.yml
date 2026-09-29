@@ -84,6 +84,7 @@ services:
       SLACK_ALLOWED_CHANNEL_IDS: ${SLACK_ALLOWED_CHANNEL_IDS:-}
       PHOENIX_COLLECTOR_ENDPOINT: ${PHOENIX_COLLECTOR_ENDPOINT:-}
       TRACE_CONTENT_ENABLED: ${TRACE_CONTENT_ENABLED:-false}
+      AI_LOG_LEVEL: ${AI_LOG_LEVEL:-INFO}
     volumes:
       - .:/workspace:ro
       - ai_bm25_data:/var/lib/membershipflow-ai/bm25

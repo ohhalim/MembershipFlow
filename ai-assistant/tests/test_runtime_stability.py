@@ -196,3 +196,30 @@ def test_fallback_list_accepts_comma_separated_env(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("AI_LLM_FALLBACK_MODELS", "a-model, b-model")
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
     assert settings.llm_fallback_models == ["a-model", "b-model"]
+
+
+# --- 5. 로그 레벨 ------------------------------------------------------------
+#
+# 2026-09-29 진단에서 필요했던 것. 레벨을 못 바꾸면 "핸들러까지 안 온 것" 과
+# "아예 안 받은 것" 을 구분할 수 없어 원인을 엉뚱한 데서 찾게 된다.
+
+
+def test_log_level_defaults_to_info() -> None:
+    """기본은 INFO. DEBUG 는 페이로드가 통째로 찍혀 운영에 두면 안 된다."""
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert settings.log_level == "INFO"
+
+
+@pytest.mark.parametrize("level", ["debug", "Debug", "DEBUG"])
+def test_log_level_is_normalized(monkeypatch: pytest.MonkeyPatch, level: str) -> None:
+    monkeypatch.setenv("AI_LOG_LEVEL", level)
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert settings.log_level == "DEBUG"
+
+
+def test_unknown_log_level_is_rejected() -> None:
+    """오타가 조용히 기본값으로 넘어가면 진단하려던 로그가 안 나온다."""
+    from pydantic import ValidationError as VE
+
+    with pytest.raises(VE):
+        Settings(_env_file=None, log_level="VERBOSE")  # type: ignore[call-arg]

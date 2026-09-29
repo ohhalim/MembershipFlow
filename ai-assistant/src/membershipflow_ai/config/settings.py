@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     spring_base_url: str = "http://localhost:8081"
     service_token: str = ""
     trace_content_enabled: bool = False
+    # 운영 중 로그 레벨을 못 바꾸면 "핸들러까지 안 온 것" 과 "아예 안 받은 것" 을
+    # 구분할 수 없다. Slack 은 미들웨어가 이벤트를 걸러도 조용하므로, 원시 수신을
+    # 봐야 할 때가 있다. DEBUG 는 페이로드가 찍히니 진단할 때만 쓴다.
+    log_level: str = "INFO"
     # Jev 분류는 기본 꺼짐이다. off 면 rule_route → Gemini 라는 기존 동작 그대로다.
     # after_rules: rule_route 가 먼저 판정하고, 남은 질문만 Jev 가 본다.
     # before_rules: Jev 가 먼저 보고, 판단이 없을 때만 rule_route 로 내려간다.
@@ -82,6 +86,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AI_SLACK_ALLOWED_CHANNEL_IDS", "SLACK_ALLOWED_CHANNEL_IDS"),
     )
 
+
+    @field_validator("log_level")
+    @classmethod
+    def _known_log_level(cls, value: str) -> str:
+        """오타가 조용히 기본값으로 넘어가면 진단하려던 로그가 안 나온다."""
+        level = value.upper()
+        allowed = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+        if level not in allowed:
+            raise ValueError(f"log_level must be one of {sorted(allowed)}, got {value!r}")
+        return level
 
     @field_validator("jev_min_confidence", mode="before")
     @classmethod
