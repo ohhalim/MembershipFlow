@@ -212,3 +212,12 @@ limit: 20, model: gemini-3.5-flash
   진입 로그는 구분해야 한다. `AI_LOG_LEVEL=DEBUG` 를 추가한 이유다
 
 절차와 판별표는 `docs/operations/RUNBOOK.md` 에 적었다.
+
+## 2026-09-30 라벨 검토 재개
+
+- 기존 15건 notes 보완, 새 held-out 후보 20건 별도 작성
+- `evals/retrieval/review-20260930/REVIEW.md`에서 예상 답·근거 행별 사람 검토
+- 로컬 corpus 322청크 기준 모든 anchor 단일 일치, 기존/신규 정답 청크 중복 0
+- 2026-09-19 VALIDATED manifest에 필수 근거 37개 ID 모두 포함. 실제 ES 검증·검색 평가 미실행. 모든 reviewed=false 유지
+- 이전 독립성 지침 정정: AI 작성 여부가 아니라 튜닝에 사용하지 않는 절차가 기준
+- ret-006 변경 전후 점수 직접 비교 금지. 같은 라벨로 구성별 재채점 필요
