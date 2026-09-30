@@ -1,0 +1,967 @@
+{
+  "code_sha": "d69d206625d4218a8d881c59d3fe5c5fc124fa8b",
+  "scope": "local current corpus, not active ES index; no retrieval measured",
+  "label_sha256": {
+    "cases.draft.jsonl": "c5164050768f48052a767757b5c1aa7b68a48829197975cdf93ed7f7e34d6d8b",
+    "cases.holdout-20260930.draft.jsonl": "22eb4f527f78a5b57dea2986ba1bdee23aac41280750ce6c57cf5a665cd4f04a"
+  },
+  "sources": [
+    {
+      "source_uri": "README.md",
+      "source_hash": "4c7c27e665ebb25f5d59b65be8ec316406d314c7cf9a415469008d27bb318293"
+    },
+    {
+      "source_uri": "docs/00-CONTEXT.md",
+      "source_hash": "8765f8d5bfec571d85d96404b7a477eff8b34d7db516cc4803e44755982a6dc2"
+    },
+    {
+      "source_uri": "docs/03-ARCHITECTURE.md",
+      "source_hash": "c91535f6441cb82a950cba4aad6bfe43b60e6e68eb4b691ad3b6e65f97a2dcfe"
+    },
+    {
+      "source_uri": "docs/API.md",
+      "source_hash": "074c479f88778a0d0f926112200f9a54c40cee2055ed661de6347f4f969fc16c"
+    },
+    {
+      "source_uri": "docs/ERD.md",
+      "source_hash": "faaf48c6854a9a0c84c193f0eaf6ec349a8e258d59fc5dbdc191a160d12a0c14"
+    },
+    {
+      "source_uri": "docs/TROUBLESHOOTING.md",
+      "source_hash": "cec6e9591ff3e0b0d7cfc49614fbec7a3a59ab32384870573ef2af0dca028be7"
+    },
+    {
+      "source_uri": "docs/DEPLOYMENT.md",
+      "source_hash": "0d070fbe91fae881b63c9803dc46be7a0a8f57fb1b70ec9147e37c2b24c4cffc"
+    },
+    {
+      "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+      "source_hash": "f6dc7fb39cbdd200aec843381a597ae3e13177fa3e8bfb91a942a9457b8bc77e"
+    },
+    {
+      "source_uri": "docs/operations/payment-load-test.md",
+      "source_hash": "f9a437d3a0d80dc9b7364b57630ee916f710a0c2d16c78300547211b583e21b8"
+    },
+    {
+      "source_uri": "docs/operations/toss-billing-review-readiness.md",
+      "source_hash": "820d08a0d03effabd5da7c29ff01db7c91989dd664cdede76c96148fbc36bbbc"
+    },
+    {
+      "source_uri": "docs/operations/initial-payment-migration-preflight.md",
+      "source_hash": "dd804c90b0ef12c0bdd4e18226f1a88aa3611ac2e69058c2920735fe96a4ee8f"
+    },
+    {
+      "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+      "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+    },
+    {
+      "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+      "source_hash": "39541e61f163a486dbe75decf8e652d25a8809bc915e3041132f1403d70a55d2"
+    },
+    {
+      "source_uri": "src/main/java/com/membershipflow/subscription/scheduler/BillingScheduler.java",
+      "source_hash": "1a697d2fc5bcb7f3e23879ee1c14c6843e4a7237302cb729eb66a5e4f89b4dc4"
+    },
+    {
+      "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+      "source_hash": "5d11401cb473e6f654068535f0bb81975cc2bd19acc034d75c00a451eb005394"
+    },
+    {
+      "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+      "source_hash": "86aa8a035b9349118a93fa1077d809ecba3e087c806141fc4d1ab3be24ceefb1"
+    }
+  ],
+  "chunk_count": 322,
+  "cases": [
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-001",
+      "question": "이용 가능한 구독의 판정 기준은?",
+      "reviewed": false,
+      "notes": "ACTIVE는 만료시각과 무관하게 true. CANCELLED는 now < nextBillingAt일 때만 true. isActive는 위임 래퍼이므로 판정 기준의 필수 근거로 추가하지 않음.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > isActiveAt",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "5f12d365d8d5529140f8548674c5fa82ef5ac283815747b2c6c3847b1c65b7e2",
+              "lines": [
+                243,
+                246
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-002",
+      "question": "Paddle 구독 상태를 반영할 때, 받은 이벤트가 마지막 반영 이벤트보다 오래됐는지 무엇으로 판단해?",
+      "reviewed": false,
+      "notes": "externalUpdatedAt이 존재하고 occurredAt이 그보다 이전인지 비교. ret-003과의 차이는 어휘 격차 가설의 대조 관측이며 원인 확정 근거는 아님. 동일 시각은 stale로 판정하지 않음.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > isStaleExternalEvent",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+              "lines": [
+                178,
+                180
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-003",
+      "question": "isStaleExternalEvent 는 무엇을 비교해?",
+      "reviewed": false,
+      "notes": "ret-002와 같은 정답을 가진 심볼명 대조 문항. 두 결과만으로 검색 실패 원인을 확정하지 않음.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > isStaleExternalEvent",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+              "lines": [
+                178,
+                180
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-004",
+      "question": "정기 결제 시점이 된 구독을 조회할 때 어떤 조건으로 걸러?",
+      "reviewed": false,
+      "notes": "paymentProvider 일치, 지정 statuses 포함, nextBillingAt <= now의 세 조건. 호출자가 전달하는 상태 목록 자체는 이 근거의 범위 밖.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+          "anchor": "SubscriptionRepository > findDueForBilling",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "29e8bd5a7ce36185b8efef1275a1f2fe15a044f8c9e53da4301e438e8d9ac335",
+              "lines": [
+                49,
+                58
+              ],
+              "source_hash": "39541e61f163a486dbe75decf8e652d25a8809bc915e3041132f1403d70a55d2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-005",
+      "question": "구독 ID로 수정 대상 구독을 조회할 때 어떤 잠금을 사용해?",
+      "reviewed": false,
+      "notes": "findByIdForUpdate의 PESSIMISTIC_WRITE 확인. 회원 ID 또는 외부 구독 ID 조회와 구분. 전체 동시성 보장을 묻는 문항이 아님.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java",
+          "anchor": "SubscriptionRepository > findByIdForUpdate",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "13ee9914f4375c0ea3fc43b7e91fd6ef072c5eff6db85a2a83aa29ef620f3697",
+              "lines": [
+                21,
+                23
+              ],
+              "source_hash": "39541e61f163a486dbe75decf8e652d25a8809bc915e3041132f1403d70a55d2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-006",
+      "question": "여러 소스의 가격 중 이상치를 찾을 때 기준 가격과 이탈 정도는 어떻게 계산해?",
+      "reviewed": false,
+      "notes": "소스 가격의 중앙값을 기준으로 (소스 가격 - 중앙값) / 중앙값 계산 후 절댓값 비교. 기준 가격 계산 방법(정렬 후 중앙값, 짝수 개는 가운데 두 값 평균)은 evaluatePriceOutliers 가 아니라 median 청크(L125-133)에 있어 근거 2건으로 둔다. 최소 소스 수와 임계값의 숫자는 어느 청크에도 정의가 없어 평가 대상에서 제외. 상수 정의 수집은 별도 미해결 항목. 근거 범위 확정 2026-09-22, 분석은 RET-006-EVIDENCE.md.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+          "anchor": "AnomalyDetectionService > evaluatePriceOutliers",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "e6776842327340950d01ed0b50cd62086c67ebcac1cb58cf1c28bed6cdf72950",
+              "lines": [
+                102,
+                122
+              ],
+              "source_hash": "86aa8a035b9349118a93fa1077d809ecba3e087c806141fc4d1ab3be24ceefb1"
+            }
+          ]
+        },
+        {
+          "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+          "anchor": "AnomalyDetectionService > median",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "8dcbccd039b2d4a20340445f0a4a9d33b70f120a276902293f5c82afd848f970",
+              "lines": [
+                125,
+                133
+              ],
+              "source_hash": "86aa8a035b9349118a93fa1077d809ecba3e087c806141fc4d1ab3be24ceefb1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-007",
+      "question": "수집량 감소를 비교할 때 이전 수집 건수가 0이면 어떻게 처리해?",
+      "reviewed": false,
+      "notes": "previousCount <= 0이면 즉시 return. 급감 비율의 숫자는 현재 청크에 정의가 없어 평가 대상에서 제외. 전체 급감 탐지 품질 검증으로 해석하지 않음.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java",
+          "anchor": "AnomalyDetectionService > evaluateCollectDrop",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "65e089fecb30ce33ad7992d5cf2e7f9e7f5c1457711953123dea339e6fc38be1",
+              "lines": [
+                63,
+                75
+              ],
+              "source_hash": "86aa8a035b9349118a93fa1077d809ecba3e087c806141fc4d1ab3be24ceefb1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-008",
+      "question": "구독 상태가 CANCELLED이고 이용 종료 시점이 아직 남았다면 이용 가능 판정은 어떻게 돼?",
+      "reviewed": false,
+      "notes": "isActiveAt에서 now < nextBillingAt이면 이용 가능, 같은 시각이면 불가. 취소 처리 메서드만으로는 이용 가능 판정을 확인할 수 없음. 취소 유형별 nextBillingAt 설정은 질문 범위 밖.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > isActiveAt",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "5f12d365d8d5529140f8548674c5fa82ef5ac283815747b2c6c3847b1c65b7e2",
+              "lines": [
+                243,
+                246
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-009",
+      "question": "문서에 정리된 최초 결제와 정기결제의 트랜잭션·외부 호출 범위는 어떻게 달라?",
+      "reviewed": false,
+      "notes": "expected_sources 두 항목 모두 필요한 근거. 각 anchor는 경로 구성요소의 연속된 suffix로 일치시킬 것. Recall@k는 회수한 근거 수/2, MRR은 첫 관련 근거 순위만 측정하므로 양쪽 근거 충족률도 별도 기록.",
+      "evidence": [
+        {
+          "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+          "anchor": "5. 면접 답변 > 최초 결제",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "28431d23704b7b8ac10b4b4a1a83e0323193b29824e5886fcf81a142ce9de103",
+              "lines": [
+                182,
+                191
+              ],
+              "source_hash": "f6dc7fb39cbdd200aec843381a597ae3e13177fa3e8bfb91a942a9457b8bc77e"
+            }
+          ]
+        },
+        {
+          "source_uri": "docs/learning/PAYMENT-TRANSACTION-FLOW.md",
+          "anchor": "5. 면접 답변 > 정기결제",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+              "lines": [
+                192,
+                200
+              ],
+              "source_hash": "f6dc7fb39cbdd200aec843381a597ae3e13177fa3e8bfb91a942a9457b8bc77e"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-010",
+      "question": "토스 자동결제 심사 전 홈페이지·구매 흐름에서 보완해야 할 항목은?",
+      "reviewed": false,
+      "notes": "홈페이지·구매 흐름 하위 절의 비회원 구매, 사업자 정보, 결제 직전 고지, 약관 항목. 운영 준비는 질문 범위 밖. 부모 제목만 있는 청크는 정답 불인정.",
+      "evidence": [
+        {
+          "source_uri": "docs/operations/toss-billing-review-readiness.md",
+          "anchor": "심사 전 차단 항목 > 홈페이지·구매 흐름",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "62e9e7313ddaff0e20069f63cb2854d3000f62ee3bc1a9b2a53ded49c48fd7ae",
+              "lines": [
+                31,
+                46
+              ],
+              "source_hash": "820d08a0d03effabd5da7c29ff01db7c91989dd664cdede76c96148fbc36bbbc"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-011",
+      "question": "결제 준비 API 부하 테스트는 어떻게 돌려?",
+      "reviewed": false,
+      "notes": "문서 실행 절의 BASE_URL, PLAN_ID, PROFILE, TOKENS_FILE과 k6 명령이 답. 테스트 계정 발급, 실결제 실행, 운영 부하 허용 범위 전체는 이 질문의 채점 범위 밖.",
+      "evidence": [
+        {
+          "source_uri": "docs/operations/payment-load-test.md",
+          "anchor": "실행",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "a8143b4e46e120770ad8a1e43b04a577b3e1f216627afe7bcc42d6e69c3487be",
+              "lines": [
+                38,
+                78
+              ],
+              "source_hash": "f9a437d3a0d80dc9b7364b57630ee916f710a0c2d16c78300547211b583e21b8"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-012",
+      "question": "Paddle에서 이미 처리한 이벤트 ID를 다시 보내면 어디서 걸러?",
+      "reviewed": false,
+      "notes": "process의 provider+event ID 존재 확인 후 조기 return. 동시 최초 수신의 경쟁 조건이나 전체 멱등성 보장까지 평가하지 않음. 역순 시각 비교와 구분.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java",
+          "anchor": "PaddleWebhookService > process",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "a662caa4221d039a006d5464feefd3e077587c83d54be76d150758e0cfe132c2",
+              "lines": [
+                53,
+                75
+              ],
+              "source_hash": "5d11401cb473e6f654068535f0bb81975cc2bd19acc034d75c00a451eb005394"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-013",
+      "question": "토스 정기결제가 실패할 때 실패 횟수에 따라 구독 상태는 어떻게 바뀌어?",
+      "reviewed": false,
+      "notes": "paymentFailed에서 failCount 증가 후 3회 이상 SUSPENDED, 미만 PAYMENT_FAILED. Paddle 이벤트 처리와 구분.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > paymentFailed",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "9f160478f528108eac3d8609aaacf6f7f6c995cbc13f2d75519c10eb14a285fc",
+              "lines": [
+                233,
+                237
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-014",
+      "question": "배포할 때 SSL 인증서는 어떻게 받아?",
+      "reviewed": false,
+      "notes": "문서 기준 HTTP nginx 기동, certbot webroot 인증서 발급, nginx 재시작 순서. 실제 발급 성공/현재 인프라 일치 여부는 평가하지 않음. 명령의 개인 이메일 값은 정답 요건이 아니며 답변에는 자리표시자 사용.",
+      "evidence": [
+        {
+          "source_uri": "docs/DEPLOYMENT.md",
+          "anchor": "5. SSL 인증서 발급",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "c1c6c6a6e548346374b476891f2343f86f56977ffeeec110243306ff6fa4a613",
+              "lines": [
+                68,
+                85
+              ],
+              "source_hash": "0d070fbe91fae881b63c9803dc46be7a0a8f57fb1b70ec9147e37c2b24c4cffc"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.draft.jsonl",
+      "id": "ret-015",
+      "question": "에러 응답 형식이 어떻게 돼?",
+      "reviewed": false,
+      "notes": "문서 공통 에러 응답의 code와 message 필드 및 문자열 예시가 근거. 개별 오류 코드 목록, 모든 런타임 오류의 형식 일치 여부는 평가 범위 밖.",
+      "evidence": [
+        {
+          "source_uri": "docs/API.md",
+          "anchor": "공통 에러 응답",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "cfd991e68c9289c08c833ecf066be1a85274159906e455d4727232d831cbd2bb",
+              "lines": [
+                50,
+                61
+              ],
+              "source_hash": "074c479f88778a0d0f926112200f9a54c40cee2055ed661de6347f4f969fc16c"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-101",
+      "question": "Paddle 해지 예약을 반영할 때 서비스 종료일은 어느 필드에 저장해?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: nextBillingAt에 serviceEndsAt 저장. 취소 상태와 시각도 갱신. 역순 이벤트 판정 구현은 범위 밖.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > schedulePaddleCancellation",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "964e72b32680d3077b198ad5738482d9c9c5d453e34b9893c742cce7d44d95c1",
+              "lines": [
+                123,
+                131
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-102",
+      "question": "Paddle 활성 상태 동기화에서 다음 결제일이 빠져 있으면 기존 날짜를 지워?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: null이면 기존 nextBillingAt 유지, failCount=0, cancelledAt=null.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > syncPaddleActive",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "0dff51b7737eb6f0bfa1eb3de7c390c5c5cbf65219630ee6894699282f8cb618",
+              "lines": [
+                133,
+                142
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-103",
+      "question": "Paddle 연체 상태를 동기화하는 메서드는 실패 횟수도 증가시켜?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: PAYMENT_FAILED로 변경하지만 failCount 증가 없음. 결제 실패 이벤트 처리와 구분.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > syncPaddlePastDue",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+              "lines": [
+                154,
+                159
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-104",
+      "question": "Paddle 정지 상태 동기화가 받아들여지면 어떤 구독 상태가 저장돼?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: SUSPENDED 저장. 역순 이벤트 판정 상세는 범위 밖.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > syncPaddleSuspended",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "1c52bfedb410e70f8501e699b1836f9b9d40e03c30acf9f02e3a628188eec923",
+              "lines": [
+                161,
+                166
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-105",
+      "question": "Paddle 취소 완료를 반영하면 다음 결제일과 취소일은 각각 무엇으로 바뀌어?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: 두 필드 모두 전달된 canceledAt. 해지 예약과 구분.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > syncPaddleCanceled",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+              "lines": [
+                168,
+                176
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-106",
+      "question": "기존 구독을 토스로 재구독할 때 이전 Paddle 식별자는 어떻게 처리해?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: externalCustomerId, externalSubscriptionId, externalUpdatedAt을 null로 초기화.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > resubscribe",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "2516da29064039f56c053695ba808fa56185f114be28c518e9fd9a73b0790acb",
+              "lines": [
+                182,
+                204
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-107",
+      "question": "Paddle로 재구독할 때 이전 토스 빌링키와 카드 정보는 남겨?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: billingKey, customerKey, cardNumberMasked, cardCompany를 null로 초기화.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > resubscribeWithPaddle",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "93e1fd2cab10988bebf8e9201c6f59d68abb85a37f0e72fd9ed1eb733efb9318",
+              "lines": [
+                206,
+                224
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-108",
+      "question": "토스 결제가 성공하면 누적 실패 횟수와 다음 결제일은 어떻게 갱신돼?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: ACTIVE, failCount=0, 전달된 nextBillingAt 저장. 외부 승인 과정은 제외.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "anchor": "Subscription > paymentSuccess",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "68b56391457df76e856172c7b07df095afe55f4f2209a42aa7607a4162beef12",
+              "lines": [
+                226,
+                231
+              ],
+              "source_hash": "02938deebec9a71b92bb95a4781bcc511403ed0aa68be6a7dd814ad93bffcd0a"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-109",
+      "question": "정기 청구 배치에서 한 구독 처리 중 예외가 나면 나머지 구독도 중단돼?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: 개별 반복의 try/catch로 로그 후 다음 구독 계속. 모든 결제 성공 보장과 구분.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/scheduler/BillingScheduler.java",
+          "anchor": "BillingScheduler > processDueBillings",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "a0dc7b1dee5a3965fd3c227e763ad4bc11a5316c9a1cdeb69cac1e3f1b019248",
+              "lines": [
+                45,
+                66
+              ],
+              "source_hash": "1a697d2fc5bcb7f3e23879ee1c14c6843e4a7237302cb729eb66a5e4f89b4dc4"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-110",
+      "question": "결제 배치 하트비트 게이지는 애플리케이션 시작 시 어떤 값으로 초기화돼?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: lastSuccessEpochSeconds(BILLING_BATCH)로 초기화 후 billing_last_run_timestamp_seconds 게이지 등록. 저장소 구현 제외.",
+      "evidence": [
+        {
+          "source_uri": "src/main/java/com/membershipflow/subscription/scheduler/BillingScheduler.java",
+          "anchor": "BillingScheduler > registerMetrics",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "d7386273b444ff4ddc4462b42d7a195bfd591168731d27090b3d559c0771912b",
+              "lines": [
+                36,
+                43
+              ],
+              "source_hash": "1a697d2fc5bcb7f3e23879ee1c14c6843e4a7237302cb729eb66a5e4f89b4dc4"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-111",
+      "question": "결제 준비 부하 테스트에서 실제 과금 위험 때문에 제외한 경로는 무엇이야?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: callback, processBilling, Toss 빌링키 발급·승인 API 제외. prepare는 외부 Toss 호출 없음.",
+      "evidence": [
+        {
+          "source_uri": "docs/operations/payment-load-test.md",
+          "anchor": "테스트 범위",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "226de689c5c049995474b086c8dcf3e2cde95a5787d42ce8dd447cfe10228e9b",
+              "lines": [
+                10,
+                22
+              ],
+              "source_hash": "f9a437d3a0d80dc9b7364b57630ee916f710a0c2d16c78300547211b583e21b8"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-112",
+      "question": "결제 부하 테스트용 토큰 파일은 어떻게 준비하고 어떤 계정을 써야 해?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: 미구독 전용계정/단기 access token, 예제 복사 및 chmod600. 실제 고객 토큰 사용 금지.",
+      "evidence": [
+        {
+          "source_uri": "docs/operations/payment-load-test.md",
+          "anchor": "테스트 사용자 준비",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "5ec59e6a0ea72a646029df62fd512e5145f9a0052c5c56086e268c2c3c2eff84",
+              "lines": [
+                23,
+                37
+              ],
+              "source_hash": "f9a437d3a0d80dc9b7364b57630ee916f710a0c2d16c78300547211b583e21b8"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-113",
+      "question": "결제 준비 부하 테스트 후 중복 활성 시도가 없는지 어떤 DB 결과로 확인해?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: PENDING/PROCESSING을 회원별 집계해 count>1인 행이 0건. 실제 운영 DB 조회 요청 아님.",
+      "evidence": [
+        {
+          "source_uri": "docs/operations/payment-load-test.md",
+          "anchor": "DB 사후 검증",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "e95378d8fefef5f019a9d5e39525a630befd0b37bd712bdc5305cecc3640f1ab",
+              "lines": [
+                79,
+                93
+              ],
+              "source_hash": "f9a437d3a0d80dc9b7364b57630ee916f710a0c2d16c78300547211b583e21b8"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-114",
+      "question": "새 결제 준비 요청에서 자동 만료 가능한 기존 결제 시도는 무엇이야?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: 만료 PENDING 중 외부 결제 정보 없는 행. PROCESSING과 외부정보 있는 행은 PAYMENT_IN_PROGRESS.",
+      "evidence": [
+        {
+          "source_uri": "docs/operations/initial-payment-migration-preflight.md",
+          "anchor": "애플리케이션 동작",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "e64fc7f111a9a31fea1a5d2593e6ea4f629b377eae0ea7b315b8b436a4b63b65",
+              "lines": [
+                32,
+                37
+              ],
+              "source_hash": "dd804c90b0ef12c0bdd4e18226f1a88aa3611ac2e69058c2920735fe96a4ee8f"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-115",
+      "question": "V19 이전 처리중 결제에 주문번호만 있고 멱등키가 없으면 승인을 다시 호출해도 돼?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: 재승인 금지, order_id 조회만. 신규 V19 멱등키 경로와 구분.",
+      "evidence": [
+        {
+          "source_uri": "docs/operations/initial-payment-migration-preflight.md",
+          "anchor": "V19 외부 요청 멱등키",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "a4dc266c2a13002b2de1cfdc6d0e8ccd3304c13df91f799972f28dfe3e647e5a",
+              "lines": [
+                38,
+                63
+              ],
+              "source_hash": "dd804c90b0ef12c0bdd4e18226f1a88aa3611ac2e69058c2920735fe96a4ee8f"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-116",
+      "question": "배포 문서에서 main push 이후 백엔드 배포까지 어떤 순서로 진행돼?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: CI test→Docker image build→GHCR push→SSH→backend 배포/health gate. 현재 인프라 실측 아님.",
+      "evidence": [
+        {
+          "source_uri": "docs/DEPLOYMENT.md",
+          "anchor": "CI/CD 흐름",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "623b1f91f4720f3120df0a2eddaabae41e5adc315da92581b587b8a140e7d296",
+              "lines": [
+                25,
+                36
+              ],
+              "source_hash": "0d070fbe91fae881b63c9803dc46be7a0a8f57fb1b70ec9147e37c2b24c4cffc"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-117",
+      "question": "배포 문서에서 루트 도메인과 www는 어떤 DNS 레코드로 연결해?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: @와 www 각각 A 레코드, EC2 Elastic IP, TTL600. 현재 DNS 상태 아님.",
+      "evidence": [
+        {
+          "source_uri": "docs/DEPLOYMENT.md",
+          "anchor": "2. Gabia DNS 설정",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "d1809a0d12fb0568267b62409789206ca2e1883f05d6f1882c84401dfbf360b3",
+              "lines": [
+                44,
+                52
+              ],
+              "source_hash": "0d070fbe91fae881b63c9803dc46be7a0a8f57fb1b70ec9147e37c2b24c4cffc"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-118",
+      "question": "배포 문서에 따르면 구글 OAuth 클라이언트에 어떤 콜백 경로를 등록해?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: https://membershipflow.site/login/oauth2/code/google. 실제 콘솔 설정 확인은 제외.",
+      "evidence": [
+        {
+          "source_uri": "docs/DEPLOYMENT.md",
+          "anchor": "8. Google OAuth2 Redirect URI 추가",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "8e185a6ca309af1d1e77b06128033a6cbf38618f953ad210f0923f5a25ab5dc3",
+              "lines": [
+                108,
+                116
+              ],
+              "source_hash": "0d070fbe91fae881b63c9803dc46be7a0a8f57fb1b70ec9147e37c2b24c4cffc"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-119",
+      "question": "배포 문서의 인증서 자동 갱신 명령 뒤에 어떤 작업이 이어져?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: certbot renew 성공 시 && docker compose restart nginx. 신규 발급과 구분.",
+      "evidence": [
+        {
+          "source_uri": "docs/DEPLOYMENT.md",
+          "anchor": "SSL 자동 갱신 (cron)",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "4fb829bd23b2d8ced5551d4967af7390462ebb3c414c239e2c4cac33d00fb06b",
+              "lines": [
+                117,
+                123
+              ],
+              "source_hash": "0d070fbe91fae881b63c9803dc46be7a0a8f57fb1b70ec9147e37c2b24c4cffc"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    },
+    {
+      "file": "cases.holdout-20260930.draft.jsonl",
+      "id": "ret-120",
+      "question": "배포 문서에서 백엔드는 IDE로 실행하고 DB만 Docker로 띄우려면 어떤 명령을 써?",
+      "reviewed": false,
+      "notes": "AI 작성 초안; 예상 답: docker compose up mysql. 전체 compose up --build와 구분.",
+      "evidence": [
+        {
+          "source_uri": "docs/DEPLOYMENT.md",
+          "anchor": "로컬 개발",
+          "match_count": 1,
+          "chunks": [
+            {
+              "chunk_id": "6ad4d33edd93b9b51efa8de6cc7b4e52b1946590216afc44808c2f331d4d2c21",
+              "lines": [
+                124,
+                132
+              ],
+              "source_hash": "0d070fbe91fae881b63c9803dc46be7a0a8f57fb1b70ec9147e37c2b24c4cffc"
+            }
+          ]
+        }
+      ],
+      "overlaps_old_expected_chunks": false
+    }
+  ]
+}
