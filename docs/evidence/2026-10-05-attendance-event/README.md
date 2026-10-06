@@ -9,7 +9,8 @@
 |---|---|---|---|---|---|
 | 00 | 10/5(월) 11:24 | 기획·디자인 요청 접수, 일정·완료 기준 설정 | AI (기획자·디자이너 역할) | #423 본문 | `captures/00-issue.png` |
 | 01 | 10/5(월) 19:35 (마감 18:00, 1시간 35분 지연, 사전 공유 없음) | 기획·디자인에 질문 회신 ([댓글](https://github.com/ohhalim/MembershipFlow/issues/423#issuecomment-5992764256)) | 본인 초안(질문 3개) → 요청에 따라 AI가 전체 초안 작성 → 본인 검토·게시 | #423 댓글 | `captures/01-questions.png` |
-| 02 | 10/6(화) 10:00 | 킥오프: 답변 확인, 범위 확정, 일정 견적 | 본인 + AI (기획자·디자이너 역할) | #423 댓글 | `captures/02-kickoff.png` |
+| 02 | 10/6(화) 10:00 | 킥오프: 답변 확인, 범위 확정, 일정 견적 → 오픈 10/20(화) 확정 ([미팅 로그](https://github.com/ohhalim/MembershipFlow/issues/423#issuecomment-6007183288)) | 기획·디자인 답변은 AI 역할. 견적과 미팅 중 제기한 문제 2개는 본인이 막혀서 요청 → AI 초안 → 본인 검토·채택(일정안은 본인이 선택) | #423 미팅 로그 댓글, [대화기록](https://github.com/ohhalim/MembershipFlow/issues/423#issuecomment-6007272027) (`02-kickoff-conversation.md`) | `captures/02-kickoff.png` |
+| 03 | 10/6(화) | 정책 문서 + 마일스톤 | 본인 요청 → AI 초안 → 본인 검토 | `docs/ATTENDANCE-EVENT-POLICY.md` | |
 
 - 01: 본인이 먼저 쓴 질문 3개 중 출석으로 인정하는 행동, 하루의 기준은 문구를 다듬어 댓글의 기획 3·4번으로 들어갔다. 나머지는 AI 초안이다.
 
