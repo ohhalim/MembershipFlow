@@ -24,7 +24,6 @@ CREATE TABLE attendance (
     created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_attendance_member_date (member_id, attend_date),
-    KEY idx_attendance_date (attend_date),
     CONSTRAINT fk_attendance_member FOREIGN KEY (member_id) REFERENCES member (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 ```
@@ -66,7 +65,9 @@ CREATE TABLE coupon (
 - 참여자 수 쿼리: `SELECT COUNT(*) FROM attendance WHERE attend_date = ?`
   - `uk_attendance_member_date (member_id, attend_date)`는 `member_id`로 먼저 정렬돼 있어서, 날짜만으로는 원하는 위치로 바로 찾아갈 수 없다. 인덱스 전체를 읽는 방식으로는 쓸 수 있다.
   - 하루 1건 유니크 키 덕분에 줄 수가 곧 사람 수다. `COUNT(DISTINCT member_id)`가 필요 없다.
-- `idx_attendance_date (attend_date)`: 날짜별 조회를 위해 추가하는 **후보**다. 효과는 확인되지 않았다. 마이그레이션 후 인덱스 추가 전후의 `EXPLAIN`을 같은 조건에서 비교해 확인한다. 출석 INSERT마다 갱신할 인덱스가 하나 늘어나는 비용이 있다.
+- `idx_attendance_date (attend_date)`: 날짜별 조회를 위한 **후보**다. 효과가 확인되지 않아 V24에는 넣지 않는다.
+  - 이유: 적용된 마이그레이션은 고칠 수 없다. V24에 넣으면 인덱스가 없는 상태가 남지 않아 전후 비교를 할 수 없다.
+  - 확인 방법: V24 적용 후 같은 데이터·같은 쿼리로 인덱스 추가 전후의 `EXPLAIN`(`type`, `key`, `rows`)을 비교한다. 차이가 있으면 V25로 추가하고, 없으면 넣지 않는다. 출석 INSERT마다 갱신할 인덱스가 하나 늘어나는 비용이 있기 때문이다.
 
 ## 4. API
 
@@ -76,6 +77,6 @@ CREATE TABLE coupon (
 
 1. `uk_attendance_member_date` 없이 동시 출석 테스트 → 2건이 저장되는 실패를 재현하고 결과를 남긴다
 2. 제약을 추가한 뒤 같은 테스트 → 1건만 저장되는지 확인한다
-3. 참여자 수 쿼리의 `EXPLAIN`을 `idx_attendance_date` 추가 전후로 비교한다
+3. 참여자 수 쿼리의 `EXPLAIN`을 `idx_attendance_date` 추가 전후로 비교한다 → 효과가 있으면 V25로 추가
 4. `uk_coupon_attendance` 없이 같은 출석으로 할인권 두 번 발급 → 2장 저장 재현, 제약 추가 후 1장 확인
 5. 할인권 1장을 가진 사용자가 두 번째 7일째 출석을 동시에 여러 번 요청 → 2장을 넘지 않는지 확인
