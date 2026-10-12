@@ -15,6 +15,7 @@
 | 05 | 10/8(목) ~ 10/11(일) | 테이블 설계: `attendance`, `coupon`, 인덱스 검토, 검증 계획 | `attendance` DDL 본인 작성. `coupon`은 AI 빈칸 템플릿 → `expires_at`·`used_at` 본인, 유니크 키 AI. 인덱스 설명은 AI가 틀리게 설명한 것을 다른 모델 리뷰로 바로잡음 | `docs/ATTENDANCE-EVENT-DESIGN.md` | |
 | 06 | 10/11(일) 20:51 (10/12 마일스톤 기한 전) | 진행 상황 공유: 10/12 마일스톤 → 10/13, 뒤 일정 하루씩, 오픈 10/20 유지 ([댓글](https://github.com/ohhalim/MembershipFlow/issues/423#issuecomment-6108722393)) | 날짜는 본인 결정, 문구는 AI 초안 → 본인 승인 | #423 댓글 | |
 | 07 | 10/11(일) 21:30 | V24 마이그레이션 작성, 빈 MySQL 8.0.36에 V1~V24 적용 확인. 날짜 인덱스는 효과 확인 전이라 제외 (EXPLAIN 전후 비교 후 V25 여부 결정) | V24는 본인 작성(설계 문서 DDL 옮김). 적용 확인은 AI 실행 | `V24__attendance_event.sql` | `captures/07-v24-migrate.txt` |
+| 08 | 10/12(월) 11:49 | `Attendance`, `Coupon` 엔티티 작성, `ddl-auto: validate`로 앱 기동 확인 ([계획·결과](plan-2026-10-12.md)) | 엔티티 본인 작성(AI 빈칸 템플릿, 타입은 본인 선택 → 리뷰로 수정). 생성자 매개변수 이름·공백 수정과 기동 확인은 AI | `attendance/entity/` | `captures/08-entity-validate.txt` |
 
 - 01: 본인이 먼저 쓴 질문 3개 중 출석으로 인정하는 행동, 하루의 기준은 문구를 다듬어 댓글의 기획 3·4번으로 들어갔다. 나머지는 AI 초안이다.
 
