@@ -6,7 +6,7 @@ import java.time.LocalDate;
 
 public record AttendanceResponse (
         LocalDate attendDate,
-        int dayno
+        int dayNo
 ) {
     public static AttendanceResponse from(Attendance a){
         return new AttendanceResponse(a.getAttendDate(),
