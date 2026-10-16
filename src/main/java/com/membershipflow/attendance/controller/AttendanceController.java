@@ -1,9 +1,11 @@
 package com.membershipflow.attendance.controller;
 
 import com.membershipflow.attendance.dto.AttendanceResponse;
+import com.membershipflow.attendance.entity.Attendance;
 import com.membershipflow.attendance.service.AttendanceService;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,11 +22,13 @@ public class AttendanceController {
     @PostMapping
     public ResponseEntity<AttendanceResponse> attend(
             @AuthenticationPrincipal OAuth2UserPrincipal principal) {
-        return ResponseEntity.ok(AttendanceResponse.from(
-                attendanceService.attend(principal
-                        .getMember()
-                        .getId()
-                )
-        ));
+        Long memberId = principal.getMember().getId();
+        Attendance attendance;
+        try {
+            attendance = attendanceService.attend(memberId);
+        } catch (DataIntegrityViolationException e) {
+            attendance = attendanceService.attend(memberId);
+        }
+        return ResponseEntity.ok(AttendanceResponse.from(attendance));
     }
 }

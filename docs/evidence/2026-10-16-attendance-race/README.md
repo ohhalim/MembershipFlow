@@ -29,3 +29,15 @@ DataIntegrityViolationException: Duplicate entry '900003-2026-10-16' for key 'at
 ## 다음
 - 같은 조건을 Testcontainers MySQL 통합 테스트로 고정한다 (`AttendanceConcurrencyTest`)
 - 수정 후 같은 테스트와 같은 curl 조건으로 다시 측정해서 after를 이 폴더에 추가한다
+
+## after (수정 후, 같은 조건)
+- 수정: `AttendanceController`에서 `DataIntegrityViolationException`을 잡고 `attend`를 새 트랜잭션으로 한 번 더 호출
+- 조건: 새 회원(900004, 당일 기록 없음)으로 같은 curl 10개 동시 요청
+
+| 항목 | before | after |
+|---|---|---|
+| 200 | 1 | 10 |
+| 500 | 9 | 0 |
+| attendance 행 | 1 | 1 |
+
+- 통합 테스트 `AttendanceConcurrencyTest` (Testcontainers MySQL, 스레드 10개): 수정 전 실패(예외 발생) → 수정 후 통과
