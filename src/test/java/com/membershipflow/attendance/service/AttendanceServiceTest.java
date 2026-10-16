@@ -1,7 +1,11 @@
 package com.membershipflow.attendance.service;
 
 import com.membershipflow.attendance.entity.Attendance;
+import com.membershipflow.attendance.entity.Coupon;
 import com.membershipflow.attendance.repository.AttendanceRepository;
+import com.membershipflow.attendance.repository.CouponRepository;
+import com.membershipflow.common.exception.BusinessException;
+import com.membershipflow.common.exception.ErrorCode;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.repository.MemberRepository;
 import com.membershipflow.subscription.service.SubscriptionService;
@@ -18,9 +22,11 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +39,8 @@ class AttendanceServiceTest {
     MemberRepository memberRepository;
     @Mock
     SubscriptionService subscriptionService;
+    @Mock
+    CouponRepository couponRepository;
     @InjectMocks
     AttendanceService attendanceService;
 
@@ -106,6 +114,48 @@ class AttendanceServiceTest {
 
         // then
         assertThat(result).isSameAs(todays);
+        verify(attendanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("7일째 출석하면 할인권 1장을 발급한다")
+    void issueCouponOnSeventhDay() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        Attendance yesterday = Attendance.builder()
+                .member(member)
+                .attendDate(today.minusDays(1))
+                .dayNo(6)
+                .build();
+
+        given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today.minusDays(1))).willReturn(Optional.of(yesterday));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        Attendance result = attendanceService.attend(MEMBER_ID, today);
+
+        // then
+        assertThat(result.getDayNo()).isEqualTo(7);
+        verify(couponRepository, times(1)).save(any(Coupon.class));
+    }
+
+    @Test
+    @DisplayName("할인권 2장을 이미 받았으면 출석할 수 없다")
+    void rejectWhenCouponLimitReached() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+
+        given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
+        given(couponRepository.countByMemberId(MEMBER_ID)).willReturn(2L);
+
+        // when, then
+        assertThatThrownBy(() -> attendanceService.attend(MEMBER_ID, today))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.COUPON_LIMIT_REACHED);
         verify(attendanceRepository, never()).save(any());
     }
 }
