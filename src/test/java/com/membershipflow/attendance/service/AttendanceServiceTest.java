@@ -13,12 +13,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+
 import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class AttendanceServiceTest {
@@ -62,5 +65,47 @@ class AttendanceServiceTest {
 
         // then
         assertThat(result.getDayNo()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("어제 출석 기록이 없으면 1일째로 저장한다")
+    void saveFirstDayWhenNoYesterday() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+
+        given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today.minusDays(1))).willReturn(Optional.empty());
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        Attendance result = attendanceService.attend(MEMBER_ID, today);
+
+        // then
+        assertThat(result.getDayNo()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("오늘 이미 출석했으면 저장하지 않고 기존 기록을 반환한다")
+    void returnExistingWhenAlreadyAttended() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+
+        Attendance todays = Attendance.builder()
+                .member(member)
+                .attendDate(today)
+                .dayNo(3)
+                .build();
+
+        given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.of(todays));
+
+        // when
+        Attendance result = attendanceService.attend(MEMBER_ID, today);
+
+        // then
+        assertThat(result).isSameAs(todays);
+        verify(attendanceRepository, never()).save(any());
     }
 }
