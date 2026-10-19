@@ -40,14 +40,14 @@ public class AttendanceService {
         if (subscriptionService.isSubscriber(memberId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        if (couponRepository.countByMemberId(memberId) >= COUPON_LIMIT) {
-            throw new BusinessException(ErrorCode.COUPON_LIMIT_REACHED);
-        }
         Optional<Attendance> todays =
                 attendanceRepository.findByMemberIdAndAttendDate(memberId, today);
 
         if (todays.isPresent()) {
             return todays.get();
+        }
+        if (couponRepository.countByMemberId(memberId) >= COUPON_LIMIT) {
+            throw new BusinessException(ErrorCode.COUPON_LIMIT_REACHED);
         }
 
         int dayNo = attendanceRepository.findByMemberIdAndAttendDate(
