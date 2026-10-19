@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "coupon")
@@ -38,11 +39,15 @@ public class Coupon {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "event_code", nullable = false, length = 50)
+    private String eventCode;
+
     @Builder
-    public Coupon(int discountRate, Member member, Attendance attendance) {
+    public Coupon(int discountRate, Member member, Attendance attendance, String eventCode) {
         this.discountRate = discountRate;
         this.member = member;
         this.attendance = attendance;
         this.createdAt = LocalDateTime.now();
+        this.eventCode = eventCode;
     }
 }

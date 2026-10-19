@@ -25,6 +25,7 @@ public class AttendanceService {
     private static final int EVENT_DAYS = 7;
     private static final int COUPON_DISCOUNT_RATE = 10;
     private static final int COUPON_LIMIT = 2;
+    private static final String EVENT_CODE = "ATTENDANCE_2026_FALL";
 
     private final AttendanceRepository attendanceRepository;
     private final MemberRepository memberRepository;
@@ -62,11 +63,13 @@ public class AttendanceService {
                 .attendDate(today)
                 .dayNo(dayNo)
                 .build());
+
         if (dayNo == EVENT_DAYS) {
             couponRepository.save(Coupon.builder()
                     .member(member)
                     .attendance(saved)
                     .discountRate(COUPON_DISCOUNT_RATE)
+                    .eventCode(EVENT_CODE)
                     .build());
         }
         return saved;
