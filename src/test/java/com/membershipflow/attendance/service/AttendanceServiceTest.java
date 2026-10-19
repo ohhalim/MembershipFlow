@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -157,5 +158,27 @@ class AttendanceServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.COUPON_LIMIT_REACHED);
         verify(attendanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("할인권 2장을 받았어도 오늘 이미 출석했으면 기존 기록을 반환한다")
+    void returnExistingWhenAlreadyAttendedEvenIfCouponLimitReached() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        Attendance todays = Attendance.builder()
+                .member(member)
+                .attendDate(today)
+                .dayNo(7)
+                .build();
+
+        given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.of(todays));
+        lenient().when(couponRepository.countByMemberId(MEMBER_ID)).thenReturn(2L);
+
+        // when
+        Attendance result = attendanceService.attend(MEMBER_ID, today);
+
+        // then
+        assertThat(result).isSameAs(todays);
     }
 }
