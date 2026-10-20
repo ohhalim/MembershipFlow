@@ -1,0 +1,46 @@
+# 08. 엔티티 매핑 확인: ddl-auto: validate로 앱 기동 (2026-10-12 KST)
+# 대상: attendance/entity/Attendance.java, Coupon.java
+# 환경: 빈 mysql:8.0.36 컨테이너(127.0.0.1:3306, root/root) + ./gradlew bootRun (application.yml 기본값, ddl-auto: validate)
+#       기존 로컬 볼륨(membershipflow_mysql_data)은 사용하지 않았다
+# 재현 명령:
+#   docker run -d --name mf-validate-mysql -p 127.0.0.1:3306:3306 -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=membershipflow -e TZ=Asia/Seoul mysql:8.0.36
+#   ./gradlew bootRun
+# 결과: Flyway V1~V24 적용 → Hibernate 검증 통과 → 기동 완료, /actuator/health 200, 로그에 ERROR/WARN 없음
+# 판단 근거: Hibernate는 검증 통과를 알리는 별도 로그 줄을 남기지 않는다. validate가 실패하면 기동이 중단되므로 기동 완료를 통과로 본다
+# 기동 확인(11:49) 후 수정: Attendance 생성자 매개변수 이름 dayno → dayNo, 공백 2곳. 칼럼 매핑과 무관하며 compileJava로 다시 확인했다
+# 한계: validate는 테이블·칼럼 존재와 타입을 본다. 유니크 키 동작(중복 INSERT 거절)은 확인하지 않았다 → 실패 재현 테스트에서 확인
+
+## 로그 발췌 (Flyway, Hibernate, 기동)
+2026-10-12T11:49:49.830+09:00  INFO 20554 --- [MembershipFlow] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:mysql://localhost:3306/membershipflow?serverTimezone=Asia/Seoul&characterEncoding=UTF-8 (MySQL 8.0)
+2026-10-12T11:49:49.867+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 24 migrations (execution time 00:00.022s)
+2026-10-12T11:49:49.926+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema `membershipflow`: << Empty Schema >>
+2026-10-12T11:49:49.935+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "1 - init core schema"
+2026-10-12T11:49:50.038+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "2 - add oauth to member"
+2026-10-12T11:49:50.081+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "3 - collect pipeline schema"
+2026-10-12T11:49:50.258+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "4 - subscription schema"
+2026-10-12T11:49:50.345+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "5 - add missing timestamps"
+2026-10-12T11:49:50.378+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "6 - refresh token schema"
+2026-10-12T11:49:50.407+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "7 - course alias"
+2026-10-12T11:49:50.434+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "8 - add msise source"
+2026-10-12T11:49:50.450+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "9 - add acegolf source"
+2026-10-12T11:49:50.466+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "10 - course info"
+2026-10-12T11:49:50.491+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "11 - fix dongbu base url"
+2026-10-12T11:49:50.507+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "12 - source base url listing page"
+2026-10-12T11:49:50.523+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "13 - add latest price columns"
+2026-10-12T11:49:50.553+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "14 - billing attempt recovery fields"
+2026-10-12T11:49:50.588+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "15 - add premium golf source"
+2026-10-12T11:49:50.613+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "16 - add public market sources"
+2026-10-12T11:49:50.629+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "17 - add public market course aliases"
+2026-10-12T11:49:50.646+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "18 - initial payment processing guard"
+2026-10-12T11:49:50.694+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "19 - price freshness indexes"
+2026-10-12T11:49:50.727+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "20 - billing attempt idempotency keys"
+2026-10-12T11:49:50.769+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "21 - add subscription billing cycle"
+2026-10-12T11:49:50.851+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "22 - batch heartbeat"
+2026-10-12T11:49:50.878+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "23 - add paddle payment provider"
+2026-10-12T11:49:50.980+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `membershipflow` to version "24 - attendance event"
+2026-10-12T11:49:51.024+09:00  INFO 20554 --- [MembershipFlow] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 24 migrations to schema `membershipflow`, now at version v24 (execution time 00:00.716s)
+2026-10-12T11:49:51.210+09:00  INFO 20554 --- [MembershipFlow] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.49.Final
+2026-10-12T11:49:53.629+09:00  INFO 20554 --- [MembershipFlow] [           main] c.m.MembershipFlowApplication            : Started MembershipFlowApplication in 5.542 seconds (process running for 5.7)
+
+## 기동 로그의 ERROR/WARN 줄 수: 0
+## GET /actuator/health → HTTP 200
