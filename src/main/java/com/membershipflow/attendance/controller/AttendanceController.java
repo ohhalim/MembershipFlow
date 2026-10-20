@@ -22,7 +22,7 @@ public class AttendanceController {
     @PostMapping
     public ResponseEntity<AttendanceResponse> attend(
             @AuthenticationPrincipal OAuth2UserPrincipal principal) {
-        Long memberId = principal.getMember().getId();
+        Long memberId = principal.getMemberId();
         Attendance attendance;
         try {
             attendance = attendanceService.attend(memberId);
