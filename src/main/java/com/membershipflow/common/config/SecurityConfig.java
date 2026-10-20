@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -71,6 +72,9 @@ public class SecurityConfig {
                                 "/admin/collect",
                                 "/admin/collect/history",
                                 "/admin/collect/info")
+                        .permitAll()
+                        // 출석 이벤트 참여자 수는 로그인 전 화면에도 노출 (정책 4.8)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/attendances/participants/today")
                         .permitAll()
                         // 그 외 admin — ADMIN 권한 필수
                         .requestMatchers("/admin/**").hasRole("ADMIN")

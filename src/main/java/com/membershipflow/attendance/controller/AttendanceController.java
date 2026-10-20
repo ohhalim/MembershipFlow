@@ -1,6 +1,7 @@
 package com.membershipflow.attendance.controller;
 
 import com.membershipflow.attendance.dto.AttendanceResponse;
+import com.membershipflow.attendance.dto.ParticipantCountResponse;
 import com.membershipflow.attendance.entity.Attendance;
 import com.membershipflow.attendance.service.AttendanceService;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
@@ -8,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,5 +32,10 @@ public class AttendanceController {
             attendance = attendanceService.attend(memberId);
         }
         return ResponseEntity.ok(AttendanceResponse.from(attendance));
+    }
+
+    @GetMapping("/participants/today")
+    public ResponseEntity<ParticipantCountResponse> todayParticipants() {
+        return ResponseEntity.ok(new ParticipantCountResponse(attendanceService.countTodayParticipants()));
     }
 }

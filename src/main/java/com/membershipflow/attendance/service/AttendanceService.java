@@ -77,4 +77,12 @@ public class AttendanceService {
         }
         return saved;
     }
+
+    public long countTodayParticipants() {
+        return countParticipants(LocalDate.now(SERVICE_ZONE));
+    }
+
+    long countParticipants(LocalDate today) {
+        return attendanceRepository.countByAttendDate(today);
+    }
 }

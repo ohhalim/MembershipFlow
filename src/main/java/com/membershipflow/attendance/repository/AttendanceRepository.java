@@ -8,4 +8,6 @@ import java.util.Optional;
 
 public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     Optional<Attendance> findByMemberIdAndAttendDate(Long memberId, LocalDate attendDate);
+
+    long countByAttendDate(LocalDate attendDate);
 }
