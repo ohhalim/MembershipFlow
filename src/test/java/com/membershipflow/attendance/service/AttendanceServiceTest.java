@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -33,6 +34,7 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class AttendanceServiceTest {
     private static final long MEMBER_ID = 1L;
+    private static final String EVENT_CODE = "ATTENDANCE_2026_FALL";
 
     @Mock
     AttendanceRepository attendanceRepository;
@@ -140,7 +142,9 @@ class AttendanceServiceTest {
 
         // then
         assertThat(result.getDayNo()).isEqualTo(7);
-        verify(couponRepository, times(1)).save(any(Coupon.class));
+        ArgumentCaptor<Coupon> captor = ArgumentCaptor.forClass(Coupon.class);
+        verify(couponRepository, times(1)).save(captor.capture());
+        assertThat(captor.getValue().getEventCode()).isEqualTo(EVENT_CODE);
     }
 
     @Test
@@ -150,7 +154,7 @@ class AttendanceServiceTest {
         LocalDate today = LocalDate.of(2026, 10, 27);
 
         given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
-        given(couponRepository.countByMemberId(MEMBER_ID)).willReturn(2L);
+        given(couponRepository.countByMemberIdAndEventCode(MEMBER_ID, EVENT_CODE)).willReturn(2L);
 
         // when, then
         assertThatThrownBy(() -> attendanceService.attend(MEMBER_ID, today))
@@ -173,7 +177,7 @@ class AttendanceServiceTest {
 
         given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
         given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.of(todays));
-        lenient().when(couponRepository.countByMemberId(MEMBER_ID)).thenReturn(2L);
+        lenient().when(couponRepository.countByMemberIdAndEventCode(MEMBER_ID, EVENT_CODE)).thenReturn(2L);
 
         // when
         Attendance result = attendanceService.attend(MEMBER_ID, today);

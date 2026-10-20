@@ -47,7 +47,7 @@ public class AttendanceService {
         if (todays.isPresent()) {
             return todays.get();
         }
-        if (couponRepository.countByMemberId(memberId) >= COUPON_LIMIT) {
+        if (couponRepository.countByMemberIdAndEventCode(memberId, EVENT_CODE) >= COUPON_LIMIT) {
             throw new BusinessException(ErrorCode.COUPON_LIMIT_REACHED);
         }
 

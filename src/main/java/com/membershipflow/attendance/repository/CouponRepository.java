@@ -4,5 +4,5 @@ import com.membershipflow.attendance.entity.Coupon;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
-    long countByMemberId(Long memberId);
+    long countByMemberIdAndEventCode(Long memberId, String eventCode);
 }
