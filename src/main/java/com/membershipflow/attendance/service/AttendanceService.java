@@ -25,13 +25,12 @@ public class AttendanceService {
     private static final int EVENT_DAYS = 7;
     private static final int COUPON_DISCOUNT_RATE = 10;
     private static final int COUPON_LIMIT = 2;
-    private static final String EVENT_CODE = "ATTENDANCE_2026_FALL";
 
     private final AttendanceRepository attendanceRepository;
     private final MemberRepository memberRepository;
     private final SubscriptionService subscriptionService;
     private final CouponRepository couponRepository;
-    private final AttendanceEventPeriod eventPeriod;
+    private final AttendanceEvent event;
 
     @Transactional
     public Attendance attend(Long memberId) {
@@ -39,7 +38,7 @@ public class AttendanceService {
     }
 
     Attendance attend(Long memberId, LocalDate today) {
-        if (!eventPeriod.contains(today)) {
+        if (!event.contains(today)) {
             throw new BusinessException(ErrorCode.ATTENDANCE_EVENT_NOT_IN_PERIOD);
         }
         if (subscriptionService.isSubscriber(memberId)) {
@@ -51,7 +50,7 @@ public class AttendanceService {
         if (todays.isPresent()) {
             return todays.get();
         }
-        if (couponRepository.countByMemberIdAndEventCode(memberId, EVENT_CODE) >= COUPON_LIMIT) {
+        if (couponRepository.countByMemberIdAndEventCode(memberId, event.code()) >= COUPON_LIMIT) {
             throw new BusinessException(ErrorCode.COUPON_LIMIT_REACHED);
         }
 
@@ -73,7 +72,7 @@ public class AttendanceService {
                     .member(member)
                     .attendance(saved)
                     .discountRate(COUPON_DISCOUNT_RATE)
-                    .eventCode(EVENT_CODE)
+                    .eventCode(event.code())
                     .build());
         }
         return saved;

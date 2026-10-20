@@ -48,7 +48,7 @@ class AttendanceServiceTest {
     @Mock
     CouponRepository couponRepository;
     @Spy
-    AttendanceEventPeriod eventPeriod = new AttendanceEventPeriod(EVENT_START, EVENT_END);
+    AttendanceEvent event = new AttendanceEvent(EVENT_CODE, EVENT_START, EVENT_END);
     @InjectMocks
     AttendanceService attendanceService;
 

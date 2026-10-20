@@ -81,6 +81,7 @@ paddle:
 # 출석 이벤트 (#423). end-date는 그날 00:00 종료(미포함), 정책 4.7
 attendance:
   event:
+    code: ${ATTENDANCE_EVENT_CODE:ATTENDANCE_2026_FALL}
     start-date: ${ATTENDANCE_EVENT_START_DATE:2026-10-20}
     end-date: ${ATTENDANCE_EVENT_END_DATE:2026-11-20}
 
