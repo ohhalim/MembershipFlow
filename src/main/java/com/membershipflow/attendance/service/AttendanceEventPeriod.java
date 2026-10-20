@@ -14,14 +14,14 @@ public class AttendanceEventPeriod {
     public AttendanceEventPeriod(
             @Value("${attendance.event.start-date}") LocalDate startDate,
             @Value("${attendance.event.end-date}") LocalDate endDate) {
-        if (endDate.isBefore(startDate)) {
-            throw new IllegalArgumentException("attendance event end-date must not be before start-date");
+        if (!endDate.isAfter(startDate)) {
+            throw new IllegalArgumentException("attendance event end-date must be after start-date");
         }
         this.startDate = startDate;
         this.endDate = endDate;
     }
 
     public boolean contains(LocalDate date) {
-        return !date.isBefore(startDate) && !date.isAfter(endDate);
+        return !date.isBefore(startDate) && date.isBefore(endDate);
     }
 }

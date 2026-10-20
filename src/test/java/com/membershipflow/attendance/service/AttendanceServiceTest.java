@@ -36,7 +36,7 @@ import static org.mockito.Mockito.verify;
 class AttendanceServiceTest {
     private static final long MEMBER_ID = 1L;
     private static final String EVENT_CODE = "ATTENDANCE_2026_FALL";
-    private static final LocalDate EVENT_START = LocalDate.of(2026, 10, 22);
+    private static final LocalDate EVENT_START = LocalDate.of(2026, 10, 20);
     private static final LocalDate EVENT_END = LocalDate.of(2026, 11, 20);
 
     @Mock
