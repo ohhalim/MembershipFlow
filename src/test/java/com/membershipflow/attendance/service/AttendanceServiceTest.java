@@ -206,10 +206,10 @@ class AttendanceServiceTest {
     }
 
     @Test
-    @DisplayName("이벤트 종료 다음 날에는 출석할 수 없다")
-    void rejectAfterEventEnd() {
+    @DisplayName("이벤트 종료일(00:00 종료)에는 출석할 수 없다")
+    void rejectOnEventEndDate() {
         // given
-        LocalDate today = EVENT_END.plusDays(1);
+        LocalDate today = EVENT_END;
 
         // when, then
         assertThatThrownBy(() -> attendanceService.attend(MEMBER_ID, today))
@@ -220,10 +220,10 @@ class AttendanceServiceTest {
     }
 
     @Test
-    @DisplayName("이벤트 종료일 당일에는 출석할 수 있다")
-    void attendOnEventEndDate() {
+    @DisplayName("이벤트 종료 전날에는 출석할 수 있다")
+    void attendOnLastEventDay() {
         // given
-        LocalDate today = EVENT_END;
+        LocalDate today = EVENT_END.minusDays(1);
 
         given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
         given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.empty());
@@ -235,6 +235,6 @@ class AttendanceServiceTest {
         Attendance result = attendanceService.attend(MEMBER_ID, today);
 
         // then
-        assertThat(result.getAttendDate()).isEqualTo(EVENT_END);
+        assertThat(result.getAttendDate()).isEqualTo(today);
     }
 }
