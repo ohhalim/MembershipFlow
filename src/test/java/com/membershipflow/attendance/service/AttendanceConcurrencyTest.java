@@ -2,6 +2,7 @@ package com.membershipflow.attendance.service;
 
 import com.membershipflow.attendance.controller.AttendanceController;
 import com.membershipflow.attendance.repository.AttendanceRepository;
+import com.membershipflow.attendance.repository.CouponRepository;
 import com.membershipflow.member.entity.Member;
 import com.membershipflow.member.entity.MemberRole;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
@@ -46,10 +47,13 @@ class AttendanceConcurrencyTest {
     @Autowired
     AttendanceRepository attendanceRepository;
     @Autowired
+    CouponRepository couponRepository;
+    @Autowired
     MemberRepository memberRepository;
 
     @AfterEach
     void tearDown() {
+        couponRepository.deleteAll();
         attendanceRepository.deleteAll();
         memberRepository.deleteAll();
     }
