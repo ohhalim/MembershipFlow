@@ -28,7 +28,10 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "attendance.event.start-date=2000-01-01",
+        "attendance.event.end-date=2999-12-31"
+})
 @Testcontainers(disabledWithoutDocker = true)
 class AttendanceConcurrencyTest {
     private static final int THREADS = 10;

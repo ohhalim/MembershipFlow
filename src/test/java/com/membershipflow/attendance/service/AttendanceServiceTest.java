@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 
@@ -35,6 +36,8 @@ import static org.mockito.Mockito.verify;
 class AttendanceServiceTest {
     private static final long MEMBER_ID = 1L;
     private static final String EVENT_CODE = "ATTENDANCE_2026_FALL";
+    private static final LocalDate EVENT_START = LocalDate.of(2026, 10, 22);
+    private static final LocalDate EVENT_END = LocalDate.of(2026, 11, 20);
 
     @Mock
     AttendanceRepository attendanceRepository;
@@ -44,6 +47,8 @@ class AttendanceServiceTest {
     SubscriptionService subscriptionService;
     @Mock
     CouponRepository couponRepository;
+    @Spy
+    AttendanceEventPeriod eventPeriod = new AttendanceEventPeriod(EVENT_START, EVENT_END);
     @InjectMocks
     AttendanceService attendanceService;
 
@@ -184,5 +189,52 @@ class AttendanceServiceTest {
 
         // then
         assertThat(result).isSameAs(todays);
+    }
+
+    @Test
+    @DisplayName("이벤트 시작 전에는 출석할 수 없다")
+    void rejectBeforeEventStart() {
+        // given
+        LocalDate today = EVENT_START.minusDays(1);
+
+        // when, then
+        assertThatThrownBy(() -> attendanceService.attend(MEMBER_ID, today))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ATTENDANCE_EVENT_NOT_IN_PERIOD);
+        verify(attendanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("이벤트 종료 다음 날에는 출석할 수 없다")
+    void rejectAfterEventEnd() {
+        // given
+        LocalDate today = EVENT_END.plusDays(1);
+
+        // when, then
+        assertThatThrownBy(() -> attendanceService.attend(MEMBER_ID, today))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ATTENDANCE_EVENT_NOT_IN_PERIOD);
+        verify(attendanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("이벤트 종료일 당일에는 출석할 수 있다")
+    void attendOnEventEndDate() {
+        // given
+        LocalDate today = EVENT_END;
+
+        given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today.minusDays(1))).willReturn(Optional.empty());
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        Attendance result = attendanceService.attend(MEMBER_ID, today);
+
+        // then
+        assertThat(result.getAttendDate()).isEqualTo(EVENT_END);
     }
 }

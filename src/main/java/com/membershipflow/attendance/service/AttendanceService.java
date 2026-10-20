@@ -31,6 +31,7 @@ public class AttendanceService {
     private final MemberRepository memberRepository;
     private final SubscriptionService subscriptionService;
     private final CouponRepository couponRepository;
+    private final AttendanceEventPeriod eventPeriod;
 
     @Transactional
     public Attendance attend(Long memberId) {
@@ -38,6 +39,9 @@ public class AttendanceService {
     }
 
     Attendance attend(Long memberId, LocalDate today) {
+        if (!eventPeriod.contains(today)) {
+            throw new BusinessException(ErrorCode.ATTENDANCE_EVENT_NOT_IN_PERIOD);
+        }
         if (subscriptionService.isSubscriber(memberId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }

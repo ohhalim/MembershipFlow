@@ -18,6 +18,7 @@ public enum ErrorCode {
     WATCHLIST_ALREADY_EXISTS(HttpStatus.CONFLICT,  "WATCHLIST_ALREADY_EXISTS","이미 관심 등록한 종목입니다."),
     WATCHLIST_LIMIT_EXCEEDED(HttpStatus.FORBIDDEN, "WATCHLIST_LIMIT_EXCEEDED","비구독자 찜 한도를 초과했습니다."),
     COUPON_LIMIT_REACHED(HttpStatus.CONFLICT,      "COUPON_LIMIT_REACHED",   "이번 이벤트 할인권을 모두 받았어요."),
+    ATTENDANCE_EVENT_NOT_IN_PERIOD(HttpStatus.BAD_REQUEST, "ATTENDANCE_EVENT_NOT_IN_PERIOD", "출석 이벤트 기간이 아니에요."),
 
     SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND,        "SUBSCRIPTION_NOT_FOUND",       "구독 정보를 찾을 수 없습니다."),
     SUBSCRIPTION_ALREADY_EXISTS(HttpStatus.CONFLICT,    "SUBSCRIPTION_ALREADY_EXISTS",  "이미 구독 중입니다."),
