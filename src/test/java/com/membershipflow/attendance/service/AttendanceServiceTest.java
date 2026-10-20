@@ -237,4 +237,18 @@ class AttendanceServiceTest {
         // then
         assertThat(result.getAttendDate()).isEqualTo(today);
     }
+
+    @Test
+    @DisplayName("참여자 수는 그날 출석 기록 수다")
+    void countParticipantsByDate() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        given(attendanceRepository.countByAttendDate(today)).willReturn(42L);
+
+        // when
+        long result = attendanceService.countParticipants(today);
+
+        // then
+        assertThat(result).isEqualTo(42L);
+    }
 }
