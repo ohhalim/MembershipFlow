@@ -1,5 +1,6 @@
 package com.membershipflow.attendance.service;
 
+import com.membershipflow.attendance.dto.AttendanceStatusResponse;
 import com.membershipflow.attendance.entity.Attendance;
 import com.membershipflow.attendance.entity.Coupon;
 import com.membershipflow.attendance.repository.AttendanceRepository;
@@ -77,10 +78,10 @@ class AttendanceServiceTest {
         given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        Attendance result = attendanceService.attend(MEMBER_ID, today);
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
 
         // then
-        assertThat(result.getDayNo()).isEqualTo(1);
+        assertThat(result.attendance().getDayNo()).isEqualTo(1);
     }
 
     @Test
@@ -96,10 +97,10 @@ class AttendanceServiceTest {
         given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        Attendance result = attendanceService.attend(MEMBER_ID, today);
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
 
         // then
-        assertThat(result.getDayNo()).isEqualTo(1);
+        assertThat(result.attendance().getDayNo()).isEqualTo(1);
     }
 
     @Test
@@ -118,10 +119,10 @@ class AttendanceServiceTest {
         given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.of(todays));
 
         // when
-        Attendance result = attendanceService.attend(MEMBER_ID, today);
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
 
         // then
-        assertThat(result).isSameAs(todays);
+        assertThat(result.attendance()).isSameAs(todays);
         verify(attendanceRepository, never()).save(any());
     }
 
@@ -143,10 +144,10 @@ class AttendanceServiceTest {
         given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        Attendance result = attendanceService.attend(MEMBER_ID, today);
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
 
         // then
-        assertThat(result.getDayNo()).isEqualTo(7);
+        assertThat(result.attendance().getDayNo()).isEqualTo(7);
         ArgumentCaptor<Coupon> captor = ArgumentCaptor.forClass(Coupon.class);
         verify(couponRepository, times(1)).save(captor.capture());
         assertThat(captor.getValue().getEventCode()).isEqualTo(EVENT_CODE);
@@ -185,10 +186,10 @@ class AttendanceServiceTest {
         lenient().when(couponRepository.countByMemberIdAndEventCode(MEMBER_ID, EVENT_CODE)).thenReturn(2L);
 
         // when
-        Attendance result = attendanceService.attend(MEMBER_ID, today);
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
 
         // then
-        assertThat(result).isSameAs(todays);
+        assertThat(result.attendance()).isSameAs(todays);
     }
 
     @Test
@@ -232,10 +233,10 @@ class AttendanceServiceTest {
         given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
 
         // when
-        Attendance result = attendanceService.attend(MEMBER_ID, today);
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
 
         // then
-        assertThat(result.getAttendDate()).isEqualTo(today);
+        assertThat(result.attendance().getAttendDate()).isEqualTo(today);
     }
 
     @Test
@@ -250,5 +251,157 @@ class AttendanceServiceTest {
 
         // then
         assertThat(result).isEqualTo(42L);
+    }
+
+    @Test
+    @DisplayName("3일째에서 끊긴 뒤 첫 출석이면 끊김 안내를 담는다")
+    void streakBrokenAfterThirdDay() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        Attendance last = attendanceOn(today.minusDays(3), 3);
+
+        givenNewAttendance(today);
+        given(attendanceRepository.findTopByMemberIdAndAttendDateBeforeOrderByAttendDateDesc(MEMBER_ID, today))
+                .willReturn(Optional.of(last));
+
+        // when
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
+
+        // then
+        assertThat(result.attendance().getDayNo()).isEqualTo(1);
+        assertThat(result.streakBroken()).isTrue();
+    }
+
+    @Test
+    @DisplayName("7일을 채운 다음 날 1일째는 끊김이 아니다")
+    void notBrokenAfterCompletingRound() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        Attendance yesterday = attendanceOn(today.minusDays(1), 7);
+
+        given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today.minusDays(1))).willReturn(Optional.of(yesterday));
+        given(attendanceRepository.findTopByMemberIdAndAttendDateBeforeOrderByAttendDateDesc(MEMBER_ID, today))
+                .willReturn(Optional.of(yesterday));
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
+
+        // then
+        assertThat(result.attendance().getDayNo()).isEqualTo(1);
+        assertThat(result.streakBroken()).isFalse();
+    }
+
+    @Test
+    @DisplayName("첫 출석은 끊김이 아니다")
+    void notBrokenOnFirstAttendance() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        givenNewAttendance(today);
+
+        // when
+        AttendResult result = attendanceService.attend(MEMBER_ID, today);
+
+        // then
+        assertThat(result.streakBroken()).isFalse();
+    }
+
+    @Test
+    @DisplayName("오늘 출석했으면 상태는 오늘 일차다")
+    void statusAttendedToday() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today))
+                .willReturn(Optional.of(attendanceOn(today, 4)));
+
+        // when
+        AttendanceStatusResponse status = attendanceService.status(MEMBER_ID, today);
+
+        // then
+        assertThat(status.attendedToday()).isTrue();
+        assertThat(status.dayNo()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("오늘 출석 전이면 어제까지의 연속 일수다")
+    void statusContinuingFromYesterday() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today.minusDays(1)))
+                .willReturn(Optional.of(attendanceOn(today.minusDays(1), 3)));
+
+        // when
+        AttendanceStatusResponse status = attendanceService.status(MEMBER_ID, today);
+
+        // then
+        assertThat(status.attendedToday()).isFalse();
+        assertThat(status.dayNo()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("어제 기록이 없거나 어제 7일을 채웠으면 0일째다")
+    void statusZeroWhenBrokenOrCompleted() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        LocalDate other = LocalDate.of(2026, 11, 3);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today.minusDays(1))).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, other)).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, other.minusDays(1)))
+                .willReturn(Optional.of(attendanceOn(other.minusDays(1), 7)));
+
+        // when
+        AttendanceStatusResponse broken = attendanceService.status(MEMBER_ID, today);
+        AttendanceStatusResponse completed = attendanceService.status(MEMBER_ID, other);
+
+        // then
+        assertThat(broken.dayNo()).isZero();
+        assertThat(completed.dayNo()).isZero();
+    }
+
+    @Test
+    @DisplayName("이번 이벤트 할인권 2장이면 모두 받음이다")
+    void statusCouponLimitReached() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        given(couponRepository.countByMemberIdAndEventCode(MEMBER_ID, EVENT_CODE)).willReturn(2L);
+
+        // when
+        AttendanceStatusResponse status = attendanceService.status(MEMBER_ID, today);
+
+        // then
+        assertThat(status.couponCount()).isEqualTo(2);
+        assertThat(status.couponLimitReached()).isTrue();
+        assertThat(status.inPeriod()).isTrue();
+    }
+
+    @Test
+    @DisplayName("이벤트 종료일에는 기간 밖으로 표시한다")
+    void statusOutOfPeriod() {
+        // when
+        AttendanceStatusResponse status = attendanceService.status(MEMBER_ID, EVENT_END);
+
+        // then
+        assertThat(status.inPeriod()).isFalse();
+    }
+
+    private Attendance attendanceOn(LocalDate date, int dayNo) {
+        return Attendance.builder()
+                .member(member)
+                .attendDate(date)
+                .dayNo(dayNo)
+                .build();
+    }
+
+    private void givenNewAttendance(LocalDate today) {
+        given(subscriptionService.isSubscriber(MEMBER_ID)).willReturn(false);
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today)).willReturn(Optional.empty());
+        given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today.minusDays(1))).willReturn(Optional.empty());
+        given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
+        given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
     }
 }
