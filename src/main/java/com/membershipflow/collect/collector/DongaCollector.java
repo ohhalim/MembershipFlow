@@ -5,7 +5,6 @@ import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -32,6 +31,7 @@ public class DongaCollector implements PriceCollector {
 
     // 목록 페이지에서 종목별 상세 링크(custid/code)를 뽑는 공용 컴포넌트 (#141에서 분리, #144에서 재사용)
     private final DongaCourseLinkFetcher linkFetcher;
+    private final DongaHttpClient httpClient;
 
     @Override
     public String sourceName() {
@@ -42,10 +42,7 @@ public class DongaCollector implements PriceCollector {
     public List<CollectedPrice> collect() {
         Document doc;
         try {
-            doc = Jsoup.connect(URL)
-                    .userAgent("Mozilla/5.0 (compatible; MembershipFlowBot/1.0)")
-                    .timeout(15_000)
-                    .get();
+            doc = httpClient.getDocument(URL);
         } catch (IOException e) {
             throw new CollectException(SOURCE_NAME + " HTML 요청 실패", e);
         }
