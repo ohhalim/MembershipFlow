@@ -10,4 +10,6 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     Optional<Attendance> findByMemberIdAndAttendDate(Long memberId, LocalDate attendDate);
 
     long countByAttendDate(LocalDate attendDate);
+
+    Optional<Attendance> findTopByMemberIdAndAttendDateBeforeOrderByAttendDateDesc(Long memberId, LocalDate attendDate);
 }

@@ -1,8 +1,9 @@
 package com.membershipflow.attendance.controller;
 
 import com.membershipflow.attendance.dto.AttendanceResponse;
+import com.membershipflow.attendance.dto.AttendanceStatusResponse;
 import com.membershipflow.attendance.dto.ParticipantCountResponse;
-import com.membershipflow.attendance.entity.Attendance;
+import com.membershipflow.attendance.service.AttendResult;
 import com.membershipflow.attendance.service.AttendanceService;
 import com.membershipflow.member.entity.OAuth2UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -25,13 +26,19 @@ public class AttendanceController {
     public ResponseEntity<AttendanceResponse> attend(
             @AuthenticationPrincipal OAuth2UserPrincipal principal) {
         Long memberId = principal.getMemberId();
-        Attendance attendance;
+        AttendResult result;
         try {
-            attendance = attendanceService.attend(memberId);
+            result = attendanceService.attend(memberId);
         } catch (DataIntegrityViolationException e) {
-            attendance = attendanceService.attend(memberId);
+            result = attendanceService.attend(memberId);
         }
-        return ResponseEntity.ok(AttendanceResponse.from(attendance));
+        return ResponseEntity.ok(AttendanceResponse.from(result));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<AttendanceStatusResponse> myStatus(
+            @AuthenticationPrincipal OAuth2UserPrincipal principal) {
+        return ResponseEntity.ok(attendanceService.status(principal.getMemberId()));
     }
 
     @GetMapping("/participants/today")

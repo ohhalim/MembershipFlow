@@ -74,4 +74,13 @@ class AttendanceControllerTest {
                 .andExpect(status().isUnauthorized());
         verify(attendanceService, never()).attend(any());
     }
+
+    @Test
+    @DisplayName("로그인하지 않으면 내 출석 상태를 조회할 수 없다")
+    void myStatusRequiresLogin() throws Exception {
+        // when, then
+        mockMvc.perform(get("/api/v1/attendances/me"))
+                .andExpect(status().isUnauthorized());
+        verify(attendanceService, never()).status(any());
+    }
 }

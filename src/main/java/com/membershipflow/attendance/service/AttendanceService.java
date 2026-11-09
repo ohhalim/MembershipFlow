@@ -1,5 +1,6 @@
 package com.membershipflow.attendance.service;
 
+import com.membershipflow.attendance.dto.AttendanceStatusResponse;
 import com.membershipflow.attendance.entity.Attendance;
 import com.membershipflow.attendance.entity.Coupon;
 import com.membershipflow.attendance.repository.AttendanceRepository;
@@ -33,11 +34,11 @@ public class AttendanceService {
     private final AttendanceEvent event;
 
     @Transactional
-    public Attendance attend(Long memberId) {
+    public AttendResult attend(Long memberId) {
         return attend(memberId, LocalDate.now(SERVICE_ZONE));
     }
 
-    Attendance attend(Long memberId, LocalDate today) {
+    AttendResult attend(Long memberId, LocalDate today) {
         if (!event.contains(today)) {
             throw new BusinessException(ErrorCode.ATTENDANCE_EVENT_NOT_IN_PERIOD);
         }
@@ -48,7 +49,7 @@ public class AttendanceService {
                 attendanceRepository.findByMemberIdAndAttendDate(memberId, today);
 
         if (todays.isPresent()) {
-            return todays.get();
+            return new AttendResult(todays.get(), false);
         }
         if (couponRepository.countByMemberIdAndEventCode(memberId, event.code()) >= COUPON_LIMIT) {
             throw new BusinessException(ErrorCode.COUPON_LIMIT_REACHED);
@@ -58,6 +59,7 @@ public class AttendanceService {
                 memberId, today.minusDays(1))
                 .map(yesterday -> yesterday.getDayNo() < EVENT_DAYS ? yesterday.getDayNo() + 1 : 1)
                 .orElse(1);
+        boolean streakBroken = dayNo == 1 && isPreviousRoundBroken(memberId, today);
 
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
@@ -75,7 +77,35 @@ public class AttendanceService {
                     .eventCode(event.code())
                     .build());
         }
-        return saved;
+        return new AttendResult(saved, streakBroken);
+    }
+
+    private boolean isPreviousRoundBroken(Long memberId, LocalDate today) {
+        return attendanceRepository
+                .findTopByMemberIdAndAttendDateBeforeOrderByAttendDateDesc(memberId, today)
+                .map(last -> last.getDayNo() < EVENT_DAYS)
+                .orElse(false);
+    }
+
+    public AttendanceStatusResponse status(Long memberId) {
+        return status(memberId, LocalDate.now(SERVICE_ZONE));
+    }
+
+    AttendanceStatusResponse status(Long memberId, LocalDate today) {
+        Optional<Attendance> todays =
+                attendanceRepository.findByMemberIdAndAttendDate(memberId, today);
+        int dayNo = todays.map(Attendance::getDayNo)
+                .orElseGet(() -> attendanceRepository.findByMemberIdAndAttendDate(memberId, today.minusDays(1))
+                        .map(Attendance::getDayNo)
+                        .filter(yesterday -> yesterday < EVENT_DAYS)
+                        .orElse(0));
+        long couponCount = couponRepository.countByMemberIdAndEventCode(memberId, event.code());
+        return new AttendanceStatusResponse(
+                todays.isPresent(),
+                dayNo,
+                couponCount,
+                couponCount >= COUPON_LIMIT,
+                event.contains(today));
     }
 
     public long countTodayParticipants() {
