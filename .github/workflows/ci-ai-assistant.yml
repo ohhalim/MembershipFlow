@@ -1,0 +1,49 @@
+# ai-assistant 는 지금까지 CI 에 없었다. ci-pipeline.yml 이 ./gradlew test 만
+# 돌아서, Python 쪽이 깨져도 PR 이 초록불로 머지됐다. 경로가 바뀐 PR 에서만
+# 돌려 Java CI 와 서로 느려지지 않게 한다.
+name: CI — ai-assistant
+
+on:
+  pull_request:
+    paths:
+      - "ai-assistant/**"
+      - ".github/workflows/ci-ai-assistant.yml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "ai-assistant/**"
+      - ".github/workflows/ci-ai-assistant.yml"
+
+concurrency:
+  group: ci-ai-assistant-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ai-assistant
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: uv 설치
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: ai-assistant/uv.lock
+
+      - name: 의존성 설치 (lock 고정)
+        run: uv sync --locked --all-extras --dev
+
+      - name: Ruff
+        run: uv run ruff check src tests
+
+      - name: mypy
+        run: uv run mypy src
+
+      # 외부 네트워크를 쓰는 테스트는 없다. Elasticsearch·Slack·Gemini 는
+      # 전부 목으로 대체돼 있어 이 잡은 자격증명 없이 돈다.
+      - name: pytest
+        run: uv run pytest

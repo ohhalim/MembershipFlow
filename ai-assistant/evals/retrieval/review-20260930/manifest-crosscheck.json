@@ -1,0 +1,197 @@
+{
+  "historical_manifest": "evals/results/2026-09-19-pinned-model-build/manifest.json",
+  "manifest_status": "VALIDATED",
+  "manifest_chunk_count": 317,
+  "current_local_chunk_count": 322,
+  "changed_sources": [
+    "README.md"
+  ],
+  "expected_evidence_checks": [
+    {
+      "case_id": "ret-001",
+      "chunk_id": "5f12d365d8d5529140f8548674c5fa82ef5ac283815747b2c6c3847b1c65b7e2",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-002",
+      "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-003",
+      "chunk_id": "e985ee3ad94bf6bcff04fb2cbcdbbb6f78e4e12794cc3e8a73d581fb0df63d89",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-004",
+      "chunk_id": "29e8bd5a7ce36185b8efef1275a1f2fe15a044f8c9e53da4301e438e8d9ac335",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-005",
+      "chunk_id": "13ee9914f4375c0ea3fc43b7e91fd6ef072c5eff6db85a2a83aa29ef620f3697",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-006",
+      "chunk_id": "e6776842327340950d01ed0b50cd62086c67ebcac1cb58cf1c28bed6cdf72950",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-006",
+      "chunk_id": "8dcbccd039b2d4a20340445f0a4a9d33b70f120a276902293f5c82afd848f970",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-007",
+      "chunk_id": "65e089fecb30ce33ad7992d5cf2e7f9e7f5c1457711953123dea339e6fc38be1",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-008",
+      "chunk_id": "5f12d365d8d5529140f8548674c5fa82ef5ac283815747b2c6c3847b1c65b7e2",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-009",
+      "chunk_id": "28431d23704b7b8ac10b4b4a1a83e0323193b29824e5886fcf81a142ce9de103",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-009",
+      "chunk_id": "8e5cf92989c229cec55a0385eecda5076c5ad52e95a07fdd52d31e747c3b1367",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-010",
+      "chunk_id": "62e9e7313ddaff0e20069f63cb2854d3000f62ee3bc1a9b2a53ded49c48fd7ae",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-011",
+      "chunk_id": "a8143b4e46e120770ad8a1e43b04a577b3e1f216627afe7bcc42d6e69c3487be",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-012",
+      "chunk_id": "a662caa4221d039a006d5464feefd3e077587c83d54be76d150758e0cfe132c2",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-013",
+      "chunk_id": "9f160478f528108eac3d8609aaacf6f7f6c995cbc13f2d75519c10eb14a285fc",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-014",
+      "chunk_id": "c1c6c6a6e548346374b476891f2343f86f56977ffeeec110243306ff6fa4a613",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-015",
+      "chunk_id": "cfd991e68c9289c08c833ecf066be1a85274159906e455d4727232d831cbd2bb",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-101",
+      "chunk_id": "964e72b32680d3077b198ad5738482d9c9c5d453e34b9893c742cce7d44d95c1",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-102",
+      "chunk_id": "0dff51b7737eb6f0bfa1eb3de7c390c5c5cbf65219630ee6894699282f8cb618",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-103",
+      "chunk_id": "564f7692918b36ceba204e5208158dfabe790198fa83c00393949dbd3994332f",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-104",
+      "chunk_id": "1c52bfedb410e70f8501e699b1836f9b9d40e03c30acf9f02e3a628188eec923",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-105",
+      "chunk_id": "1d621b06354d4474e980912ac56011196f59617e129d28baeca59cc860cdbff5",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-106",
+      "chunk_id": "2516da29064039f56c053695ba808fa56185f114be28c518e9fd9a73b0790acb",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-107",
+      "chunk_id": "93e1fd2cab10988bebf8e9201c6f59d68abb85a37f0e72fd9ed1eb733efb9318",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-108",
+      "chunk_id": "68b56391457df76e856172c7b07df095afe55f4f2209a42aa7607a4162beef12",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-109",
+      "chunk_id": "a0dc7b1dee5a3965fd3c227e763ad4bc11a5316c9a1cdeb69cac1e3f1b019248",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-110",
+      "chunk_id": "d7386273b444ff4ddc4462b42d7a195bfd591168731d27090b3d559c0771912b",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-111",
+      "chunk_id": "226de689c5c049995474b086c8dcf3e2cde95a5787d42ce8dd447cfe10228e9b",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-112",
+      "chunk_id": "5ec59e6a0ea72a646029df62fd512e5145f9a0052c5c56086e268c2c3c2eff84",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-113",
+      "chunk_id": "e95378d8fefef5f019a9d5e39525a630befd0b37bd712bdc5305cecc3640f1ab",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-114",
+      "chunk_id": "e64fc7f111a9a31fea1a5d2593e6ea4f629b377eae0ea7b315b8b436a4b63b65",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-115",
+      "chunk_id": "a4dc266c2a13002b2de1cfdc6d0e8ccd3304c13df91f799972f28dfe3e647e5a",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-116",
+      "chunk_id": "623b1f91f4720f3120df0a2eddaabae41e5adc315da92581b587b8a140e7d296",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-117",
+      "chunk_id": "d1809a0d12fb0568267b62409789206ca2e1883f05d6f1882c84401dfbf360b3",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-118",
+      "chunk_id": "8e185a6ca309af1d1e77b06128033a6cbf38618f953ad210f0923f5a25ab5dc3",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-119",
+      "chunk_id": "4fb829bd23b2d8ced5551d4967af7390462ebb3c414c239e2c4cac33d00fb06b",
+      "in_manifest": true
+    },
+    {
+      "case_id": "ret-120",
+      "chunk_id": "6ad4d33edd93b9b51efa8de6cc7b4e52b1946590216afc44808c2f331d4d2c21",
+      "in_manifest": true
+    }
+  ],
+  "scope": "historical manifest only; active ES index not checked"
+}

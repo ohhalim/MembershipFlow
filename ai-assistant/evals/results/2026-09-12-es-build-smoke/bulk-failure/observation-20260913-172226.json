@@ -1,0 +1,117 @@
+{
+  "after": {
+    "alias_points_to": "mf-ai-chunks-806c80ac51106a9e",
+    "indices": [
+      [
+        "mf-ai-chunks-0fe52eea51c20746",
+        "317"
+      ],
+      [
+        "mf-ai-chunks-206c823c7c6041088bb3015c7a994635",
+        "8"
+      ],
+      [
+        "mf-ai-chunks-806c80ac51106a9e",
+        "317"
+      ],
+      [
+        "mf-ai-chunks-a32289acb45a7365",
+        "317"
+      ],
+      [
+        "mf-ai-chunks-a5e9ea56d94ee332",
+        "317"
+      ],
+      [
+        "mf-ai-chunks-a86140d4e2b65f3b",
+        "317"
+      ]
+    ]
+  },
+  "before": {
+    "alias_points_to": "mf-ai-chunks-806c80ac51106a9e",
+    "indices": [
+      [
+        "mf-ai-chunks-0fe52eea51c20746",
+        "317"
+      ],
+      [
+        "mf-ai-chunks-806c80ac51106a9e",
+        "317"
+      ],
+      [
+        "mf-ai-chunks-a32289acb45a7365",
+        "317"
+      ],
+      [
+        "mf-ai-chunks-a5e9ea56d94ee332",
+        "317"
+      ],
+      [
+        "mf-ai-chunks-a86140d4e2b65f3b",
+        "317"
+      ]
+    ]
+  },
+  "build_outcome": "raised",
+  "bulk_observation": {
+    "chunk_count": 9,
+    "corrupted_chunk_id": "3fb234682f99da9fecd96eea96c696ffc88a1afcb649140791caddbb0c2cfb63",
+    "corrupted_dim": 1023,
+    "failures": [
+      {
+        "chunk_id": "3fb234682f99da9fecd96eea96c696ffc88a1afcb649140791caddbb0c2cfb63",
+        "reason": "{'type': 'document_parsing_exception', 'reason': \"[1:22261] failed to parse: The [dense_vector] field [embedding] in doc [document with id '3fb234682f99da9fecd96eea96c696ffc88a1afcb649140791caddbb0c2cfb63'] has a different number of dimensions [1023] than defined in the mapping [1024]\", 'caused_by':"
+      }
+    ],
+    "index": "mf-ai-chunks-206c823c7c6041088bb3015c7a994635",
+    "original_dim": 1024
+  },
+  "corrupt_index_position": 1,
+  "exception_message": "bulk indexing failed for 1 chunks",
+  "exception_type": "RuntimeError",
+  "manifest": {
+    "chunk_count": 9,
+    "chunker": {
+      "chunk_size": 512,
+      "overlap": 64,
+      "token_counter": "regex"
+    },
+    "corpus_fingerprint": "f770cc73f18562cb831ac97f20a5b664e3632924eca19b21c0bbed741d4f2fbf",
+    "corpus_version": 1,
+    "dimension": 1024,
+    "embedding_model": "fake-sha256-v1",
+    "embedding_revision": "1",
+    "error_type": "RuntimeError",
+    "expected_chunk_ids": [
+      "2ef71936d26d71e3e6bbb190bcc92d554c44f1d769b385f5de81117bf1dc7cd1",
+      "3fb234682f99da9fecd96eea96c696ffc88a1afcb649140791caddbb0c2cfb63",
+      "814c484b7c2a14bc9f2a4c12154bd8d9fb4ea273efe6dbaa5048a2f679094aac",
+      "95157941897791fe9822b5e82bbef2449f5afb28a5bb2882d2527ae4dda4388b",
+      "9d11828ddf2c248a2f1922a6205c46bfbfefb7e3edf9f7d40e354513c3ce2a3a",
+      "a0dc7b1dee5a3965fd3c227e763ad4bc11a5316c9a1cdeb69cac1e3f1b019248",
+      "bfe0ed60ded3dfb6a73961fd702a9f17550ac6ce0820bb102d94f7521334bb83",
+      "cfe1d943dfef985dcc832bca5c20dd1f00b88f89cd9e68614182be820700eed0",
+      "d7386273b444ff4ddc4462b42d7a195bfd591168731d27090b3d559c0771912b"
+    ],
+    "parser_revision": "1",
+    "physical_index": "mf-ai-chunks-206c823c7c6041088bb3015c7a994635",
+    "schema_revision": "2",
+    "snapshot_revision": "1",
+    "source_count": 2,
+    "sources": [
+      {
+        "source_hash": "d99737cf3b1f217dc9974e2647188f3930c6d6a477880c9fcca0abaca2525b46",
+        "source_uri": "README.md"
+      },
+      {
+        "source_hash": "1a697d2fc5bcb7f3e23879ee1c14c6843e4a7237302cb729eb66a5e4f89b4dc4",
+        "source_uri": "src/main/java/com/membershipflow/subscription/scheduler/BillingScheduler.java"
+      }
+    ],
+    "status": "FAILED"
+  },
+  "post_build_index_count": 8,
+  "post_build_verify": "rejected: RuntimeError",
+  "post_build_verify_message": "chunk count mismatch: indexed=8 expected=9"
+}

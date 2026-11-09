@@ -1,0 +1,11 @@
+version: 1
+
+sources:
+  - path: README.md
+    type: markdown
+  - path: NOTES.md
+    type: markdown
+
+limits:
+  max_file_bytes: 1048576
+  encoding: utf-8

@@ -37,3 +37,8 @@ __pycache__/
 ### k6 local credentials / outputs ###
 k6/payment-test-users.json
 k6/results/
+
+### AI local artifacts ###
+.mypy_cache/
+.ruff_cache/
+ai-assistant/.data/

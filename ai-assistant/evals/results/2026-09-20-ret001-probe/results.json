@@ -1,0 +1,154 @@
+{
+  "status": "PASSED",
+  "purpose": "ret-001 의 후보 누락 원인 후보 구분",
+  "target_chunk_id": "5f12d365d8d5529140f8548674c5fa82ef5ac283815747b2c6c3847b1c65b7e2",
+  "depth": 317,
+  "code_sha": "9551f14d9b8ecffaa9e041da60dd5314c71641be",
+  "variants": [
+    {
+      "name": "baseline",
+      "question": "이용 가능한 구독의 판정 기준은?",
+      "changed": "ret-001 원문",
+      "target_rank": 85,
+      "java_chunks_in_top20": 0,
+      "top1": {
+        "source_uri": "docs/API.md",
+        "path": [
+          "MembershipFlow MVP API 명세",
+          "8. Subscriptions (구독 결제)",
+          "8.3 내 구독 상태 조회"
+        ]
+      }
+    },
+    {
+      "name": "longer",
+      "question": "구독이 이용 가능한지 판정하는 조건은 무엇이고 어떤 상태일 때 이용 가능한가요?",
+      "changed": "길이만 늘림. 영문·코드 토큰 없음",
+      "target_rank": 28,
+      "java_chunks_in_top20": 0,
+      "top1": {
+        "source_uri": "docs/API.md",
+        "path": [
+          "MembershipFlow MVP API 명세",
+          "8. Subscriptions (구독 결제)",
+          "8.3 내 구독 상태 조회"
+        ]
+      }
+    },
+    {
+      "name": "code_hint",
+      "question": "이용 가능한 구독의 판정 기준은? 메서드 구현 코드",
+      "changed": "코드라는 한국어 신호만 추가. 영문 심볼 없음",
+      "target_rank": 159,
+      "java_chunks_in_top20": 0,
+      "top1": {
+        "source_uri": "docs/API.md",
+        "path": [
+          "MembershipFlow MVP API 명세",
+          "8. Subscriptions (구독 결제)",
+          "8.3 내 구독 상태 조회"
+        ]
+      }
+    },
+    {
+      "name": "state_token",
+      "question": "구독 상태가 ACTIVE 이거나 CANCELLED 일 때 이용 가능 판정 기준은?",
+      "changed": "청크에 실제로 있는 영문 상태 토큰 추가",
+      "target_rank": 4,
+      "java_chunks_in_top20": 7,
+      "top1": {
+        "source_uri": "docs/ERD.md",
+        "path": [
+          "MembershipFlow MVP ERD",
+          "상태값 정책",
+          "SubscriptionStatus"
+        ]
+      }
+    },
+    {
+      "name": "field_token",
+      "question": "이용 가능한 구독의 판정 기준은? nextBillingAt 비교",
+      "changed": "청크에 있는 영문 필드명 추가",
+      "target_rank": 33,
+      "java_chunks_in_top20": 5,
+      "top1": {
+        "source_uri": "docs/API.md",
+        "path": [
+          "MembershipFlow MVP API 명세",
+          "8. Subscriptions (구독 결제)",
+          "8.4 구독 취소"
+        ]
+      }
+    },
+    {
+      "name": "symbol",
+      "question": "isActiveAt 이용 가능한 구독의 판정 기준은?",
+      "changed": "정답 심볼명 추가 (양성 대조)",
+      "target_rank": 1,
+      "java_chunks_in_top20": 5,
+      "top1": {
+        "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+        "path": [
+          "com.membershipflow.subscription.entity",
+          "Subscription",
+          "isActiveAt"
+        ]
+      }
+    },
+    {
+      "name": "ret008",
+      "question": "구독 상태가 CANCELLED이고 이용 종료 시점이 아직 남았다면 이용 가능 판정은 어떻게 돼?",
+      "changed": "같은 정답을 겨냥한 평가셋 문항 (기지값 8위)",
+      "target_rank": 8,
+      "java_chunks_in_top20": 9,
+      "top1": {
+        "source_uri": "docs/API.md",
+        "path": [
+          "MembershipFlow MVP API 명세",
+          "8. Subscriptions (구독 결제)",
+          "8.4 구독 취소"
+        ]
+      }
+    },
+    {
+      "name": "ko_distinct",
+      "question": "해지했는데 아직 남은 기간이면 계속 쓸 수 있나?",
+      "changed": "한국어만. 일반 어휘 회피, 구체적 상황 서술",
+      "target_rank": 10,
+      "java_chunks_in_top20": 7,
+      "top1": {
+        "source_uri": "docs/API.md",
+        "path": [
+          "MembershipFlow MVP API 명세",
+          "8. Subscriptions (구독 결제)",
+          "8.4 구독 취소"
+        ]
+      }
+    },
+    {
+      "name": "ko_logic",
+      "question": "취소된 뒤에도 다음 청구일 전까지는 쓸 수 있는지 어떻게 따지나?",
+      "changed": "한국어만. 청크의 논리 구조를 그대로 서술",
+      "target_rank": 37,
+      "java_chunks_in_top20": 1,
+      "top1": {
+        "source_uri": "docs/API.md",
+        "path": [
+          "MembershipFlow MVP API 명세",
+          "8. Subscriptions (구독 결제)",
+          "8.4 구독 취소"
+        ]
+      }
+    }
+  ],
+  "physical_index": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d",
+  "identity": {
+    "embedding_model": "BAAI/bge-m3",
+    "embedding_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "schema_revision": "2",
+    "dimension": 1024,
+    "snapshot_revision": "1",
+    "mapping_dims": 1024
+  },
+  "doc_count": 317
+}

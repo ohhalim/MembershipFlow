@@ -1,0 +1,103 @@
+# 프로젝트명을 고정한다. compose 는 기본으로 디렉터리명을 접두사로 쓰는데,
+# 워크트리마다 디렉터리명이 달라 같은 볼륨을 못 찾고 빈 색인이 새로 생긴다.
+name: mf-ai-local
+
+services:
+  ai-postgres:
+    image: pgvector/pgvector:0.8.1-pg17
+    profiles: ["ai"]
+    environment:
+      POSTGRES_DB: membershipflow_ai
+      POSTGRES_USER: membershipflow_ai
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-local-ai-password}
+    ports:
+      - "${AI_POSTGRES_BIND_ADDRESS:-127.0.0.1}:5433:5432"
+    volumes:
+      - ai_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U membershipflow_ai -d membershipflow_ai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  ai-elasticsearch:
+    build:
+      context: ./ai-assistant/docker/elasticsearch
+      dockerfile: Dockerfile
+    image: mf-ai-elasticsearch:9.5.3
+    profiles: ["ai"]
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=${AI_ES_PASSWORD:-local-only-dev-password}
+      # 로컬 전용. 아래 ports 로 127.0.0.1 에만 노출한다. 운영 재사용 금지.
+      - xpack.security.http.ssl.enabled=false
+      - xpack.license.self_generated.type=basic
+      - ingest.geoip.downloader.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "${AI_ES_BIND_ADDRESS:-127.0.0.1}:9208:9200"
+    volumes:
+      - ai_elasticsearch_data:/usr/share/elasticsearch/data
+    mem_limit: 2g
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS -u "elastic:$${ELASTIC_PASSWORD}" http://localhost:9200/_cluster/health >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  ai-slack:
+    build:
+      context: ./ai-assistant
+      dockerfile: Dockerfile
+    profiles: ["ai"]
+    # 실제 인터페이스는 Slack 이다. 이전에는 이 서비스가 compose 에 없어서
+    # 손으로 띄우고 PID 를 /tmp 에 뒀고, 재부팅하면 그대로 사라졌다.
+    command: ["uv", "run", "membershipflow-ai", "slack"]
+    environment:
+      AI_DATABASE_URL: postgresql+asyncpg://membershipflow_ai:${AI_POSTGRES_PASSWORD:-local-ai-password}@ai-postgres:5432/membershipflow_ai
+      AI_REPOSITORY_ROOT: /workspace
+      AI_CORPUS_CONFIG: /app/config/corpus.yml
+      AI_BM25_INDEX_DIR: /var/lib/membershipflow-ai/bm25
+      # 컨테이너 안의 localhost 는 자기 자신이다. 서비스 이름으로 가리켜야 한다.
+      AI_ELASTICSEARCH_URL: http://ai-elasticsearch:9200
+      AI_ELASTICSEARCH_USERNAME: elastic
+      AI_ELASTICSEARCH_PASSWORD: ${AI_ES_PASSWORD:-local-only-dev-password}
+      AI_ELASTICSEARCH_ALIAS: ${AI_ELASTICSEARCH_ALIAS:-mf-ai-chunks}
+      AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-fake}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-BAAI/bge-m3}
+      AI_EMBEDDING_REVISION: ${AI_EMBEDDING_REVISION:-}
+      AI_RERANKER_MODEL: ${AI_RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+      AI_LLM_MODEL: ${AI_LLM_MODEL:-gemini-3.7-flash}
+      AI_SPRING_BASE_URL: ${AI_SPRING_BASE_URL:-http://backend:8081}
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      # 비워 두면 초대되는 아무 워크스페이스·채널에 응답한다. 반드시 채운다.
+      SLACK_ALLOWED_TEAM_IDS: ${SLACK_ALLOWED_TEAM_IDS:-}
+      SLACK_ALLOWED_CHANNEL_IDS: ${SLACK_ALLOWED_CHANNEL_IDS:-}
+      PHOENIX_COLLECTOR_ENDPOINT: ${PHOENIX_COLLECTOR_ENDPOINT:-}
+      TRACE_CONTENT_ENABLED: ${TRACE_CONTENT_ENABLED:-false}
+      AI_LOG_LEVEL: ${AI_LOG_LEVEL:-INFO}
+    volumes:
+      - .:/workspace:ro
+      - ai_bm25_data:/var/lib/membershipflow-ai/bm25
+      - ai_model_cache:/root/.cache/huggingface
+    depends_on:
+      ai-postgres:
+        condition: service_healthy
+      ai-elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ai_postgres_data:
+  ai_elasticsearch_data:
+  ai_bm25_data:
+  ai_model_cache:

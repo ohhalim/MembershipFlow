@@ -1,0 +1,36 @@
+{
+  "chunk_count": 5,
+  "chunker": {
+    "chunk_size": 512,
+    "overlap": 64,
+    "token_counter": "regex"
+  },
+  "corpus_fingerprint": "8d0e67398ddcb696d584c856906306b84ff2b5e902e63b078036b4ced54f538a",
+  "corpus_version": 1,
+  "dimension": 1024,
+  "embedding_model": "fake-sha256-v1",
+  "embedding_revision": "1",
+  "expected_chunk_ids": [
+    "1d9c84504f0d7022e99b9a79215fa4cf2c49d0253c1b377f98910faebe0817bf",
+    "37fa6f3acb4a024ad8b02b06e7f9ea9e2649bc411a20d19c774c65a0056f49f3",
+    "49d19ee8479a28c20c6afb938dd54523f0cec59170f87703eb2bac8c81750c03",
+    "4db493461128b243661db1f62eae0984d2cbc80ca79d55afc93053d0ded11bae",
+    "fd47260a17372db64538425292bc45a4f43ea5a9b6278aedec7af66bb6a1e50d"
+  ],
+  "parser_revision": "1",
+  "physical_index": "mf-ai-verify-20260919-fixture-noembed",
+  "schema_revision": "2",
+  "snapshot_revision": "1",
+  "source_count": 2,
+  "sources": [
+    {
+      "source_hash": "63d75706f8d7a75973ad39613d58c3ab3c74a694fbfccf555e05650570bbec7e",
+      "source_uri": "README.md"
+    },
+    {
+      "source_hash": "3ceeb7ba8798825241867ceba399b8024acd763cc39b946ef651a722cc830237",
+      "source_uri": "NOTES.md"
+    }
+  ],
+  "status": "VALIDATED"
+}

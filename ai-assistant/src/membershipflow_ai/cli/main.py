@@ -1,0 +1,725 @@
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import logging
+import re
+import time
+import uuid
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any, TextIO
+
+from elasticsearch import AsyncElasticsearch
+
+from membershipflow_ai.agent.contracts import AssistantAnswer
+from membershipflow_ai.agent.graph import build_jev_router, build_llm, run_agent
+from membershipflow_ai.agent.tools import SpringMetricsClient
+from membershipflow_ai.config.settings import get_settings
+from membershipflow_ai.domain.documents import SearchHit
+from membershipflow_ai.evaluation.plan import (
+    RETRIEVER_MODES,
+    retrieve_for_mode,
+    validate_depths,
+)
+from membershipflow_ai.evaluation.report import write_json
+from membershipflow_ai.evaluation.retrieval import (
+    aggregate,
+    cases_fingerprint,
+    group_by,
+    load_cases,
+    run_cases,
+)
+from membershipflow_ai.ingestion.chunker import RegexTokenCounter, StructureAwareChunker
+from membershipflow_ai.ingestion.embeddings import (
+    DeterministicHashEmbedding,
+    EmbeddingProvider,
+    SentenceTransformerEmbedding,
+)
+from membershipflow_ai.ingestion.parsers import ParserRegistry
+from membershipflow_ai.ingestion.pipeline import IngestionPipeline
+from membershipflow_ai.ingestion.scanner import CorpusScanner
+from membershipflow_ai.ingestion.snapshot import prepare_snapshot
+from membershipflow_ai.observability import retriever_span, setup_tracing
+from membershipflow_ai.persistence.database import create_engine, create_session_factory
+from membershipflow_ai.persistence.elasticsearch_store import SCHEMA_REVISION, ElasticsearchStore
+from membershipflow_ai.persistence.repository import CorpusRepository
+from membershipflow_ai.retrieval.elasticsearch import ElasticsearchRetriever
+from membershipflow_ai.retrieval.fusion import reciprocal_rank_fusion
+from membershipflow_ai.retrieval.rerank import CrossEncoderReranker
+
+
+def embedding_provider() -> EmbeddingProvider:
+    settings = get_settings()
+    if settings.embedding_provider == "fake":
+        return DeterministicHashEmbedding()
+    if settings.embedding_provider == "sentence-transformers":
+        return SentenceTransformerEmbedding(
+            settings.embedding_model, revision=settings.embedding_revision
+        )
+    raise ValueError(f"unsupported embedding provider: {settings.embedding_provider}")
+
+
+def elasticsearch_client() -> AsyncElasticsearch:
+    settings = get_settings()
+    options: dict[str, Any] = {
+        "basic_auth": (settings.elasticsearch_username, settings.elasticsearch_password),
+        "request_timeout": settings.elasticsearch_request_timeout,
+    }
+    if settings.elasticsearch_ca_certs is not None:
+        options["ca_certs"] = str(settings.elasticsearch_ca_certs)
+    return AsyncElasticsearch(settings.elasticsearch_url, **options)
+
+
+async def ingest() -> None:
+    settings = get_settings()
+    engine = create_engine(settings.database_url)
+    try:
+        repository = CorpusRepository(create_session_factory(engine))
+        pipeline = IngestionPipeline(
+            scanner=CorpusScanner(settings.repository_root, settings.corpus_config),
+            parsers=ParserRegistry(),
+            chunker=StructureAwareChunker(RegexTokenCounter()),
+            embeddings=embedding_provider(),
+            repository=repository,
+        )
+        summary = await pipeline.run()
+        print(json.dumps(asdict(summary), ensure_ascii=False, sort_keys=True))
+    finally:
+        await engine.dispose()
+
+
+def _open_new_manifest(manifest_path: str) -> TextIO:
+    """Open the manifest for exclusive creation, or explain why that failed.
+
+    Exclusive mode is the guard against overwriting an earlier run, so the open
+    must stay atomic. A pre-existence check would race and could silently
+    destroy a previous build record.
+    """
+    try:
+        return Path(manifest_path).open("x", encoding="utf-8")
+    except FileExistsError as exc:
+        raise SystemExit(
+            f"manifest {manifest_path} 가 이미 있다. 기존 기록을 덮어쓰지 않는다. "
+            "다른 경로를 지정한다"
+        ) from exc
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        raise SystemExit(
+            f"manifest 경로 {manifest_path} 를 만들 수 없다. 상위 디렉터리가 있는지 확인한다"
+        ) from exc
+    except OSError as exc:
+        raise SystemExit(f"manifest {manifest_path} 를 열 수 없다: {exc}") from exc
+
+
+async def build(manifest_path: str) -> None:
+    """Build and verify an isolated index. Never switches a read alias."""
+    # Reserve the report before model/server work; never overwrite an earlier run.
+    with _open_new_manifest(manifest_path) as output:
+        report: dict[str, Any] = {"status": "PREPARING"}
+
+        def save() -> None:
+            output.seek(0)
+            json.dump(report, output, ensure_ascii=False, indent=2, sort_keys=True)
+            output.truncate()
+            output.flush()
+
+        save()
+        client: AsyncElasticsearch | None = None
+        try:
+            settings = get_settings()
+            chunks, metadata = prepare_snapshot(
+                CorpusScanner(settings.repository_root, settings.corpus_config),
+                embedding_provider(),
+            )
+            report.update(metadata)
+            client = elasticsearch_client()
+            store = ElasticsearchStore(client, settings.elasticsearch_alias)
+            # Every attempt owns a fresh physical index, even for identical sources.
+            # Failed builds remain inspectable and cannot overwrite an active index.
+            index = store.physical_index(uuid.uuid4().hex)
+            report.update(
+                status="BUILDING", physical_index=index,
+                schema_revision=SCHEMA_REVISION,
+                corpus_fingerprint=store.corpus_fingerprint(chunks),
+            )
+            save()
+            await store.create(
+                index,
+                metadata["dimension"],
+                identity={
+                    "schema_revision": SCHEMA_REVISION,
+                    "embedding_model": metadata["embedding_model"],
+                    "embedding_revision": metadata["embedding_revision"],
+                    "dimension": metadata["dimension"],
+                    "snapshot_revision": metadata["snapshot_revision"],
+                },
+            )
+            failures = await store.bulk_index(index, chunks, str(metadata["corpus_version"]))
+            if failures:
+                raise RuntimeError(f"bulk indexing failed for {len(failures)} chunks")
+            await store.verify(index, {chunk.chunk_id for chunk in chunks})
+            report["status"] = "VALIDATED"
+            save()
+        except Exception as exc:
+            # 원인은 manifest 에 남긴다. 출력은 조사 지점을 알려주는 역할만 한다.
+            report.update(status="FAILED", error_type=type(exc).__name__)
+            save()
+            failure = SystemExit(
+                f"build 실패 ({type(exc).__name__}): {exc}. "
+                f"status FAILED 로 기록했다: {manifest_path}"
+            )
+            raise failure from exc
+        finally:
+            if client is not None:
+                await client.close()
+    print(f"validated build manifest: {manifest_path}; read alias unchanged")
+
+
+COMMIT_HASH = re.compile(r"[0-9a-f]{40}")
+
+
+def require_immutable_revision(source: str, revision: str | None) -> str:
+    """Accept only a revision that cannot move under us.
+
+    Refusing null is not enough. `main` is a valid revision string and two
+    builds pinned to it can load different weights; this machine's HuggingFace
+    cache already holds two revisions of BAAI/bge-m3, with `main` pointing at
+    one of them. Only a full commit hash identifies weights for certain.
+    """
+    if revision is None:
+        raise SystemExit(
+            f"{source} 에 모델 revision 이 없다(null). 어떤 가중치인지 증명할 수 없다. "
+            "40자리 commit hash 로 고정하고 다시 build 한다"
+        )
+    if not COMMIT_HASH.fullmatch(revision):
+        raise SystemExit(
+            f"{source} 의 revision {revision!r} 은 움직일 수 있는 참조다. "
+            "브랜치나 태그는 같은 문자열이어도 나중에 다른 가중치를 가리킨다. "
+            "40자리 commit hash 로 고정하고 다시 build 한다"
+        )
+    return revision
+
+
+def expected_identity() -> dict[str, Any]:
+    """Model identity the search path will use, derived from settings alone.
+
+    Reading this from configuration rather than from a constructed provider keeps
+    the check cheap: verifying an alias switch must not download or load weights.
+    """
+    settings = get_settings()
+    if settings.embedding_provider == "fake":
+        # Mirrors DeterministicHashEmbedding; kept in sync by test_alias_identity.
+        return {
+            "embedding_model": "fake-sha256-v1",
+            "embedding_revision": "1",
+            "dimension": 1024,
+        }
+    if settings.embedding_provider == "sentence-transformers":
+        return {
+            "embedding_model": settings.embedding_model,
+            "embedding_revision": require_immutable_revision(
+                "AI_EMBEDDING_REVISION", settings.embedding_revision
+            ),
+            "dimension": None,  # 설정만으로는 알 수 없다. 인덱스 기록을 신뢰 기준으로 쓴다
+        }
+    raise SystemExit(f"unsupported embedding provider: {settings.embedding_provider}")
+
+
+def check_identity(index: str, recorded: dict[str, Any], manifest: dict[str, Any]) -> None:
+    """Refuse a switch when manifest, index and consumer settings disagree.
+
+    Chunk ids and counts match across models, so they cannot catch a vector
+    space change. Dimension mismatch breaks vector search outright; a different
+    model at the same dimension breaks it silently, which is worse.
+    """
+    for field in ("schema_revision", "embedding_model", "embedding_revision", "dimension"):
+        if field not in manifest:
+            raise SystemExit(f"manifest 에 {field} 가 없다. 현재 코드로 다시 build 한다")
+        if recorded.get(field) != manifest[field]:
+            raise SystemExit(
+                f"index {index} 의 {field} 가 manifest 와 다르다: "
+                f"index={recorded.get(field)!r} manifest={manifest[field]!r}"
+            )
+
+    # manifest 와 _meta 는 둘 다 build 의 자기 신고다. 서로 합의한다는 사실만으로는
+    # 이 코드가 읽을 수 있는 인덱스라는 근거가 되지 않는다.
+    if recorded["schema_revision"] != SCHEMA_REVISION:
+        raise SystemExit(
+            f"index {index} 의 schema_revision({recorded['schema_revision']!r})이 현재 코드"
+            f"({SCHEMA_REVISION!r})와 다르다. 문서 구조가 달라 검색이 어긋난다. "
+            "현재 코드로 다시 build 한다"
+        )
+
+    dims = recorded.get("mapping_dims")
+    if dims is None:
+        raise SystemExit(
+            f"index {index} 의 매핑에서 차원을 읽지 못했다. 기록된 차원을 검증할 수 없다"
+        )
+    if dims != recorded["dimension"]:
+        raise SystemExit(
+            f"index {index} 의 매핑 차원({dims})이 기록된 차원({recorded['dimension']})과 다르다"
+        )
+
+    wanted = expected_identity()
+    if recorded["embedding_model"] != wanted["embedding_model"]:
+        raise SystemExit(
+            f"index {index} 는 {recorded['embedding_model']!r} 로 만들어졌는데 "
+            f"현재 검색 설정은 {wanted['embedding_model']!r} 를 쓴다. "
+            "같은 차원이어도 벡터 공간이 달라 검색 결과가 조용히 어긋난다"
+        )
+    if recorded["embedding_revision"] != wanted["embedding_revision"]:
+        raise SystemExit(
+            f"index {index} 의 모델 revision({recorded['embedding_revision']!r})이 "
+            f"현재 설정({wanted['embedding_revision']!r})과 다르다"
+        )
+    if get_settings().embedding_provider == "sentence-transformers":
+        require_immutable_revision(f"index {index}", recorded["embedding_revision"])
+    if wanted["dimension"] is not None and recorded["dimension"] != wanted["dimension"]:
+        raise SystemExit(
+            f"index {index} 의 차원({recorded['dimension']})이 "
+            f"현재 설정({wanted['dimension']})과 달라 vector 검색이 실패한다"
+        )
+
+
+async def _switch_alias(manifest: dict[str, Any]) -> None:
+    """Point the read alias at the index recorded in a validated manifest.
+
+    The alias is what search reads, so a bad switch is visible to every user
+    immediately. Everything that can be checked is checked before the switch,
+    and an index that is already active is left alone rather than re-pointed.
+    """
+    index = str(manifest["physical_index"])
+    settings = get_settings()
+    client = elasticsearch_client()
+    try:
+        store = ElasticsearchStore(client, settings.elasticsearch_alias)
+        if not await client.indices.exists(index=index):
+            raise SystemExit(f"index {index} 가 존재하지 않는다")
+
+        try:
+            recorded = await store.index_identity(index)
+        except RuntimeError as exc:
+            raise SystemExit(str(exc)) from exc
+        check_identity(index, recorded, manifest)
+
+        try:
+            await store.verify(index, set(manifest["expected_chunk_ids"]))
+        except RuntimeError as exc:
+            raise SystemExit(f"전환 전 검증 실패: {exc}") from exc
+
+        current = await store.active_index()
+        if current == index:
+            print(f"alias {settings.elasticsearch_alias} 는 이미 {index} 를 가리킨다; 변경 없음")
+            return
+
+        previous = await store.publish(index)
+        print(
+            f"alias {settings.elasticsearch_alias}: {previous or '(없음)'} -> {index}; "
+            f"이전 인덱스는 삭제하지 않는다"
+        )
+    finally:
+        await client.close()
+
+
+def _load_validated_manifest(manifest_path: str) -> dict[str, Any]:
+    try:
+        manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise SystemExit(f"manifest {manifest_path} 가 없다") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"manifest {manifest_path} 를 읽을 수 없다: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise SystemExit(f"manifest {manifest_path} 의 최상위가 object 가 아니다")
+
+    status = manifest.get("status")
+    if status != "VALIDATED":
+        raise SystemExit(
+            f"manifest status 가 {status!r} 다. VALIDATED 인 build 만 전환할 수 있다"
+        )
+    index = manifest.get("physical_index")
+    if not isinstance(index, str) or not index.strip():
+        raise SystemExit("manifest physical_index 는 비어 있지 않은 문자열이어야 한다")
+    expected = manifest.get("expected_chunk_ids")
+    if not isinstance(expected, list) or not expected:
+        raise SystemExit("manifest 에 expected_chunk_ids 가 없다")
+    if any(not isinstance(item, str) or not item.strip() for item in expected):
+        raise SystemExit("manifest expected_chunk_ids 는 비어 있지 않은 문자열 목록이어야 한다")
+    if len(set(expected)) != len(expected):
+        raise SystemExit("manifest expected_chunk_ids 에 중복이 있다")
+    return manifest
+
+
+async def publish(manifest_path: str) -> None:
+    """Switch the read alias to the index recorded in a validated manifest."""
+    await _switch_alias(_load_validated_manifest(manifest_path))
+
+
+async def rollback(manifest_path: str) -> None:
+    """Point the read alias back at an earlier build.
+
+    Rollback takes the same manifest evidence as publish. An index with no
+    manifest cannot be shown to hold a complete, known-model corpus, and a
+    FAILED build leaves a partially filled index whose mapping still looks
+    correct, so pointing at a bare index name is refused.
+    """
+    await _switch_alias(_load_validated_manifest(manifest_path))
+
+
+async def search(query: str, k: int, retriever: str, source_types: list[str] | None) -> None:
+    settings = get_settings()
+    client = elasticsearch_client()
+    try:
+        store = ElasticsearchStore(client, settings.elasticsearch_alias)
+        index = await store.active_index()
+        if index is None:
+            raise SystemExit(
+                f"no active index for alias {settings.elasticsearch_alias}; run publish first"
+            )
+        engine = ElasticsearchRetriever(client, index)
+
+        hit_lists = []
+        if retriever in ("hybrid", "keyword"):
+            hit_lists.append(await engine.keyword_search(query, k=k, source_types=source_types))
+        if retriever in ("hybrid", "vector"):
+            embedding = embedding_provider().embed_query(query)
+            hit_lists.append(
+                await engine.vector_search(embedding, k=k, source_types=source_types)
+            )
+        hits = (
+            reciprocal_rank_fusion(hit_lists, limit=k)
+            if len(hit_lists) > 1
+            else list(hit_lists[0][:k])
+        )
+    finally:
+        await client.close()
+
+    print(
+        json.dumps(
+            {
+                "query": query,
+                "retriever": retriever,
+                "physical_index": index,
+                "hits": [
+                    {
+                        "rank": hit.rank,
+                        "score": round(hit.score, 6),
+                        "retriever": hit.retriever,
+                        "chunk_id": hit.chunk.chunk_id,
+                        "source_path": hit.chunk.source_uri,
+                        "line_start": hit.chunk.line_start,
+                        "line_end": hit.chunk.line_end,
+                    }
+                    for hit in hits
+                ],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+
+
+async def ask(question: str, k: int, retriever: str) -> None:
+    setup_tracing()
+    settings = get_settings()
+    client = elasticsearch_client()
+    try:
+        store = ElasticsearchStore(client, settings.elasticsearch_alias)
+        index = await store.active_index()
+        if index is None:
+            raise SystemExit(
+                f"no active index for alias {settings.elasticsearch_alias}; run ingest+publish"
+            )
+        engine = ElasticsearchRetriever(client, index)
+
+        embeddings = embedding_provider()
+
+        async def retrieve(query: str) -> tuple[list[SearchHit], str]:
+            with retriever_span(f"elasticsearch:{retriever}", query, index) as sink:
+                keyword = await engine.keyword_search(query, k=k)
+                if retriever == "keyword":
+                    hits = keyword[:k]
+                else:
+                    vector = await engine.vector_search(embeddings.embed_query(query), k=k)
+                    hits = reciprocal_rank_fusion([keyword, vector], limit=k)
+                sink.extend(hits)
+            return hits, index
+
+        llm = build_llm(
+            settings.gemini_api_key, settings.llm_model, settings.llm_fallback_models
+        )
+        jev, jev_before_rules = build_jev_router(settings, settings.typesafe_api_key)
+        result = await run_agent(
+            question,
+            llm=llm,
+            retrieve=retrieve,
+            metrics=SpringMetricsClient(settings),
+            jev=jev,
+            jev_before_rules=jev_before_rules,
+        )
+    finally:
+        await client.close()
+
+    print(f"[route] {result.route}   [grounded] {result.grounded}")
+    if result.failure:
+        print(f"[failure] {result.failure}")
+    print()
+    print(result.answer)
+    if result.citations:
+        print("\n근거:")
+        for number, citation in enumerate(result.citations, start=1):
+            print(f"  [{number}] {citation.source_path}:{citation.line_start}-{citation.line_end}")
+
+
+async def slack(k: int, retriever: str) -> None:
+    from membershipflow_ai.interfaces.slack_app import run_slack
+
+    settings = get_settings()
+    # 레벨을 못 바꾸면 "핸들러까지 안 온 것" 과 "아예 안 받은 것" 을 구분할 수
+    # 없다. 로거 이름을 함께 찍어 어느 계층에서 걸렸는지 보이게 한다.
+    logging.basicConfig(
+        level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    )
+    setup_tracing()
+    client = elasticsearch_client()
+    try:
+        store = ElasticsearchStore(client, settings.elasticsearch_alias)
+        index = await store.active_index()
+        if index is None:
+            raise SystemExit(
+                f"no active index for alias {settings.elasticsearch_alias}; run ingest+publish"
+            )
+        engine = ElasticsearchRetriever(client, index)
+        llm = build_llm(
+            settings.gemini_api_key, settings.llm_model, settings.llm_fallback_models
+        )
+        jev, jev_before_rules = build_jev_router(settings, settings.typesafe_api_key)
+        metrics = SpringMetricsClient(settings)
+        embeddings = embedding_provider()
+
+        async def retrieve(query: str) -> tuple[list[SearchHit], str]:
+            with retriever_span(f"elasticsearch:{retriever}", query, index) as sink:
+                keyword = await engine.keyword_search(query, k=k)
+                if retriever == "keyword":
+                    hits = keyword[:k]
+                else:
+                    vector = await engine.vector_search(embeddings.embed_query(query), k=k)
+                    hits = reciprocal_rank_fusion([keyword, vector], limit=k)
+                sink.extend(hits)
+            return hits, index
+
+        async def answer_question(question: str) -> AssistantAnswer:
+            return await run_agent(
+                question,
+                llm=llm,
+                retrieve=retrieve,
+                metrics=metrics,
+                jev=jev,
+                jev_before_rules=jev_before_rules,
+            )
+
+        await run_slack(settings, answer_question)
+    finally:
+        await client.close()
+
+
+async def evaluate(
+    cases_path: str, k: int, retrievers: list[str], allow_draft: bool,
+    json_path: str | None, candidates: int, split: str,
+) -> None:
+    try:
+        validate_depths(k, candidates)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
+    path = Path(cases_path)
+    try:
+        cases = load_cases(path)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    if split != "all":
+        cases = [case for case in cases if case.split == split]
+    if not cases:
+        raise SystemExit(f"split={split} 에 해당하는 케이스가 없다")
+    unreviewed = [case.id for case in cases if not case.reviewed]
+    if unreviewed and not allow_draft:
+        raise SystemExit(
+            f"reviewed=false 인 케이스가 있다: {unreviewed}. "
+            "사람 검토 후 true 로 바꾸거나 --allow-draft 를 쓴다"
+        )
+
+    settings = get_settings()
+    client = elasticsearch_client()
+    started = time.monotonic()
+    report: dict[str, Any] = {
+        "cases_path": cases_path,
+        "cases_sha256": cases_fingerprint(path),
+        "split": split,
+        "k": k,
+        "candidates": candidates,
+        "reviewed": not unreviewed,
+        "results": {},
+    }
+    try:
+        store = ElasticsearchStore(client, settings.elasticsearch_alias)
+        index = await store.active_index()
+        if index is None:
+            raise SystemExit("no active index; run ingest+publish first")
+        mapping = await client.indices.get_mapping(index=index)
+        properties = mapping.body[index]["mappings"].get("properties", {})
+        if "symbol_path" not in properties:
+            raise SystemExit(
+                f"index {index} 에 symbol_path 가 없다. 구형 색인에서는 경로 복원이 "
+                "손상되어 점수가 낮게 나온다. 재색인 후 다시 실행한다"
+            )
+        report["physical_index"] = index
+        # 평가에서는 경로 복원 실패를 낮은 점수로 흘려보내지 않고 즉시 멈춘다.
+        engine = ElasticsearchRetriever(client, index, strict_path=True)
+        embeddings = embedding_provider()
+        report["embedding_model"] = embeddings.model_id
+        report["embedding_revision"] = embeddings.revision
+
+        reranker = (
+            CrossEncoderReranker(settings.reranker_model, settings.reranker_revision)
+            if any(name.endswith("+rerank") for name in retrievers)
+            else None
+        )
+        report["reranker_model"] = reranker.model_id if reranker else None
+        report["reranker_revision"] = settings.reranker_revision if reranker else None
+
+        for name in retrievers:
+            async def retrieve(
+                question: str, mode: str = name
+            ) -> tuple[list[SearchHit], list[SearchHit]]:
+                return await retrieve_for_mode(
+                    mode, question, engine=engine, embeddings=embeddings,
+                    reranker=reranker, k=k, candidates=candidates,
+                )
+
+            run_started = time.monotonic()
+            results = await run_cases(cases, retrieve)
+            report["results"][name] = {
+                "overall": aggregate(results),
+                "by_split": group_by(results, "split"),
+                "by_difficulty": group_by(results, "difficulty"),
+                "elapsed_seconds": round(time.monotonic() - run_started, 3),
+                "cases": [
+                    {
+                        "id": r.case.id,
+                        "recall": round(r.recall, 4),
+                        "all_evidence_found": r.all_evidence_found,
+                        "matched_ranks": r.matched_ranks,
+                        "returned": r.returned,
+                        "candidates": r.candidates,
+                    }
+                    for r in results
+                ],
+                "misses": [
+                    {"id": r.case.id, "question": r.case.question, "recall": r.recall}
+                    for r in results
+                    if r.reciprocal_rank == 0.0
+                ],
+            }
+    finally:
+        await client.close()
+    report["total_elapsed_seconds"] = round(time.monotonic() - started, 3)
+
+    if json_path:
+        write_json(report, json_path)
+        print(f"report written: {json_path}")
+    else:
+        print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="membershipflow-ai")
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    subcommands.add_parser("ingest", help="ingest the configured corpus into PostgreSQL")
+    build_parser = subcommands.add_parser(
+        "build", help="build an isolated ES index; no alias switch"
+    )
+    build_parser.add_argument("--manifest", required=True, help="new manifest JSON path")
+
+    publish_parser = subcommands.add_parser(
+        "publish", help="switch the read alias to a validated build"
+    )
+    publish_parser.add_argument("--manifest", required=True, help="validated manifest JSON path")
+
+    rollback_parser = subcommands.add_parser(
+        "rollback", help="point the read alias back at an earlier validated build"
+    )
+    rollback_parser.add_argument(
+        "--manifest", required=True, help="VALIDATED manifest JSON path of the earlier build"
+    )
+
+    search_parser = subcommands.add_parser("search", help="search the ingested corpus")
+    search_parser.add_argument("query")
+    search_parser.add_argument("-k", type=int, default=5, help="number of hits (default: 5)")
+    search_parser.add_argument(
+        "--retriever",
+        choices=("hybrid", "keyword", "vector"),
+        default="hybrid",
+        help="retriever to use (default: hybrid)",
+    )
+    search_parser.add_argument(
+        "--source-type", action="append", help="filter by source type (repeatable)"
+    )
+
+    ask_parser = subcommands.add_parser("ask", help="answer a question with cited evidence")
+    ask_parser.add_argument("question")
+    ask_parser.add_argument("-k", type=int, default=5, help="evidence chunks (default: 5)")
+    ask_parser.add_argument(
+        "--retriever",
+        choices=("keyword", "hybrid"),
+        default="keyword",
+        help="evidence retriever (default: keyword; vector is fake-embedding only)",
+    )
+
+    eval_parser = subcommands.add_parser("eval", help="score retrieval against an eval set")
+    eval_parser.add_argument("cases", help="path to a retrieval cases jsonl file")
+    eval_parser.add_argument("-k", type=int, default=10, help="top-k (default: 10)")
+    eval_parser.add_argument(
+        "--retriever", action="append", choices=RETRIEVER_MODES,
+        help="repeatable; default runs keyword, vector, hybrid",
+    )
+    eval_parser.add_argument(
+        "--candidates", type=int, default=30,
+        help="candidate depth, applied to every retriever (default: 30)",
+    )
+    eval_parser.add_argument(
+        "--split", choices=("tuning", "held_out", "all"), default="tuning",
+        help="case split to run (default: tuning; held_out/all must be chosen explicitly)",
+    )
+    eval_parser.add_argument(
+        "--allow-draft", action="store_true", help="run even if cases are not reviewed"
+    )
+    eval_parser.add_argument("--output", help="write the full evaluation JSON to this path")
+
+    slack_parser = subcommands.add_parser("slack", help="run the Slack socket-mode bot")
+    slack_parser.add_argument("-k", type=int, default=5, help="evidence chunks (default: 5)")
+    slack_parser.add_argument(
+        "--retriever", choices=("keyword", "hybrid"), default="keyword"
+    )
+
+    args = parser.parse_args()
+    if args.command == "ingest":
+        asyncio.run(ingest())
+    elif args.command == "build":
+        asyncio.run(build(args.manifest))
+    elif args.command == "publish":
+        asyncio.run(publish(args.manifest))
+    elif args.command == "rollback":
+        asyncio.run(rollback(args.manifest))
+    elif args.command == "eval":
+        asyncio.run(
+            evaluate(
+                args.cases, args.k, args.retriever or ["keyword", "vector", "hybrid"],
+                args.allow_draft, args.output, args.candidates, args.split,
+            )
+        )
+    elif args.command == "slack":
+        asyncio.run(slack(args.k, args.retriever))
+    elif args.command == "ask":
+        asyncio.run(ask(args.question, args.k, args.retriever))
+    elif args.command == "search":
+        asyncio.run(search(args.query, args.k, args.retriever, args.source_type))

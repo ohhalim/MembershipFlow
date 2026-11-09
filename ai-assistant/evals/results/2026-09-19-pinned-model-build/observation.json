@@ -1,0 +1,155 @@
+{
+  "status": "PASSED",
+  "code_sha": "7acc1f98fe755911751f014d55c4e2656b319c2b",
+  "corpus_config_sha256": "73144ed7a59cf7d688f84f030b340a0b90b083c44d7b1b0acfe88588affd9308",
+  "model": "BAAI/bge-m3",
+  "revision": "5617a9f61b028005a4858fdac845db406aefb181",
+  "offline": true,
+  "alias_switch_executed": false,
+  "before": {
+    "mf-ai-chunks-0fe52eea51c20746": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-806c80ac51106a9e": {
+      "aliases": {
+        "mf-ai-chunks": {}
+      },
+      "count": 317
+    },
+    "mf-ai-chunks-a32289acb45a7365": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-a5e9ea56d94ee332": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-a86140d4e2b65f3b": {
+      "aliases": {},
+      "count": 317
+    }
+  },
+  "build_seconds": 46.248,
+  "physical_index": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d",
+  "identity": {
+    "embedding_model": "BAAI/bge-m3",
+    "embedding_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "schema_revision": "2",
+    "dimension": 1024,
+    "snapshot_revision": "1",
+    "mapping_dims": 1024
+  },
+  "source_count": 16,
+  "chunk_count": 317,
+  "searches": {
+    "keyword": {
+      "query": "isActiveAt",
+      "hits": [
+        {
+          "chunk_id": "5f12d365d8d5529140f8548674c5fa82ef5ac283815747b2c6c3847b1c65b7e2",
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "path": [
+            "com.membershipflow.subscription.entity",
+            "Subscription",
+            "isActiveAt"
+          ],
+          "score": 24.812868
+        },
+        {
+          "chunk_id": "0158eab47fcdadcbd2dcdbc3de0b8af371d278b75e440ab287a4a6b6e1d7e6c6",
+          "source_uri": "src/main/java/com/membershipflow/subscription/entity/Subscription.java",
+          "path": [
+            "com.membershipflow.subscription.entity",
+            "Subscription",
+            "isActive"
+          ],
+          "score": 6.6793294
+        }
+      ]
+    },
+    "vector": {
+      "query": "구독의 이용 가능 조건",
+      "hits": [
+        {
+          "chunk_id": "b72e5246d26db0879bf3535dd4c857501f98928e7ca8c3a0532c38bf264c0ae3",
+          "source_uri": "docs/API.md",
+          "path": [
+            "MembershipFlow MVP API 명세",
+            "8. Subscriptions (구독 결제)",
+            "8.3 내 구독 상태 조회"
+          ],
+          "score": 0.5974416
+        },
+        {
+          "chunk_id": "722f89ddb8155b49cf4b9e20eadf2299efa33b0acf20da840a1149ac5422754c",
+          "source_uri": "docs/API.md",
+          "path": [
+            "MembershipFlow MVP API 명세",
+            "8. Subscriptions (구독 결제)",
+            "8.4 구독 취소"
+          ],
+          "score": 0.5915223000000001
+        },
+        {
+          "chunk_id": "24a889ff4f4b680520a42df1d4710473dbd1d43201a3e14755c04d6b30294b51",
+          "source_uri": "docs/ERD.md",
+          "path": [
+            "MembershipFlow MVP ERD",
+            "상태값 정책",
+            "SubscriptionPlanCode"
+          ],
+          "score": 0.5657687
+        },
+        {
+          "chunk_id": "65b0828ceecb2256bef8f6f42a5dbf8f7d4968a5d8bb5f891c819e504b580a7a",
+          "source_uri": "docs/API.md",
+          "path": [
+            "MembershipFlow MVP API 명세",
+            "8. Subscriptions (구독 결제)",
+            "8.6 구독 플랜 목록"
+          ],
+          "score": 0.5555597999999999
+        },
+        {
+          "chunk_id": "11cd4aff1e1e109e4e780170908bd2a92470ea8d9f0e85ee703d2139f8846690",
+          "source_uri": "docs/ERD.md",
+          "path": [
+            "MembershipFlow MVP ERD",
+            "상태값 정책",
+            "SubscriptionStatus"
+          ],
+          "score": 0.552395
+        }
+      ]
+    }
+  },
+  "after": {
+    "mf-ai-chunks-0fe52eea51c20746": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-64460aa92eba4887a09aa7011522857d": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-806c80ac51106a9e": {
+      "aliases": {
+        "mf-ai-chunks": {}
+      },
+      "count": 317
+    },
+    "mf-ai-chunks-a32289acb45a7365": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-a5e9ea56d94ee332": {
+      "aliases": {},
+      "count": 317
+    },
+    "mf-ai-chunks-a86140d4e2b65f3b": {
+      "aliases": {},
+      "count": 317
+    }
+  }
+}

@@ -1,0 +1,6 @@
+/Users/ohhalim/orca/workspaces/MembershipFlow/RAG-에이전트-붙이기/ai-assistant/src/membershipflow_ai/ingestion/embeddings.py:80: FutureWarning: The `get_sentence_embedding_dimension` method has been renamed to `get_embedding_dimension`.
+  dimension = self._model.get_sentence_embedding_dimension()
+/Users/ohhalim/orca/workspaces/MembershipFlow/RAG-에이전트-붙이기/ai-assistant/src/membershipflow_ai/ingestion/embeddings.py:80: FutureWarning: The `get_sentence_embedding_dimension` method has been renamed to `get_embedding_dimension`.
+  dimension = self._model.get_sentence_embedding_dimension()
+validated build manifest: /Users/ohhalim/orca/workspaces/MembershipFlow/RAG-에이전트-붙이기/ai-assistant/evals/results/2026-09-19-pinned-model-build/manifest.json; read alias unchanged
+{"status": "PASSED", "physical_index": "mf-ai-chunks-64460aa92eba4887a09aa7011522857d", "build_seconds": 46.248, "source_count": 16, "chunk_count": 317}

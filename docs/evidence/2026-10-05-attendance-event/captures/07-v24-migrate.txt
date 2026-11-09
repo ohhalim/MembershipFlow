@@ -1,0 +1,85 @@
+# 07. V24 마이그레이션 적용 확인 (2026-10-11 KST)
+# 환경: mysql:8.0.36 컨테이너(빈 DB) + flyway/flyway:11.7.2 (프로젝트 flyway-core 11.7.2, mysql-connector-j 9.7.0과 같은 버전)
+# 재현 명령:
+#   docker network create mf-v24-check
+#   docker run -d --name mf-v24-mysql --network mf-v24-check -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=membershipflow -e TZ=Asia/Seoul mysql:8.0.36
+#   docker run --rm --network mf-v24-check -v "$PWD/src/main/resources/db/migration:/flyway/sql:ro" -v "<mysql-connector-j-9.7.0.jar가 있는 폴더>:/flyway/drivers:ro" \
+#     flyway/flyway:11.7.2 -url='jdbc:mysql://mf-v24-mysql:3306/membershipflow?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Seoul' \
+#     -user=root -password=root -connectRetries=60 migrate
+# 참고: 첫 줄 WARNING은 Flyway 도커 이미지의 기본 경로(/flyway/sql)에 대한 안내이고, 프로젝트 설정과는 관계없다.
+
+## flyway migrate 출력
+WARNING: Storing migrations in 'sql' is not recommended and default scanning of this location may be deprecated in a future release
+A more recent version of Flyway is available. Find out more about Flyway 13.10.0 at https://rd.gt/3rXiSlV
+
+Flyway OSS Edition 11.7.2 by Redgate
+
+See release notes here: https://rd.gt/416ObMi
+Database: jdbc:mysql://mf-v24-mysql:3306/membershipflow?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=Asia/Seoul (MySQL 8.0)
+Schema history table `membershipflow`.`flyway_schema_history` does not exist yet
+Successfully validated 24 migrations (execution time 00:00.022s)
+Creating Schema History table `membershipflow`.`flyway_schema_history` ...
+Current version of schema `membershipflow`: << Empty Schema >>
+Migrating schema `membershipflow` to version "1 - init core schema"
+Migrating schema `membershipflow` to version "2 - add oauth to member"
+Migrating schema `membershipflow` to version "3 - collect pipeline schema"
+Migrating schema `membershipflow` to version "4 - subscription schema"
+Migrating schema `membershipflow` to version "5 - add missing timestamps"
+Migrating schema `membershipflow` to version "6 - refresh token schema"
+Migrating schema `membershipflow` to version "7 - course alias"
+Migrating schema `membershipflow` to version "8 - add msise source"
+Migrating schema `membershipflow` to version "9 - add acegolf source"
+Migrating schema `membershipflow` to version "10 - course info"
+Migrating schema `membershipflow` to version "11 - fix dongbu base url"
+Migrating schema `membershipflow` to version "12 - source base url listing page"
+Migrating schema `membershipflow` to version "13 - add latest price columns"
+Migrating schema `membershipflow` to version "14 - billing attempt recovery fields"
+Migrating schema `membershipflow` to version "15 - add premium golf source"
+Migrating schema `membershipflow` to version "16 - add public market sources"
+Migrating schema `membershipflow` to version "17 - add public market course aliases"
+Migrating schema `membershipflow` to version "18 - initial payment processing guard"
+Migrating schema `membershipflow` to version "19 - price freshness indexes"
+Migrating schema `membershipflow` to version "20 - billing attempt idempotency keys"
+Migrating schema `membershipflow` to version "21 - add subscription billing cycle"
+Migrating schema `membershipflow` to version "22 - batch heartbeat"
+Migrating schema `membershipflow` to version "23 - add paddle payment provider"
+Migrating schema `membershipflow` to version "24 - attendance event"
+Successfully applied 24 migrations to schema `membershipflow`, now at version v24 (execution time 00:00.771s)
+
+## 적용 후 스키마 확인 (SHOW CREATE TABLE, information_schema.STATISTICS)
+version	description	success
+24	attendance event	1
+*************************** 1. row ***************************
+       Table: attendance
+Create Table: CREATE TABLE `attendance` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `member_id` bigint NOT NULL,
+  `attend_date` date NOT NULL,
+  `day_no` int NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_attendance_member_date` (`member_id`,`attend_date`),
+  CONSTRAINT `fk_attendance_member` FOREIGN KEY (`member_id`) REFERENCES `member` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+*************************** 1. row ***************************
+       Table: coupon
+Create Table: CREATE TABLE `coupon` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `member_id` bigint NOT NULL,
+  `attendance_id` bigint NOT NULL,
+  `discount_rate` int NOT NULL,
+  `expires_at` datetime DEFAULT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_coupon_attendance` (`attendance_id`),
+  KEY `fk_coupon_member` (`member_id`),
+  CONSTRAINT `fk_coupon_attendance` FOREIGN KEY (`attendance_id`) REFERENCES `attendance` (`id`),
+  CONSTRAINT `fk_coupon_member` FOREIGN KEY (`member_id`) REFERENCES `member` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+TABLE_NAME	INDEX_NAME	NON_UNIQUE	cols
+attendance	PRIMARY	0	id
+attendance	uk_attendance_member_date	0	member_id,attend_date
+coupon	fk_coupon_member	1	member_id
+coupon	PRIMARY	0	id
+coupon	uk_coupon_attendance	0	attendance_id

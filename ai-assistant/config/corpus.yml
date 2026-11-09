@@ -1,0 +1,39 @@
+version: 1
+
+sources:
+  - path: README.md
+    type: markdown
+  - path: docs/00-CONTEXT.md
+    type: markdown
+  - path: docs/03-ARCHITECTURE.md
+    type: markdown
+  - path: docs/API.md
+    type: markdown
+  - path: docs/ERD.md
+    type: markdown
+  - path: docs/TROUBLESHOOTING.md
+    type: markdown
+  - path: docs/DEPLOYMENT.md
+    type: markdown
+  - path: docs/learning/PAYMENT-TRANSACTION-FLOW.md
+    type: markdown
+  - path: docs/operations/payment-load-test.md
+    type: markdown
+  - path: docs/operations/toss-billing-review-readiness.md
+    type: markdown
+  - path: docs/operations/initial-payment-migration-preflight.md
+    type: markdown
+  - path: src/main/java/com/membershipflow/subscription/entity/Subscription.java
+    type: java
+  - path: src/main/java/com/membershipflow/subscription/repository/SubscriptionRepository.java
+    type: java
+  - path: src/main/java/com/membershipflow/subscription/scheduler/BillingScheduler.java
+    type: java
+  - path: src/main/java/com/membershipflow/subscription/service/PaddleWebhookService.java
+    type: java
+  - path: src/main/java/com/membershipflow/collect/service/AnomalyDetectionService.java
+    type: java
+
+limits:
+  max_file_bytes: 1048576
+  encoding: utf-8

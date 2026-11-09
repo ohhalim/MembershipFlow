@@ -1,0 +1,196 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from membershipflow_ai.domain.documents import SearchHit
+
+
+@dataclass(frozen=True)
+class ExpectedSource:
+    source_uri: str
+    anchor: str
+
+
+@dataclass(frozen=True)
+class RetrievalCase:
+    id: str
+    question: str
+    split: str
+    difficulty: str
+    expected_sources: tuple[ExpectedSource, ...]
+    reviewed: bool
+    notes: str = ""
+
+
+@dataclass
+class CaseResult:
+    case: RetrievalCase
+    matched_ranks: dict[str, int | None] = field(default_factory=dict)
+    returned: list[dict[str, Any]] = field(default_factory=list)
+    candidates: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def recall(self) -> float:
+        if not self.matched_ranks:
+            return 0.0
+        found = sum(1 for rank in self.matched_ranks.values() if rank is not None)
+        return found / len(self.matched_ranks)
+
+    @property
+    def all_evidence_found(self) -> bool:
+        """Every expected source for this case appeared in top-k.
+
+        Averaged recall hides partial credit: a case with two expected sources
+        counts as half-found. A question is only actually answerable when all
+        of its evidence is retrieved, so that is tracked separately.
+        """
+        return bool(self.matched_ranks) and all(
+            rank is not None for rank in self.matched_ranks.values()
+        )
+
+    @property
+    def reciprocal_rank(self) -> float:
+        ranks = [rank for rank in self.matched_ranks.values() if rank is not None]
+        return 1.0 / min(ranks) if ranks else 0.0
+
+
+class _ExpectedSourceInput(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    source_uri: str = Field(min_length=1)
+    anchor: str = Field(min_length=1)
+
+
+class _RetrievalCaseInput(BaseModel):
+    # Same structural contract as evals/schemas/retrieval-case.schema.json.
+    # Review approval is checked by evaluate after split selection.
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    id: str = Field(pattern=r"^ret-[0-9]{3}$")
+    question: str = Field(min_length=3)
+    split: Literal["tuning", "held_out"]
+    difficulty: Literal["lexical", "semantic_paraphrase", "hard_negative"]
+    expected_sources: list[_ExpectedSourceInput] = Field(min_length=1)
+    reviewed: bool
+    notes: str = ""
+
+
+def load_cases(path: Path) -> list[RetrievalCase]:
+    cases: list[RetrievalCase] = []
+    seen: set[str] = set()
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            raw = _RetrievalCaseInput.model_validate(json.loads(line))
+        except (json.JSONDecodeError, ValidationError) as exc:
+            raise ValueError(f"{path}:{line_number}: invalid retrieval case: {exc}") from exc
+        if raw.id in seen:
+            raise ValueError(f"{path}:{line_number}: duplicate case id: {raw.id}")
+        seen.add(raw.id)
+        cases.append(
+            RetrievalCase(
+                id=raw.id,
+                question=raw.question,
+                split=raw.split,
+                difficulty=raw.difficulty,
+                expected_sources=tuple(
+                    ExpectedSource(item.source_uri, item.anchor)
+                    for item in raw.expected_sources
+                ),
+                reviewed=raw.reviewed,
+                notes=raw.notes,
+            )
+        )
+    return cases
+
+
+def anchor_matches(anchor: str, chunk_path: Sequence[str]) -> bool:
+    """An anchor names a trailing part of the chunk's symbol/section path.
+
+    `Subscription > isStaleExternalEvent` must not match a different class that
+    happens to define a method with the same name, so the segments are compared
+    as a contiguous suffix rather than a loose subset.
+    """
+    wanted = [part.strip() for part in anchor.split(">") if part.strip()]
+    if not wanted or len(wanted) > len(chunk_path):
+        return False
+    return list(chunk_path[-len(wanted) :]) == wanted
+
+
+def hit_record(hit: SearchHit) -> dict[str, Any]:
+    """Identity only. Document bodies stay out of stored results."""
+    return {
+        "rank": hit.rank,
+        "chunk_id": hit.chunk.chunk_id,
+        "source_uri": hit.chunk.source_uri,
+        "path": list(hit.chunk.path),
+        "retriever": hit.retriever,
+        "score": round(hit.score, 6),
+    }
+
+
+def score_case(
+    case: RetrievalCase,
+    hits: Sequence[SearchHit],
+    candidates: Sequence[SearchHit] = (),
+) -> CaseResult:
+    result = CaseResult(
+        case=case,
+        returned=[hit_record(hit) for hit in hits],
+        candidates=[hit_record(hit) for hit in candidates],
+    )
+    for expected in case.expected_sources:
+        key = f"{expected.source_uri}#{expected.anchor}"
+        result.matched_ranks[key] = None
+        for hit in hits:
+            if hit.chunk.source_uri != expected.source_uri:
+                continue
+            if anchor_matches(expected.anchor, hit.chunk.path):
+                result.matched_ranks[key] = hit.rank
+                break
+    return result
+
+
+def aggregate(results: Sequence[CaseResult]) -> dict[str, Any]:
+    if not results:
+        return {"cases": 0}
+    return {
+        "cases": len(results),
+        "recall_at_k": round(sum(r.recall for r in results) / len(results), 4),
+        "all_evidence_rate": round(
+            sum(1 for r in results if r.all_evidence_found) / len(results), 4
+        ),
+        "mrr": round(sum(r.reciprocal_rank for r in results) / len(results), 4),
+        "found_cases": sum(1 for r in results if r.reciprocal_rank > 0),
+        "all_evidence_cases": sum(1 for r in results if r.all_evidence_found),
+    }
+
+
+def group_by(results: Sequence[CaseResult], key: str) -> dict[str, dict[str, Any]]:
+    groups: dict[str, list[CaseResult]] = {}
+    for result in results:
+        groups.setdefault(getattr(result.case, key), []).append(result)
+    return {name: aggregate(items) for name, items in sorted(groups.items())}
+
+
+async def run_cases(
+    cases: Sequence[RetrievalCase],
+    retrieve: Callable[[str], Awaitable[tuple[list[SearchHit], list[SearchHit]]]],
+) -> list[CaseResult]:
+    results = []
+    for case in cases:
+        hits, candidates = await retrieve(case.question)
+        results.append(score_case(case, hits, candidates))
+    return results
+
+
+def cases_fingerprint(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
