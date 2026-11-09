@@ -43,6 +43,8 @@ public class AttendanceController {
 
     @GetMapping("/participants/today")
     public ResponseEntity<ParticipantCountResponse> todayParticipants() {
-        return ResponseEntity.ok(new ParticipantCountResponse(attendanceService.countTodayParticipants()));
+        return ResponseEntity.ok(new ParticipantCountResponse(
+                attendanceService.countTodayParticipants(),
+                attendanceService.isEventInPeriod()));
     }
 }

@@ -21,6 +21,8 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 
@@ -39,6 +41,7 @@ class AttendanceServiceTest {
     private static final String EVENT_CODE = "ATTENDANCE_2026_FALL";
     private static final LocalDate EVENT_START = LocalDate.of(2026, 10, 20);
     private static final LocalDate EVENT_END = LocalDate.of(2026, 11, 20);
+    private static final Instant NOW = Instant.parse("2026-10-27T01:00:00Z");
 
     @Mock
     AttendanceRepository attendanceRepository;
@@ -247,7 +250,7 @@ class AttendanceServiceTest {
         given(attendanceRepository.countByAttendDate(today)).willReturn(42L);
 
         // when
-        long result = attendanceService.countParticipants(today);
+        long result = attendanceService.countParticipants(today, NOW);
 
         // then
         assertThat(result).isEqualTo(42L);
@@ -403,5 +406,55 @@ class AttendanceServiceTest {
         given(attendanceRepository.findByMemberIdAndAttendDate(MEMBER_ID, today.minusDays(1))).willReturn(Optional.empty());
         given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(member));
         given(attendanceRepository.save(any(Attendance.class))).willAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    @Test
+    @DisplayName("참여자 수는 5분 동안 다시 세지 않는다")
+    void participantCountIsCachedForFiveMinutes() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        given(attendanceRepository.countByAttendDate(today)).willReturn(42L, 43L);
+
+        // when
+        long first = attendanceService.countParticipants(today, NOW);
+        long withinTtl = attendanceService.countParticipants(today, NOW.plus(Duration.ofMinutes(4)));
+
+        // then
+        assertThat(first).isEqualTo(42L);
+        assertThat(withinTtl).isEqualTo(42L);
+        verify(attendanceRepository, times(1)).countByAttendDate(today);
+    }
+
+    @Test
+    @DisplayName("5분이 지나면 참여자 수를 다시 센다")
+    void participantCountRefreshesAfterFiveMinutes() {
+        // given
+        LocalDate today = LocalDate.of(2026, 10, 27);
+        given(attendanceRepository.countByAttendDate(today)).willReturn(42L, 43L);
+
+        // when
+        attendanceService.countParticipants(today, NOW);
+        long afterTtl = attendanceService.countParticipants(today, NOW.plus(Duration.ofMinutes(5)));
+
+        // then
+        assertThat(afterTtl).isEqualTo(43L);
+        verify(attendanceRepository, times(2)).countByAttendDate(today);
+    }
+
+    @Test
+    @DisplayName("날짜가 바뀌면 5분이 안 지나도 새 날짜로 다시 센다")
+    void participantCountRefreshesOnNewDay() {
+        // given
+        LocalDate yesterday = LocalDate.of(2026, 10, 27);
+        LocalDate today = yesterday.plusDays(1);
+        given(attendanceRepository.countByAttendDate(yesterday)).willReturn(42L);
+        given(attendanceRepository.countByAttendDate(today)).willReturn(0L);
+
+        // when
+        attendanceService.countParticipants(yesterday, NOW);
+        long result = attendanceService.countParticipants(today, NOW.plus(Duration.ofMinutes(1)));
+
+        // then
+        assertThat(result).isZero();
     }
 }

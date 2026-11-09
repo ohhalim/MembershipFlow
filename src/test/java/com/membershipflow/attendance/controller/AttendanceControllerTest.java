@@ -59,11 +59,13 @@ class AttendanceControllerTest {
     void todayParticipantsWithoutLogin() throws Exception {
         // given
         given(attendanceService.countTodayParticipants()).willReturn(42L);
+        given(attendanceService.isEventInPeriod()).willReturn(true);
 
         // when, then
         mockMvc.perform(get("/api/v1/attendances/participants/today"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.count").value(42));
+                .andExpect(jsonPath("$.count").value(42))
+                .andExpect(jsonPath("$.inPeriod").value(true));
     }
 
     @Test
