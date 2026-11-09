@@ -15,7 +15,7 @@ class DongaInfoCollectorTest {
 
     @BeforeEach
     void setUp() {
-        collector = new DongaInfoCollector(new DongaCourseLinkFetcher());
+        collector = new DongaInfoCollector(new DongaCourseLinkFetcher(new DongaHttpClient()), new DongaHttpClient());
     }
 
     // 실제 동아 상세페이지(88CC, custid=10130&code=1103) 구조 기반 fixture

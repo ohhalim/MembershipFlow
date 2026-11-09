@@ -15,4 +15,18 @@ Allowed types: `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `setting`, `h
 3. After the release merge, open a `main` to `develop` synchronization pull request.
 4. Confirm that the synchronization pull request has no file changes before merging.
 
+## Hotfix
+
+Use this only for a production incident that cannot wait for the next release,
+for example when `develop` holds unreleased work that must not be deployed yet.
+
+1. Create an issue.
+2. Create `hotfix/<issue-number>/<keyword>` from the latest `main`.
+3. Open a pull request from the hotfix branch to `main`. Merging it deploys to production.
+4. After the merge, bring `main` back into `develop` (back-merge).
+   Create `chore/<issue-number>/<keyword>` from the latest `develop`, merge `main` into it,
+   and open a pull request to `develop`. Review it like a normal pull request, since it contains the hotfix changes.
+   A pull request whose head is `main` stays behind `develop` while `develop` holds unreleased work.
+   Do not use "Update branch" on it: that merges `develop` into `main` and deploys the unreleased work.
+
 Direct pushes to `develop` and `main` are prohibited.

@@ -19,6 +19,9 @@ RUN ./gradlew clean build -x test --no-daemon
 # 실행 스테이지: 경량 JRE 이미지
 FROM amazoncorretto:21-alpine-jdk
 
+# 동아골프 서버가 Java 기본 TLS 정책과 맞지 않아 이 출처만 curl로 요청한다 (#435, DongaHttpClient)
+RUN apk add --no-cache curl
+
 ENV PROJECT_NAME=MembershipFlow
 ENV PROJECT_VERSION=0.0.1-SNAPSHOT
 ENV JVM_OPTS=""

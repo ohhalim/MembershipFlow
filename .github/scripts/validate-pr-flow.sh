@@ -7,13 +7,20 @@ head_branch="${2:?head branch is required}"
 echo "PR branch flow: ${head_branch} -> ${base_branch}"
 
 if [[ "${base_branch}" == "main" ]]; then
-  if [[ "${head_branch}" != "develop" ]]; then
-    echo "ERROR: main 대상 PR은 develop 브랜치에서만 생성할 수 있습니다."
-    exit 1
+  if [[ "${head_branch}" == "develop" ]]; then
+    echo "OK: develop -> main release flow"
+    exit 0
   fi
 
-  echo "OK: develop -> main release flow"
-  exit 0
+  # 운영 장애는 develop에 배포 전 작업이 쌓여 있어도 바로 고쳐야 한다.
+  # main에서 딴 hotfix 브랜치만 main으로 보낼 수 있고, 머지 후 main -> develop 동기화로 develop에 반영한다.
+  if [[ "${head_branch}" =~ ^hotfix/[0-9]+/[a-z0-9][a-z0-9-]*$ ]]; then
+    echo "OK: hotfix -> main flow"
+    exit 0
+  fi
+
+  echo "ERROR: main 대상 PR은 develop 또는 hotfix/<이슈번호>/<키워드> 브랜치에서만 생성할 수 있습니다."
+  exit 1
 fi
 
 if [[ "${base_branch}" == "develop" ]]; then

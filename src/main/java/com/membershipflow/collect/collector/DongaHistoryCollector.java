@@ -7,7 +7,6 @@ import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +28,7 @@ public class DongaHistoryCollector {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yy/MM/dd");
 
     private final DongaCourseLinkFetcher linkFetcher;
+    private final DongaHttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // 종목당 과거로 조회할 개월 수 (서비스 차트 최대 기간인 1년에 맞춤)
@@ -101,12 +101,7 @@ public class DongaHistoryCollector {
 
     private ChartResponse fetchChartPage(CourseLink link, String start) throws IOException {
         String url = String.format(CHART_API_URL, link.custid(), link.code(), start);
-        String body = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (compatible; MembershipFlowBot/1.0)")
-                .ignoreContentType(true)
-                .timeout(15_000)
-                .execute()
-                .body();
+        String body = httpClient.getText(url);
         return objectMapper.readValue(body, ChartResponse.class);
     }
 

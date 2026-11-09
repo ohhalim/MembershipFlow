@@ -20,7 +20,7 @@ class DongaCollectorTest {
 
     @BeforeEach
     void setUp() {
-        collector = new DongaCollector(new DongaCourseLinkFetcher());
+        collector = new DongaCollector(new DongaCourseLinkFetcher(new DongaHttpClient()), new DongaHttpClient());
     }
 
     // 실제 사이트: 시세 목록과 상세 링크 목록이 같은 페이지의 같은 <a> 텍스트에서 나온다

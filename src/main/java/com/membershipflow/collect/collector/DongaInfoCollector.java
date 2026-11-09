@@ -3,7 +3,6 @@ package com.membershipflow.collect.collector;
 import com.membershipflow.collect.collector.DongaCourseLinkFetcher.CourseLink;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.TextNode;
@@ -38,6 +37,7 @@ public class DongaInfoCollector {
     private static final String INFO_URL = "https://www.dongagolf.co.kr/membership/info?custid=%s&code=%s";
 
     private final DongaCourseLinkFetcher linkFetcher;
+    private final DongaHttpClient httpClient;
 
     public record GreenFee(String grade, Long weekday, Long weekend) {}
 
@@ -78,10 +78,7 @@ public class DongaInfoCollector {
     }
 
     private Document fetchInfoPage(CourseLink link) throws java.io.IOException {
-        return Jsoup.connect(String.format(INFO_URL, link.custid(), link.code()))
-                .userAgent("Mozilla/5.0 (compatible; MembershipFlowBot/1.0)")
-                .timeout(15_000)
-                .get();
+        return httpClient.getDocument(String.format(INFO_URL, link.custid(), link.code()));
     }
 
     CollectedCourseInfo parse(Document doc, String courseName) {
