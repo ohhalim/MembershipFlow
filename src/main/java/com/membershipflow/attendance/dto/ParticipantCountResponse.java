@@ -1,6 +1,7 @@
 package com.membershipflow.attendance.dto;
 
 public record ParticipantCountResponse(
-        long count
+        long count,
+        boolean inPeriod
 ) {
 }

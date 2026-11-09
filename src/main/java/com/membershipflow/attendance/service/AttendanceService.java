@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Optional;
@@ -26,12 +28,15 @@ public class AttendanceService {
     private static final int EVENT_DAYS = 7;
     private static final int COUPON_DISCOUNT_RATE = 10;
     private static final int COUPON_LIMIT = 2;
+    private static final Duration PARTICIPANT_COUNT_TTL = Duration.ofMinutes(5);
 
     private final AttendanceRepository attendanceRepository;
     private final MemberRepository memberRepository;
     private final SubscriptionService subscriptionService;
     private final CouponRepository couponRepository;
     private final AttendanceEvent event;
+
+    private volatile CachedParticipantCount participantCount;
 
     @Transactional
     public AttendResult attend(Long memberId) {
@@ -109,10 +114,23 @@ public class AttendanceService {
     }
 
     public long countTodayParticipants() {
-        return countParticipants(LocalDate.now(SERVICE_ZONE));
+        return countParticipants(LocalDate.now(SERVICE_ZONE), Instant.now());
     }
 
-    long countParticipants(LocalDate today) {
-        return attendanceRepository.countByAttendDate(today);
+    long countParticipants(LocalDate today, Instant now) {
+        CachedParticipantCount cached = participantCount;
+        if (cached != null && cached.date().equals(today) && now.isBefore(cached.expiresAt())) {
+            return cached.count();
+        }
+        long count = attendanceRepository.countByAttendDate(today);
+        participantCount = new CachedParticipantCount(today, count, now.plus(PARTICIPANT_COUNT_TTL));
+        return count;
+    }
+
+    public boolean isEventInPeriod() {
+        return event.contains(LocalDate.now(SERVICE_ZONE));
+    }
+
+    private record CachedParticipantCount(LocalDate date, long count, Instant expiresAt) {
     }
 }
