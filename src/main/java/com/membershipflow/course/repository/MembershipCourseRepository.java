@@ -3,12 +3,14 @@ package com.membershipflow.course.repository;
 import com.membershipflow.course.entity.CourseType;
 import com.membershipflow.course.entity.MembershipCourse;
 import com.membershipflow.course.entity.MembershipType;
+import com.membershipflow.price.repository.PriceHistoryRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -74,8 +76,8 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
                         JOIN membership_course filtered ON filtered.id = ph.course_id
                         WHERE filtered.active = true
                           AND cs.active = true
-                          AND ph.collected_at BETWEEN DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 48 HOUR)
-                                                   AND CURRENT_TIMESTAMP
+                          AND ph.collected_at BETWEEN :freshFrom
+                                                   AND :now
                           AND (:q IS NULL OR filtered.name LIKE %:q%)
                           AND (:courseType IS NULL OR filtered.course_type = :courseType)
                           AND (:membershipType IS NULL OR filtered.membership_type = :membershipType)
@@ -101,14 +103,23 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
                 c.name ASC
             LIMIT :size OFFSET :offset
             """, nativeQuery = true)
-    List<MembershipCourse> searchWithPriceSort(
+    List<MembershipCourse> searchWithPriceSortBetween(
             @Param("q") String q,
             @Param("courseType") String courseType,
             @Param("membershipType") String membershipType,
             @Param("region") String region,
             @Param("sort") String sort,
             @Param("size") int size,
-            @Param("offset") long offset);
+            @Param("offset") long offset,
+            @Param("freshFrom") LocalDateTime freshFrom,
+            @Param("now") LocalDateTime now);
+
+    default List<MembershipCourse> searchWithPriceSort(String q, String courseType, String membershipType,
+                                                       String region, String sort, int size, long offset) {
+        LocalDateTime now = LocalDateTime.now();
+        return searchWithPriceSortBetween(q, courseType, membershipType, region, sort, size, offset,
+                now.minus(PriceHistoryRepository.CURRENT_PRICE_WINDOW), now);
+    }
 
     @Query(value = """
             SELECT COUNT(*)
@@ -156,8 +167,8 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
                             FROM price_history ph
                             JOIN crawl_source cs ON cs.id = ph.source_id
                             WHERE cs.active = TRUE
-                              AND ph.collected_at BETWEEN DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 48 HOUR)
-                                                       AND CURRENT_TIMESTAMP
+                              AND ph.collected_at BETWEEN :freshFrom
+                                                       AND :now
                         ) latest
                         WHERE latest.source_rn = 1
                     ) representative
@@ -203,14 +214,24 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
                 ranked.course_id ASC
             LIMIT :size OFFSET :offset
             """, nativeQuery = true)
-    List<Object[]> findRankingPage(
-            @Param("baseTime") java.time.LocalDateTime baseTime,
-            @Param("searchFrom") java.time.LocalDateTime searchFrom,
-            @Param("searchTo") java.time.LocalDateTime searchTo,
+    List<Object[]> findRankingPageBetween(
+            @Param("baseTime") LocalDateTime baseTime,
+            @Param("searchFrom") LocalDateTime searchFrom,
+            @Param("searchTo") LocalDateTime searchTo,
             @Param("courseType") String courseType,
             @Param("sort") String sort,
             @Param("size") int size,
-            @Param("offset") long offset);
+            @Param("offset") long offset,
+            @Param("freshFrom") LocalDateTime freshFrom,
+            @Param("now") LocalDateTime now);
+
+    default List<Object[]> findRankingPage(LocalDateTime baseTime, LocalDateTime searchFrom,
+                                           LocalDateTime searchTo, String courseType, String sort,
+                                           int size, long offset) {
+        LocalDateTime now = LocalDateTime.now();
+        return findRankingPageBetween(baseTime, searchFrom, searchTo, courseType, sort, size, offset,
+                now.minus(PriceHistoryRepository.CURRENT_PRICE_WINDOW), now);
+    }
 
     @Query(value = """
             SELECT COUNT(*)
@@ -235,8 +256,8 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
                             FROM price_history ph
                             JOIN crawl_source cs ON cs.id = ph.source_id
                             WHERE cs.active = TRUE
-                              AND ph.collected_at BETWEEN DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 48 HOUR)
-                                                       AND CURRENT_TIMESTAMP
+                              AND ph.collected_at BETWEEN :freshFrom
+                                                       AND :now
                         ) latest
                         WHERE latest.source_rn = 1
                     ) representative
@@ -276,10 +297,19 @@ public interface MembershipCourseRepository extends JpaRepository<MembershipCour
             WHERE ((:sort = 'LOSS' AND ranked.change_rate < 0)
                 OR (:sort <> 'LOSS' AND ranked.change_rate > 0))
             """, nativeQuery = true)
-    long countRanking(
-            @Param("baseTime") java.time.LocalDateTime baseTime,
-            @Param("searchFrom") java.time.LocalDateTime searchFrom,
-            @Param("searchTo") java.time.LocalDateTime searchTo,
+    long countRankingBetween(
+            @Param("baseTime") LocalDateTime baseTime,
+            @Param("searchFrom") LocalDateTime searchFrom,
+            @Param("searchTo") LocalDateTime searchTo,
             @Param("courseType") String courseType,
-            @Param("sort") String sort);
+            @Param("sort") String sort,
+            @Param("freshFrom") LocalDateTime freshFrom,
+            @Param("now") LocalDateTime now);
+
+    default long countRanking(LocalDateTime baseTime, LocalDateTime searchFrom, LocalDateTime searchTo,
+                              String courseType, String sort) {
+        LocalDateTime now = LocalDateTime.now();
+        return countRankingBetween(baseTime, searchFrom, searchTo, courseType, sort,
+                now.minus(PriceHistoryRepository.CURRENT_PRICE_WINDOW), now);
+    }
 }
