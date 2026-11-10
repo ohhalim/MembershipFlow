@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -17,6 +18,9 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
     // 현재가 freshness 정책: 수집 주기가 하루인 소스의 일시적인 지연을 허용하되,
     // 48시간을 넘긴 가격은 현재가/알림/대표가 계산에서 제외한다.
     // collected_at은 과거 시세 수집일도 함께 저장하므로, 반드시 현재 시각 상한도 둔다.
+    // 현재 시각은 DB(UTC)가 아니라 collected_at을 쓰는 앱 시계로 넘긴다 (#439).
+    Duration CURRENT_PRICE_WINDOW = Duration.ofHours(48);
+
     // 소스별 최신가 — ROW_NUMBER() 윈도우 함수로 tie-break 포함
     @Query(value = """
             SELECT ph.id, ph.course_id, ph.source_id, ph.price, ph.collected_at, ph.collect_run_id
@@ -27,12 +31,19 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
                 JOIN crawl_source cs ON cs.id = ph.source_id
                 WHERE ph.course_id = :courseId
                   AND cs.active = TRUE
-                  AND ph.collected_at BETWEEN DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 48 HOUR)
-                                           AND CURRENT_TIMESTAMP
+                  AND ph.collected_at BETWEEN :freshFrom
+                                           AND :now
             ) ph
             WHERE ph.rn = 1
             """, nativeQuery = true)
-    List<PriceHistory> findLatestBySource(@Param("courseId") Long courseId);
+    List<PriceHistory> findLatestBySourceBetween(@Param("courseId") Long courseId,
+                                                 @Param("freshFrom") LocalDateTime freshFrom,
+                                                 @Param("now") LocalDateTime now);
+
+    default List<PriceHistory> findLatestBySource(Long courseId) {
+        LocalDateTime now = LocalDateTime.now();
+        return findLatestBySourceBetween(courseId, now.minus(CURRENT_PRICE_WINDOW), now);
+    }
 
     // 여러 종목의 대표 최신가 배치 조회 (목록 N+1 방지)
     // 1) 활성 소스의 유효기간 내 가격만 남김
@@ -60,14 +71,21 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
                     JOIN crawl_source cs ON cs.id = ph.source_id
                     WHERE ph.course_id IN (:courseIds)
                       AND cs.active = TRUE
-                      AND ph.collected_at BETWEEN DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 48 HOUR)
-                                               AND CURRENT_TIMESTAMP
+                      AND ph.collected_at BETWEEN :freshFrom
+                                               AND :now
                 ) latest
                 WHERE latest.source_rn = 1
             ) representative
             WHERE representative.representative_rn = 1
             """, nativeQuery = true)
-    List<PriceHistory> findLatestByCourseIds(@Param("courseIds") List<Long> courseIds);
+    List<PriceHistory> findLatestByCourseIdsBetween(@Param("courseIds") List<Long> courseIds,
+                                                    @Param("freshFrom") LocalDateTime freshFrom,
+                                                    @Param("now") LocalDateTime now);
+
+    default List<PriceHistory> findLatestByCourseIds(List<Long> courseIds) {
+        LocalDateTime now = LocalDateTime.now();
+        return findLatestByCourseIdsBetween(courseIds, now.minus(CURRENT_PRICE_WINDOW), now);
+    }
 
     // 여러 종목의 (종목, 소스)별 최신 PriceHistory 배치 조회 — 목표가 알림의 최저가 선택용
     // 비활성 소스·48시간 초과·미래 수집시각은 현재가 계산에서 제외한다.
@@ -83,13 +101,20 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
                 JOIN crawl_source cs ON cs.id = ph.source_id
                 WHERE ph.course_id IN (:courseIds)
                   AND cs.active = TRUE
-                  AND ph.collected_at BETWEEN DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 48 HOUR)
-                                           AND CURRENT_TIMESTAMP
+                  AND ph.collected_at BETWEEN :freshFrom
+                                           AND :now
             ) ph
             WHERE ph.rn = 1
             """, nativeQuery = true)
-    List<PriceHistory> findLatestPerSourceEntitiesByCourseIds(
-            @Param("courseIds") List<Long> courseIds);
+    List<PriceHistory> findLatestPerSourceEntitiesByCourseIdsBetween(
+            @Param("courseIds") List<Long> courseIds,
+            @Param("freshFrom") LocalDateTime freshFrom,
+            @Param("now") LocalDateTime now);
+
+    default List<PriceHistory> findLatestPerSourceEntitiesByCourseIds(List<Long> courseIds) {
+        LocalDateTime now = LocalDateTime.now();
+        return findLatestPerSourceEntitiesByCourseIdsBetween(courseIds, now.minus(CURRENT_PRICE_WINDOW), now);
+    }
 
     // 7일 전 배치 조회 (priceChangeRate 계산용)
     @Query(value = """
@@ -202,14 +227,21 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
                 JOIN crawl_source active_source ON active_source.id = ph.source_id
                 WHERE ph.course_id IN (:courseIds)
                   AND active_source.active = TRUE
-                  AND ph.collected_at BETWEEN DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 48 HOUR)
-                                           AND CURRENT_TIMESTAMP
+                  AND ph.collected_at BETWEEN :freshFrom
+                                           AND :now
             ) ph
             JOIN crawl_source cs ON cs.id = ph.source_id
             WHERE ph.rn = 1
             ORDER BY ph.course_id, cs.name
             """, nativeQuery = true)
-    List<Object[]> findLatestPerSourceByCourseIds(@Param("courseIds") List<Long> courseIds);
+    List<Object[]> findLatestPerSourceByCourseIdsBetween(@Param("courseIds") List<Long> courseIds,
+                                                         @Param("freshFrom") LocalDateTime freshFrom,
+                                                         @Param("now") LocalDateTime now);
+
+    default List<Object[]> findLatestPerSourceByCourseIds(List<Long> courseIds) {
+        LocalDateTime now = LocalDateTime.now();
+        return findLatestPerSourceByCourseIdsBetween(courseIds, now.minus(CURRENT_PRICE_WINDOW), now);
+    }
 
     // 특정 시점 이후 가격이 갱신된 종목 수 (시장 요약용)
     @Query("""
@@ -218,9 +250,13 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, Long
             JOIN ph.source source
             WHERE source.active = true
               AND ph.collectedAt >= :since
-              AND ph.collectedAt <= CURRENT_TIMESTAMP
+              AND ph.collectedAt <= :now
             """)
-    long countCoursesUpdatedSince(@Param("since") LocalDateTime since);
+    long countCoursesUpdatedBetween(@Param("since") LocalDateTime since, @Param("now") LocalDateTime now);
+
+    default long countCoursesUpdatedSince(LocalDateTime since) {
+        return countCoursesUpdatedBetween(since, LocalDateTime.now());
+    }
 
     // 랭킹용 기준 시점 가격.
     // 기준시각 이후 행을 선택하지 않으며, 소스별 기준가 중 최저가 행을 반환한다.
