@@ -1,0 +1,29 @@
+name: mf-circuit-breaker
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: membershipflow
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  paddle-mock:
+    image: wiremock/wiremock:3.13.1
+    command:
+      - --port=8080
+      - --container-threads=100
+      - --async-response-enabled=true
+      - --no-request-journal
+    ports:
+      - "127.0.0.1:8089:8080"
+    volumes:
+      - ./wiremock/mappings:/home/wiremock/mappings:ro
