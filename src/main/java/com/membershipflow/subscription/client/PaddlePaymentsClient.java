@@ -3,6 +3,9 @@ package com.membershipflow.subscription.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.membershipflow.common.exception.BusinessException;
 import com.membershipflow.common.exception.ErrorCode;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -25,8 +28,10 @@ import org.springframework.web.client.RestClientResponseException;
 public class PaddlePaymentsClient {
 
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
+    static final String TRANSACTION_CIRCUIT = "paddleTransaction";
 
     private final RestClient restClient;
+    private final CircuitBreaker transactionCircuitBreaker;
 
     @Autowired
     public PaddlePaymentsClient(
@@ -34,7 +39,8 @@ public class PaddlePaymentsClient {
             @Value("${paddle.api-base-url}") String baseUrl,
             @Value("${paddle.api-key}") String apiKey,
             @Value("${paddle.connect-timeout}") Duration connectTimeout,
-            @Value("${paddle.read-timeout}") Duration readTimeout) {
+            @Value("${paddle.read-timeout}") Duration readTimeout,
+            CircuitBreakerRegistry circuitBreakerRegistry) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(connectTimeout);
         requestFactory.setReadTimeout(readTimeout);
@@ -43,16 +49,37 @@ public class PaddlePaymentsClient {
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .requestFactory(requestFactory)
                 .build();
+        this.transactionCircuitBreaker = withStateLogging(
+                circuitBreakerRegistry.circuitBreaker(TRANSACTION_CIRCUIT));
     }
 
     PaddlePaymentsClient(RestClient restClient) {
+        this(restClient, CircuitBreaker.ofDefaults(TRANSACTION_CIRCUIT));
+    }
+
+    PaddlePaymentsClient(RestClient restClient, CircuitBreaker transactionCircuitBreaker) {
         this.restClient = restClient;
+        this.transactionCircuitBreaker = withStateLogging(transactionCircuitBreaker);
+    }
+
+    private static CircuitBreaker withStateLogging(CircuitBreaker circuitBreaker) {
+        circuitBreaker.getEventPublisher().onStateTransition(event -> {
+            CircuitBreaker.StateTransition transition = event.getStateTransition();
+            if (transition == CircuitBreaker.StateTransition.CLOSED_TO_OPEN) {
+                CircuitBreaker.Metrics metrics = circuitBreaker.getMetrics();
+                log.error("Paddle 거래 생성 서킷 열림: failureRate={}, slowCallRate={}",
+                        metrics.getFailureRate(), metrics.getSlowCallRate());
+                return;
+            }
+            log.warn("Paddle 거래 생성 서킷 상태 변경: {}", transition);
+        });
+        return circuitBreaker;
     }
 
     public String createTransaction(String priceId, String attemptId,
                                     Long memberId, Long planId) {
         try {
-            JsonNode response = restClient.post()
+            JsonNode response = transactionCircuitBreaker.executeSupplier(() -> restClient.post()
                     .uri("/transactions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of(
@@ -63,12 +90,14 @@ public class PaddlePaymentsClient {
                                     "member_id", memberId,
                                     "plan_id", planId)))
                     .retrieve()
-                    .body(JsonNode.class);
+                    .body(JsonNode.class));
             String transactionId = response == null ? null : response.path("data").path("id").asText(null);
             if (transactionId == null || !transactionId.startsWith("txn_")) {
                 throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
             }
             return transactionId;
+        } catch (CallNotPermittedException e) {
+            throw new PaddleCircuitOpenException(e);
         } catch (BusinessException e) {
             throw e;
         } catch (RestClientResponseException e) {

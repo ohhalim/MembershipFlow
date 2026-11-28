@@ -6,10 +6,16 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServiceUnavailable;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withTooManyRequests;
 
 import com.membershipflow.common.exception.BusinessException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import java.net.SocketTimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -20,14 +26,15 @@ import org.springframework.web.client.RestClient;
 class PaddlePaymentsClientTest {
 
     private MockRestServiceServer server;
+    private RestClient restClient;
     private PaddlePaymentsClient client;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new PaddlePaymentsClient(
-                builder.baseUrl("https://sandbox-api.paddle.com").build());
+        restClient = builder.baseUrl("https://sandbox-api.paddle.com").build();
+        client = new PaddlePaymentsClient(restClient);
     }
 
     @Test
@@ -79,6 +86,72 @@ class PaddlePaymentsClientTest {
                 .isInstanceOf(BusinessException.class)
                 .isNotInstanceOf(PaddleTransactionRejectedException.class);
         server.verify();
+    }
+
+    @Test
+    void createTransaction_failsFastWithoutCallingPaddleWhenCircuitIsOpen() {
+        CircuitBreaker circuitBreaker = transactionCircuitBreaker();
+        circuitBreaker.transitionToOpenState();
+        PaddlePaymentsClient openClient = new PaddlePaymentsClient(restClient, circuitBreaker);
+
+        assertThatThrownBy(() -> openClient.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .isInstanceOf(PaddleCircuitOpenException.class);
+        server.verify();
+    }
+
+    @Test
+    void createTransaction_countsServerErrorTimeoutAndTooManyRequestsAsCircuitFailures() {
+        CircuitBreaker circuitBreaker = transactionCircuitBreaker();
+        PaddlePaymentsClient guardedClient = new PaddlePaymentsClient(restClient, circuitBreaker);
+        server.expect(requestTo("https://sandbox-api.paddle.com/transactions"))
+                .andRespond(withServiceUnavailable());
+        server.expect(requestTo("https://sandbox-api.paddle.com/transactions"))
+                .andRespond(withException(new SocketTimeoutException("Read timed out")));
+        server.expect(requestTo("https://sandbox-api.paddle.com/transactions"))
+                .andRespond(withTooManyRequests());
+
+        assertThatThrownBy(() -> guardedClient.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> guardedClient.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> guardedClient.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .isInstanceOf(PaddleTransactionRejectedException.class);
+
+        assertThat(circuitBreaker.getMetrics().getNumberOfFailedCalls()).isEqualTo(3);
+        server.verify();
+    }
+
+    @Test
+    void createTransaction_doesNotCountClientRejectionAsCircuitFailure() {
+        CircuitBreaker circuitBreaker = transactionCircuitBreaker();
+        PaddlePaymentsClient guardedClient = new PaddlePaymentsClient(restClient, circuitBreaker);
+        server.expect(requestTo("https://sandbox-api.paddle.com/transactions"))
+                .andRespond(withBadRequest());
+        server.expect(requestTo("https://sandbox-api.paddle.com/transactions"))
+                .andRespond(withResourceNotFound());
+
+        assertThatThrownBy(() -> guardedClient.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .isInstanceOf(PaddleTransactionRejectedException.class);
+        assertThatThrownBy(() -> guardedClient.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .isInstanceOf(PaddleTransactionRejectedException.class);
+
+        assertThat(circuitBreaker.getMetrics().getNumberOfFailedCalls()).isZero();
+        assertThat(circuitBreaker.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
+        server.verify();
+    }
+
+    private CircuitBreaker transactionCircuitBreaker() {
+        return CircuitBreaker.of("paddleTransaction", CircuitBreakerConfig.custom()
+                .slidingWindowSize(10)
+                .minimumNumberOfCalls(10)
+                .recordException(new PaddleCircuitFailurePredicate())
+                .build());
     }
 
     @Test
