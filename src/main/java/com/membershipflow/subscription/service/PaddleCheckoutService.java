@@ -2,6 +2,7 @@ package com.membershipflow.subscription.service;
 
 import com.membershipflow.common.exception.BusinessException;
 import com.membershipflow.common.exception.ErrorCode;
+import com.membershipflow.subscription.client.PaddleCircuitOpenException;
 import com.membershipflow.subscription.client.PaddlePaymentsClient;
 import com.membershipflow.subscription.client.PaddleTransactionRejectedException;
 import com.membershipflow.subscription.dto.PaddleTransactionResponse;
@@ -30,6 +31,9 @@ public class PaddleCheckoutService {
         } catch (PaddleTransactionRejectedException e) {
             stateService.failRejectedTransaction(context.attemptId());
             throw new BusinessException(ErrorCode.PAYMENT_FAILED_ERROR);
+        } catch (PaddleCircuitOpenException e) {
+            stateService.failRejectedTransaction(context.attemptId());
+            throw new BusinessException(ErrorCode.PAYMENT_TEMPORARILY_UNAVAILABLE);
         }
         stateService.attachTransaction(context.attemptId(), transactionId);
         return new PaddleTransactionResponse(transactionId);

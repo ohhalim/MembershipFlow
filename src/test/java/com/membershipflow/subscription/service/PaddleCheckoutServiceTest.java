@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.membershipflow.common.exception.BusinessException;
+import com.membershipflow.common.exception.ErrorCode;
+import com.membershipflow.subscription.client.PaddleCircuitOpenException;
 import com.membershipflow.subscription.client.PaddlePaymentsClient;
 import com.membershipflow.subscription.client.PaddleTransactionRejectedException;
 import com.membershipflow.subscription.dto.PaddleTransactionResponse;
@@ -91,6 +93,21 @@ class PaddleCheckoutServiceTest {
                 .isInstanceOf(BusinessException.class);
 
         verify(stateService, never()).failRejectedTransaction("attempt-id");
+        verify(stateService, never()).attachTransaction("attempt-id", "txn_test");
+    }
+
+    @Test
+    void createTransaction_marksAttemptFailedAndAnswersUnavailableWhenCircuitIsOpen() {
+        stubNewCheckout();
+        when(paymentsClient.createTransaction(
+                "pri_monthly", "attempt-id", 10L, 20L))
+                .thenThrow(new PaddleCircuitOpenException(new RuntimeException()));
+
+        assertThatThrownBy(() -> service.createTransaction(10L, 20L))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getErrorCode())
+                        .isEqualTo(ErrorCode.PAYMENT_TEMPORARILY_UNAVAILABLE));
+
+        verify(stateService).failRejectedTransaction("attempt-id");
         verify(stateService, never()).attachTransaction("attempt-id", "txn_test");
     }
 

@@ -78,6 +78,20 @@ paddle:
   read-timeout: ${PADDLE_READ_TIMEOUT:15s}
   webhook-tolerance: ${PADDLE_WEBHOOK_TOLERANCE:5m}
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      paddleTransaction:
+        sliding-window-type: TIME_BASED
+        sliding-window-size: 60
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: ${PADDLE_CIRCUIT_SLOW_CALL_THRESHOLD:5s}
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        record-failure-predicate: com.membershipflow.subscription.client.PaddleCircuitFailurePredicate
+
 # 출석 이벤트 (#423). end-date는 그날 00:00 종료(미포함), 정책 4.7
 attendance:
   event:
