@@ -30,6 +30,7 @@ public enum ErrorCode {
     INVALID_WEBHOOK_SIGNATURE(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_SIGNATURE", "웹훅 서명이 올바르지 않습니다."),
     PAYMENT_DATA_MISMATCH(HttpStatus.BAD_REQUEST, "PAYMENT_DATA_MISMATCH", "결제 정보가 요청 정보와 일치하지 않습니다."),
     PAYMENT_WEBHOOK_RETRY_REQUIRED(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_WEBHOOK_RETRY_REQUIRED", "결제 상태 동기화를 재시도해야 합니다."),
+    PAYMENT_TEMPORARILY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_TEMPORARILY_UNAVAILABLE", "결제 서비스 연결이 원활하지 않습니다. 잠시 후 다시 시도해 주세요."),
 
     INVALID_PRICE_RANGE(HttpStatus.BAD_REQUEST,    "INVALID_PRICE_RANGE",    "유효하지 않은 가격 범위입니다."),
     INVALID_DATE_RANGE(HttpStatus.BAD_REQUEST,      "INVALID_DATE_RANGE",     "유효하지 않은 날짜 범위입니다."),
