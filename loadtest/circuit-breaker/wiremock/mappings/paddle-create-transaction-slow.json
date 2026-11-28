@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/transactions"
+  },
+  "response": {
+    "status": 200,
+    "fixedDelayMilliseconds": 20000,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "data": {
+        "id": "txn_{{randomValue length=26 type='ALPHANUMERIC' lowercase=true}}",
+        "status": "ready"
+      }
+    },
+    "transformers": ["response-template"]
+  }
+}

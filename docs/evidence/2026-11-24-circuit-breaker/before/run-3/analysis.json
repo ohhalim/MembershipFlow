@@ -1,0 +1,26 @@
+{
+  "price_latest": {
+    "count": 1996,
+    "statuses": {
+      "200": 1996
+    },
+    "non_200_rate": 0.0,
+    "p50": 13928.611,
+    "p95": 27789.816,
+    "p99": 31135.877,
+    "max": 31802.458
+  },
+  "paddle_transaction": {
+    "count": 120,
+    "statuses": {
+      "402": 120
+    },
+    "non_200_rate": 1.0,
+    "p50": 25655.239,
+    "p95": 41274.781,
+    "p99": 41328.649,
+    "max": 41342.743
+  },
+  "max_busy_threads": 20.0,
+  "seconds_with_busy_at_max": 78
+}
